@@ -4,6 +4,7 @@ import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 
 import { Blocks } from '@/content/blocks/render';
+import { PortfolioIndex } from '@/features/portfolio/portfolio-index';
 import { getPortfolioIndexSlug, listPublishedPaths } from '@/data/public/documents';
 import { loadPage } from '@/data/public/page-loader';
 import { publicEnv } from '@/env';
@@ -120,6 +121,21 @@ export default async function PublicPage({ params }: PageProps) {
 
   const loaded = await loadPage(locale, slug ?? []);
   if (!loaded) notFound();
+
+  // The portfolio index is the one template with a section that is not editable
+  // content: the filterable project grid is generated from published projects,
+  // not authored block-by-block. It sits immediately after the page heading,
+  // with the remaining blocks (contacts, CTA) following as usual.
+  if (loaded.ref.template === 'portfolio_index') {
+    const [heading, ...rest] = loaded.blocks;
+    return (
+      <>
+        {heading ? <Blocks blocks={[heading]} ctx={loaded.ctx} /> : null}
+        <PortfolioIndex ctx={loaded.ctx} />
+        <Blocks blocks={rest} ctx={loaded.ctx} />
+      </>
+    );
+  }
 
   return <Blocks blocks={loaded.blocks} ctx={loaded.ctx} />;
 }

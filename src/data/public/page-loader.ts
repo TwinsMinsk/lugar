@@ -65,9 +65,11 @@ export async function loadPage(locale: Locale, segments: string[]): Promise<Load
   const assetIds = referencedAssetIds(blocks);
   const linkedDocumentIds = collectLinkedDocumentIds(blocks);
 
-  const needsProjects = blocks.some(
-    (block) => block.type === 'portfolio_teaser' || block.type === 'portfolio_gallery',
-  );
+  const needsProjects =
+    ref.template === 'portfolio_index' ||
+    blocks.some(
+      (block) => block.type === 'portfolio_teaser' || block.type === 'portfolio_gallery',
+    );
   const directions = new Set(
     blocks.flatMap((block) =>
       block.type === 'service_grid' && block.data.source.mode === 'direction'
