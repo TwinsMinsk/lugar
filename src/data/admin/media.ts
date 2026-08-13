@@ -24,6 +24,8 @@ export type AdminMediaAsset = {
   height: number;
   bytes: number;
   alt: Record<string, string | undefined>;
+  focalX: number;
+  focalY: number;
   isPlaceholder: boolean;
   version: number;
   createdAt: Date;
@@ -47,6 +49,8 @@ export async function listMedia(options?: {
       height: mediaAssets.height,
       bytes: mediaAssets.bytes,
       alt: mediaAssets.alt,
+      focalX: mediaAssets.focalX,
+      focalY: mediaAssets.focalY,
       isPlaceholder: mediaAssets.isPlaceholder,
       version: mediaAssets.version,
       createdAt: mediaAssets.createdAt,

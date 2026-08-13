@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
   // Railway deploys the standalone server bundle (`node .next/standalone/server.js`).
   output: 'standalone',
 
+  /**
+   * Build output location.
+   *
+   * Defaults to `.next`. Overridable because Turbopack creates junction points
+   * under `<distDir>/node_modules` for native server externals (sharp, the AWS
+   * SDK), and exFAT does not support junctions at all — the build dies with
+   * "creation of a new symbolic link or junction point failed". Pointing
+   * distDir at an NTFS path fixes it; junctions may cross volumes, so the
+   * targets can stay on the project's own drive.
+   *
+   * Irrelevant on Railway, which builds on Linux.
+   */
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   reactStrictMode: true,
 
   // Cache Components: enables `use cache` + cacheTag/cacheLife.

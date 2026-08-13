@@ -176,13 +176,22 @@ export function buildOriginalKey(checksum: string, extension: string): string {
   return `originals/${checksum.slice(0, 2)}/${checksum}.${extension}`;
 }
 
+/**
+ * Derivative key.
+ *
+ * Keyed by content checksum rather than asset id, so identical bytes uploaded
+ * twice share derivatives, and so a derivative can be written before the asset
+ * row exists. Includes the recipe version, which means bumping the recipe
+ * produces a new key rather than overwriting files that live pages still
+ * reference.
+ */
 export function buildDerivativeKey(
-  assetId: string,
+  checksum: string,
   recipeVersion: number,
   width: number,
   format: string,
 ): string {
-  return `derivatives/v${recipeVersion}/${assetId}/${width}.${format}`;
+  return `derivatives/v${recipeVersion}/${checksum.slice(0, 2)}/${checksum}/${width}.${format}`;
 }
 
 /** Uploads awaiting a form submission. Reaped after 24h if never attached. */
