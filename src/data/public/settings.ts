@@ -43,6 +43,25 @@ export type SiteSettings = {
   pendingReview: string[];
 };
 
+/**
+ * Coerce a JSONB-stored scalar setting to a string.
+ *
+ * Values stored in JSONB do NOT reliably round-trip as strings: an all-digit
+ * value such as the WhatsApp number "34624527303" comes back as a JS number,
+ * while "+34 624 52 73 03" survives only because the '+' makes it unparseable
+ * as one. That asymmetry is exactly the kind of bug that reaches production —
+ * it broke `whatsappLink()`, which calls `.replace()` on its argument, and
+ * would otherwise have shipped a dead click-to-chat link.
+ *
+ * Exported so the behaviour is pinned by a test rather than rediscovered.
+ */
+export function coerceSettingString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+  return null;
+}
+
 export async function getSiteSettings(): Promise<SiteSettings> {
   'use cache';
   cacheLife(PUBLIC_CACHE_PROFILE);
@@ -59,26 +78,28 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   const map = new Map(rows.map((row) => [row.key, row.value]));
   const read = <T>(key: string): T | null => (map.get(key) ?? null) as T | null;
 
+  const readString = (key: string): string | null => coerceSettingString(map.get(key));
+
   return {
     contact: {
-      phone: read<string>('contact.phone'),
-      phoneE164: read<string>('contact.phoneE164'),
-      whatsappNumber: read<string>('contact.whatsappNumber'),
-      email: read<string>('contact.email'),
+      phone: readString('contact.phone'),
+      phoneE164: readString('contact.phoneE164'),
+      whatsappNumber: readString('contact.whatsappNumber'),
+      email: readString('contact.email'),
       serviceArea: read<LocalizedText>('contact.serviceArea'),
-      address: read<string>('contact.address'),
+      address: readString('contact.address'),
     },
     social: {
-      instagram: read<string>('social.instagram'),
-      facebook: read<string>('social.facebook'),
+      instagram: readString('social.instagram'),
+      facebook: readString('social.facebook'),
     },
     legal: {
-      companyName: read<string>('legal.companyName'),
-      consentVersion: read<string>('legal.consentVersion') ?? '1',
+      companyName: readString('legal.companyName'),
+      consentVersion: readString('legal.consentVersion') ?? '1',
     },
     seo: {
       defaultTitle: read<LocalizedText>('seo.defaultTitle'),
-      ogImageAssetId: read<string>('seo.ogImage'),
+      ogImageAssetId: readString('seo.ogImage'),
     },
     analytics: {
       enabled: read<boolean>('analytics.enabled') === true,

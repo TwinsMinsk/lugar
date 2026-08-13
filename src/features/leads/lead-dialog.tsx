@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { buttonClasses } from '@/components/ui/button';
+import { track } from '@/features/analytics/analytics';
 import {
   LAST_TOUCH_KEY,
   decodeTouch,
@@ -153,6 +154,14 @@ function LeadDialogPanel({
     try {
       const result = await submitLead(formData);
       setState(result);
+      if (result.status === 'success') {
+        // Service slug only — never the name, phone or comment.
+        track({
+          name: 'lead_form_submit_success',
+          form: request.form,
+          service: (formData.get('service') as string) || undefined,
+        });
+      }
     } catch {
       setState({ status: 'error', formError: 'generic' });
     } finally {

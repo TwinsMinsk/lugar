@@ -1,5 +1,6 @@
 'use client';
 
+import { track } from '@/features/analytics/analytics';
 import { useLeadDialog } from './lead-dialog-context';
 import type { FormKey } from './schema';
 
@@ -29,7 +30,10 @@ export function LeadTrigger({
     <button
       type="button"
       className={className}
-      onClick={() => open({ form, service, blockContext })}
+      onClick={() => {
+        track({ name: 'form_open', form, placement: blockContext });
+        open({ form, service, blockContext });
+      }}
     >
       {children}
     </button>

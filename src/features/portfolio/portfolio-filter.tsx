@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
+import { track } from '@/features/analytics/analytics';
 import { cn } from '@/lib/utils';
 
 export type FilterOption = { slug: string; label: string };
@@ -41,6 +42,12 @@ export function PortfolioFilter({
 }) {
   const t = useTranslations('portfolio');
   const [active, setActive] = useState<string | null>(null);
+
+  const select = (slug: string | null) => {
+    setActive(slug);
+    track({ name: 'portfolio_filter_change', category: slug ?? 'all' });
+  };
+
   const gridId = useId().replace(/[^a-zA-Z0-9-]/g, '');
 
   const shown = useMemo(() => (active ? (counts[active] ?? 0) : total), [active, counts, total]);
@@ -52,14 +59,14 @@ export function PortfolioFilter({
         aria-label={t('filterLabel')}
         className="border-line mb-[clamp(24px,3vw,40px)] flex flex-wrap gap-2 border-b pb-[clamp(24px,3vw,36px)]"
       >
-        <FilterButton active={active === null} onClick={() => setActive(null)}>
+        <FilterButton active={active === null} onClick={() => select(null)}>
           {t('filterAll')}
         </FilterButton>
         {categories.map((category) => (
           <FilterButton
             key={category.slug}
             active={active === category.slug}
-            onClick={() => setActive(category.slug)}
+            onClick={() => select(category.slug)}
           >
             {category.label}
           </FilterButton>

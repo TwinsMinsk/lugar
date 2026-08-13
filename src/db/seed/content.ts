@@ -100,6 +100,8 @@ export type PageSeed = {
   template: TemplateId;
   slugs: { ru: string; es: string; en: string };
   isSystem: boolean;
+  /** Reachable and shareable, but kept out of search results. */
+  noindex?: boolean;
   seo: {
     ru: { title: string; description: string };
     es: { title: string; description: string };
@@ -806,6 +808,65 @@ export const PAGE_SEEDS: PageSeed[] = [
         { ...CONTACT_BLOCK_DATA, showForm: true },
         'contacts',
       ),
+    ],
+  },
+
+  // ------------------------------------------------------------------ спасибо
+  //
+  // A safe landing place for a post-submission redirect. The form's own success
+  // state does not navigate here — it shows inline and offers the WhatsApp
+  // hand-off — but the page has to exist and be indexable-safe for the cases
+  // where a redirect is the only option (JS disabled, an external return URL).
+  {
+    seedKey: 'page.spasibo',
+    template: 'thanks',
+    slugs: { ru: 'spasibo', es: 'gracias', en: 'thank-you' },
+    isSystem: true,
+    // A thank-you page has no search value and, indexed, would leak into
+    // results as a dead end for people who never submitted anything.
+    noindex: true,
+    seo: {
+      ru: { title: 'Спасибо за заявку', description: 'Мы получили вашу заявку и скоро свяжемся.' },
+      es: {
+        title: 'Gracias por tu solicitud',
+        description: 'Hemos recibido tu solicitud y te contactaremos en breve.',
+      },
+      en: {
+        title: 'Thank you for your enquiry',
+        description: 'We have received your enquiry and will be in touch shortly.',
+      },
+    },
+    blocks: [
+      block('spasibo.hero', 'hero', {
+        variant: 'text',
+        eyebrow: { ru: 'Заявка отправлена', es: 'Solicitud enviada', en: 'Enquiry sent' },
+        heading: {
+          ru: 'Спасибо! Мы получили вашу заявку',
+          es: '¡Gracias! Hemos recibido tu solicitud',
+          en: 'Thank you! We have received your enquiry',
+        },
+        subheading: {
+          ru: 'Свяжемся с вами в ближайшее время. Если хотите ускорить — напишите нам в WhatsApp.',
+          es: 'Te contactaremos en breve. Si quieres ir más rápido, escríbenos por WhatsApp.',
+          en: 'We will be in touch shortly. To speed things up, message us on WhatsApp.',
+        },
+        overlay: 'none',
+        primaryCta: {
+          label: {
+            ru: 'Написать в WhatsApp',
+            es: 'Escribir por WhatsApp',
+            en: 'Message on WhatsApp',
+          },
+          target: { kind: 'whatsapp' },
+          variant: 'primary',
+        },
+        secondaryCta: {
+          label: { ru: 'Наши работы', es: 'Ver proyectos', en: 'See our work' },
+          target: { kind: 'document', documentId: RABOTY },
+          variant: 'outline',
+        },
+      }),
+      block('spasibo.contacts', 'contact_block', CONTACT_BLOCK_DATA, 'contacts'),
     ],
   },
 ];

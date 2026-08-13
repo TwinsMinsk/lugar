@@ -112,6 +112,7 @@ async function seedOnePage(seed: PageSeed): Promise<boolean> {
       status: 'published' as const,
       publishedRevisionId,
       publishedAt: new Date(),
+      noindex: seed.noindex ?? false,
     })),
   );
 

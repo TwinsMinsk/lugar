@@ -4,6 +4,7 @@ import { collectMediaUsage } from '@/content/blocks/media-usage';
 import { BLOCK_REGISTRY, blocksAllowedOn } from '@/content/blocks/registry';
 import { anyBlockSchema, BLOCK_TYPES } from '@/content/blocks/union';
 import { t, tRequired, translatedLocales } from '@/content/i18n';
+import { coerceSettingString } from '@/data/public/settings';
 import { documentPath, localePath, whatsappLink } from '@/lib/routes';
 
 describe('localised leaves', () => {
@@ -163,5 +164,27 @@ describe('URL construction', () => {
 
   it('omits the query entirely when there is no message', () => {
     expect(whatsappLink('34624527303')).toBe('https://wa.me/34624527303');
+  });
+});
+
+describe('settings coercion', () => {
+  it('preserves a phone number stored as an all-digit JSON value', () => {
+    // Postgres stores "34624527303" as a JSON string, but it comes back from
+    // the driver as a number. Without coercion whatsappLink() would call
+    // .replace() on a number and the click-to-chat link would be dead.
+    expect(coerceSettingString(34624527303)).toBe('34624527303');
+    expect(coerceSettingString('+34 624 52 73 03')).toBe('+34 624 52 73 03');
+  });
+
+  it('treats absent values as absent rather than as the string "null"', () => {
+    expect(coerceSettingString(null)).toBeNull();
+    expect(coerceSettingString(undefined)).toBeNull();
+  });
+
+  it('refuses to stringify a structured value', () => {
+    // An object here means the setting was mis-seeded; "[object Object]" in a
+    // phone link would be worse than rendering nothing.
+    expect(coerceSettingString({ ru: 'x' })).toBeNull();
+    expect(coerceSettingString(['a'])).toBeNull();
   });
 });
