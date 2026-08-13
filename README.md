@@ -65,8 +65,8 @@ npm run dev
 | `npm run build` / `npm start` | Production build and serve |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` / `npm run format` | ESLint 9 flat config / Prettier |
-| `npm test` | Vitest — unit + database integration |
-| `npm run test:e2e` | Playwright — builds and serves the app first |
+| `npm test` | Vitest — 33 unit + database-integration tests |
+| `npm run test:e2e` | Playwright — 16 browser tests; builds and serves first |
 | `npm run db:generate` | Generate a migration from schema changes |
 | `npm run db:migrate` | Apply migrations (also Railway's pre-deploy step) |
 | `npm run db:seed` | Idempotent seed of taxonomy and settings |
@@ -109,18 +109,13 @@ Full detail, including the decisions that deviate from the original brief and wh
 | Milestone | Scope | State |
 | --- | --- | --- |
 | **M1** | Toolchain, schema, auth, storage, seed, test harness | **complete** |
-| **M2** | Public site, blocks, forms, WhatsApp fallback, SEO | **mostly complete** — see below |
+| **M2** | Public site, blocks, forms, WhatsApp fallback, SEO | **complete** |
 | M3 | Admin CMS, media library, draft/publish/rollback | not started |
 | M4 | CRM depth, WhatsApp Cloud API, full test suite | not started |
 
-### Remaining in M2
-
-- Cookie-consent manager and the consent-gated analytics adapter
-- `/spasibo` acknowledgement page
-- Project detail template (the route resolves; there are no projects to render
-  until the owner adds real ones)
-- Playwright end-to-end specs (lead capture is verified manually — one
-  submission produces exactly one lead with UTM attribution and consent records)
+The project-detail template resolves and renders, but there is nothing to show
+until the owner adds a real project — the brief forbids seeded portfolio work,
+so the index ships with an honest empty state.
 
 ---
 
