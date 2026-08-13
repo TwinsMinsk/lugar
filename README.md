@@ -109,9 +109,22 @@ Full detail, including the decisions that deviate from the original brief and wh
 | Milestone | Scope | State |
 | --- | --- | --- |
 | **M1** | Toolchain, schema, auth, storage, seed, test harness | **complete** |
-| M2 | Public site, blocks, forms, WhatsApp fallback, SEO | not started |
+| **M2** | Public site, blocks, forms, WhatsApp fallback, SEO | **mostly complete** — see below |
 | M3 | Admin CMS, media library, draft/publish/rollback | not started |
 | M4 | CRM depth, WhatsApp Cloud API, full test suite | not started |
+
+### Remaining in M2
+
+- Cookie-consent manager and the consent-gated analytics adapter
+- `/spasibo` acknowledgement page
+- Project detail template (the route resolves; there are no projects to render
+  until the owner adds real ones)
+- Playwright end-to-end specs (lead capture is verified manually — one
+  submission produces exactly one lead with UTM attribution and consent records)
+
+---
+
+## Project status
 
 Outstanding inputs required from the owner are tracked as `needs_review` rows in `site_settings` —
 `npm run db:seed` reports the count. Nothing in this repository invents a business fact: absent
