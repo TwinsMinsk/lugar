@@ -1,0 +1,54 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# project-local toolchain (Node LTS) — see .tools/env.sh
+.tools/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+.turbo/
+
+# production
+build/
+dist/
+
+# testing
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# local env — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# database
+*.sqlite
+pgdata/
+
+# uploads (local dev storage fallback)
+.storage/
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# misc
+*.tsbuildinfo
+.vercel

@@ -1,0 +1,99 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "close": "Close",
+    "back": "Back",
+    "more": "Learn more",
+    "required": "required"
+  },
+  "nav": {
+    "skipToContent": "Skip to content",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "mainNavigation": "Main navigation",
+    "languageSwitcher": "Language selection",
+    "switchTo": "Switch to {language}",
+    "currentLanguage": "Current language: {language}"
+  },
+  "cta": {
+    "whatsapp": "Get a quote on WhatsApp",
+    "whatsappShort": "Message on WhatsApp",
+    "price": "Ask for a price",
+    "calculate": "Request a quote",
+    "measure": "Book a measurement",
+    "allWorks": "View all",
+    "callPhone": "Call {phone}"
+  },
+  "form": {
+    "title": "Tell us about your project",
+    "subtitle": "Fill in the form and we'll come back with a quote and timing.",
+    "name": "Name",
+    "namePlaceholder": "What should we call you?",
+    "phone": "Phone",
+    "phonePlaceholder": "+34 600 00 00 00",
+    "phoneHint": "Include the country code",
+    "service": "What are you interested in?",
+    "servicePlaceholder": "Choose a service",
+    "city": "City or region",
+    "cityPlaceholder": "For example, Marbella",
+    "comment": "Comment",
+    "commentPlaceholder": "Measurements, preferences, timing",
+    "budget": "Approximate budget",
+    "budgetOptional": "optional",
+    "files": "Photos or floor plan",
+    "filesHint": "JPG, PNG or PDF, up to 10 MB",
+    "consentPersonal": "I consent to the processing of my personal data under the <policy>privacy policy</policy>.",
+    "consentWhatsapp": "I agree to receive a reply on WhatsApp at the number provided.",
+    "submit": "Send enquiry",
+    "submitting": "Sending…",
+    "successTitle": "Enquiry sent",
+    "successBody": "We'll be in touch shortly. Your reference is {publicId}.",
+    "successWhatsapp": "Continue on WhatsApp",
+    "errors": {
+      "nameRequired": "Please enter your name",
+      "nameTooLong": "That name is too long",
+      "phoneRequired": "Please enter your phone number",
+      "phoneInvalid": "Please check the phone number",
+      "serviceRequired": "Please choose a service",
+      "commentTooLong": "That comment is too long",
+      "consentRequired": "We cannot process the enquiry without your consent",
+      "fileTooLarge": "That file is larger than 10 MB",
+      "fileType": "Only JPG, PNG and PDF are supported",
+      "rateLimited": "Too many attempts. Please try again in a few minutes.",
+      "generic": "We couldn't send the enquiry. Please try again or message us on WhatsApp."
+    }
+  },
+  "portfolio": {
+    "filterLabel": "Filter by category",
+    "filterAll": "All",
+    "showing": "Showing {count} of {total}",
+    "loadMore": "Show more",
+    "empty": "No projects in this category yet.",
+    "relatedTitle": "Related projects",
+    "category": "Category",
+    "openProject": "Open project “{title}”"
+  },
+  "consent": {
+    "title": "We use cookies",
+    "body": "Necessary cookies keep the site working. Analytics and marketing are enabled only with your consent.",
+    "acceptAll": "Accept all",
+    "rejectAll": "Necessary only",
+    "settings": "Customise",
+    "save": "Save choices",
+    "categoryNecessary": "Necessary",
+    "categoryNecessaryHint": "Always on. Required for the site to function.",
+    "categoryAnalytics": "Analytics",
+    "categoryAnalyticsHint": "Help us understand how the site is used.",
+    "categoryMarketing": "Marketing",
+    "categoryMarketingHint": "Used to measure advertising effectiveness.",
+    "manage": "Cookie preferences"
+  },
+  "error": {
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The page may have been moved or removed.",
+    "notFoundHome": "Go to homepage",
+    "genericTitle": "Something went wrong",
+    "genericBody": "We're looking into it. Try reloading the page.",
+    "retry": "Reload"
+  }
+}

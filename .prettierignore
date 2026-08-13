@@ -1,0 +1,8 @@
+.next/
+node_modules/
+.tools/
+drizzle/
+coverage/
+playwright-report/
+test-results/
+*.md

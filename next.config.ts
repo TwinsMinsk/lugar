@@ -1,0 +1,65 @@
+import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+
+const mediaHost = process.env.NEXT_PUBLIC_MEDIA_BASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL)
+  : null;
+
+const nextConfig: NextConfig = {
+  // Railway deploys the standalone server bundle (`node .next/standalone/server.js`).
+  output: 'standalone',
+
+  reactStrictMode: true,
+
+  // Fail the production build on type errors rather than shipping them.
+  // Next 16 removed `next lint` and the `eslint` config key — linting runs as
+  // its own `npm run lint` step in CI.
+  typescript: { ignoreBuildErrors: false },
+
+  images: {
+    // `images.domains` was removed in Next 16 — remotePatterns only.
+    remotePatterns: mediaHost
+      ? [
+          {
+            protocol: mediaHost.protocol.replace(':', '') as 'http' | 'https',
+            hostname: mediaHost.hostname,
+            pathname: '/**',
+          },
+        ]
+      : [],
+    formats: ['image/avif', 'image/webp'],
+    // Photography-first site: keep the large end of the ladder.
+    deviceSizes: [320, 420, 640, 768, 1024, 1280, 1600, 1920, 2560],
+    imageSizes: [64, 96, 128, 256, 384],
+  },
+
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+          },
+        ],
+      },
+      {
+        // Admin, previews and the webhook must never be indexed.
+        source: '/admin/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+    ];
+  },
+};
+
+export default withNextIntl(nextConfig);

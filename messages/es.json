@@ -1,0 +1,99 @@
+{
+  "common": {
+    "loading": "Cargando…",
+    "close": "Cerrar",
+    "back": "Volver",
+    "more": "Ver más",
+    "required": "obligatorio"
+  },
+  "nav": {
+    "skipToContent": "Ir al contenido",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "mainNavigation": "Navegación principal",
+    "languageSwitcher": "Selección de idioma",
+    "switchTo": "Cambiar a {language}",
+    "currentLanguage": "Idioma actual: {language}"
+  },
+  "cta": {
+    "whatsapp": "Pedir presupuesto por WhatsApp",
+    "whatsappShort": "Escribir por WhatsApp",
+    "price": "Consultar precio",
+    "calculate": "Solicitar presupuesto",
+    "measure": "Pedir medición",
+    "allWorks": "Ver todo",
+    "callPhone": "Llamar al {phone}"
+  },
+  "form": {
+    "title": "Cuéntanos tu proyecto",
+    "subtitle": "Rellena el formulario y te respondemos con presupuesto y plazos.",
+    "name": "Nombre",
+    "namePlaceholder": "¿Cómo te llamamos?",
+    "phone": "Teléfono",
+    "phonePlaceholder": "+34 600 00 00 00",
+    "phoneHint": "Incluye el prefijo del país",
+    "service": "¿Qué te interesa?",
+    "servicePlaceholder": "Elige un servicio",
+    "city": "Ciudad o provincia",
+    "cityPlaceholder": "Por ejemplo, Marbella",
+    "comment": "Comentario",
+    "commentPlaceholder": "Medidas, preferencias, plazos",
+    "budget": "Presupuesto orientativo",
+    "budgetOptional": "opcional",
+    "files": "Fotos o plano",
+    "filesHint": "JPG, PNG o PDF, hasta 10 MB",
+    "consentPersonal": "Acepto el tratamiento de mis datos personales según la <policy>política de privacidad</policy>.",
+    "consentWhatsapp": "Acepto recibir la respuesta por WhatsApp en el número indicado.",
+    "submit": "Enviar solicitud",
+    "submitting": "Enviando…",
+    "successTitle": "Solicitud enviada",
+    "successBody": "Te contactaremos en breve. El número de tu solicitud es {publicId}.",
+    "successWhatsapp": "Continuar en WhatsApp",
+    "errors": {
+      "nameRequired": "Indica tu nombre",
+      "nameTooLong": "El nombre es demasiado largo",
+      "phoneRequired": "Indica tu teléfono",
+      "phoneInvalid": "Revisa el número de teléfono",
+      "serviceRequired": "Elige un servicio",
+      "commentTooLong": "El comentario es demasiado largo",
+      "consentRequired": "Sin tu consentimiento no podemos tramitar la solicitud",
+      "fileTooLarge": "El archivo supera los 10 MB",
+      "fileType": "Solo se admiten JPG, PNG y PDF",
+      "rateLimited": "Demasiados intentos. Prueba de nuevo en unos minutos.",
+      "generic": "No hemos podido enviar la solicitud. Inténtalo de nuevo o escríbenos por WhatsApp."
+    }
+  },
+  "portfolio": {
+    "filterLabel": "Filtrar por categoría",
+    "filterAll": "Todo",
+    "showing": "Mostrando {count} de {total}",
+    "loadMore": "Ver más",
+    "empty": "Todavía no hay proyectos en esta categoría.",
+    "relatedTitle": "Proyectos relacionados",
+    "category": "Categoría",
+    "openProject": "Abrir el proyecto «{title}»"
+  },
+  "consent": {
+    "title": "Usamos cookies",
+    "body": "Las cookies necesarias hacen funcionar el sitio. La analítica y el marketing solo se activan con tu consentimiento.",
+    "acceptAll": "Aceptar todo",
+    "rejectAll": "Solo necesarias",
+    "settings": "Configurar",
+    "save": "Guardar selección",
+    "categoryNecessary": "Necesarias",
+    "categoryNecessaryHint": "Siempre activas. Permiten el funcionamiento básico del sitio.",
+    "categoryAnalytics": "Analítica",
+    "categoryAnalyticsHint": "Nos ayudan a entender cómo se usa el sitio.",
+    "categoryMarketing": "Marketing",
+    "categoryMarketingHint": "Se usan para medir la eficacia de la publicidad.",
+    "manage": "Preferencias de cookies"
+  },
+  "error": {
+    "notFoundTitle": "Página no encontrada",
+    "notFoundBody": "Puede que la página se haya movido o eliminado.",
+    "notFoundHome": "Ir al inicio",
+    "genericTitle": "Algo ha salido mal",
+    "genericBody": "Ya lo estamos revisando. Prueba a recargar la página.",
+    "retry": "Recargar"
+  }
+}

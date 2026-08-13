@@ -1,0 +1,204 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   LUGAR design tokens.
+
+   Every value here is lifted verbatim from the approved Claude Design
+   prototype (LUGAR.dc.html). The prototype authored its palette in oklch,
+   and Tailwind v4 is oklch-native, so these transfer without conversion.
+   Do not "tidy" these numbers — they are the design contract.
+   ========================================================================== */
+
+@theme {
+  /* --- surfaces ---------------------------------------------------------- */
+  --color-bg: oklch(0.972 0.004 85); /* warm off-white page background */
+  --color-surface: oklch(1 0 0); /* cards */
+  --color-surface-muted: oklch(0.94 0.006 85); /* alternating section band */
+  --color-slot: oklch(0.93 0.005 85); /* reserved space behind an image */
+
+  /* --- ink (warm neutral ramp, light → dark) ----------------------------- */
+  --color-ink: oklch(0.28 0.006 85); /* body text */
+  --color-ink-strong: oklch(0.3 0.006 85);
+  --color-ink-muted: oklch(0.4 0.006 85); /* long-form paragraphs */
+  --color-ink-soft: oklch(0.5 0.006 85); /* card descriptions */
+  --color-ink-faint: oklch(0.58 0.006 85); /* meta, labels */
+  --color-ink-ghost: oklch(0.62 0.006 85); /* least prominent */
+  --color-ink-nav: oklch(0.36 0.006 85); /* header nav links */
+  --color-ink-filter: oklch(0.42 0.006 85); /* inactive filter chips */
+
+  /* --- lines ------------------------------------------------------------- */
+  --color-line: oklch(0.88 0.005 85); /* default hairline */
+  --color-line-soft: oklch(0.9 0.005 85); /* card borders */
+  --color-line-strong: oklch(0.86 0.005 85); /* interactive outlines */
+  --color-line-chip: oklch(0.87 0.005 85);
+
+  /* --- accent (muted deep green) ----------------------------------------- */
+  --color-accent: oklch(0.49 0.04 140);
+  --color-accent-hover: oklch(0.43 0.042 140);
+  --color-accent-on-dark: oklch(0.72 0.04 140); /* accent legible on --color-dark */
+  --color-accent-lift: oklch(0.56 0.045 140); /* hover for CTAs sitting on dark */
+
+  /* --- dark band (contacts section + footer) ----------------------------- */
+  --color-dark: oklch(0.3 0.008 85);
+  --color-dark-line: oklch(0.38 0.008 85);
+  --color-on-dark: oklch(0.96 0.004 85);
+  --color-on-dark-bright: oklch(0.9 0.004 85);
+  --color-on-dark-muted: oklch(0.82 0.006 85);
+  --color-on-dark-soft: oklch(0.78 0.006 85);
+  --color-on-dark-faint: oklch(0.62 0.006 85);
+
+  /* --- typography --------------------------------------------------------
+     Loaded via next/font in src/app/layout.tsx, which sets these variables.
+     Fallbacks match the prototype's stacks. */
+  --font-display: var(--font-alegreya), Georgia, 'Times New Roman', serif;
+  --font-body: var(--font-golos), 'Helvetica Neue', Arial, sans-serif;
+
+  /* --- radii -------------------------------------------------------------
+     Deliberately near-square. The design reads as architectural, not as a
+     rounded-card UI kit. Never raise these without a design decision. */
+  --radius-btn: 2px;
+  --radius-card: 3px;
+
+  /* --- layout ------------------------------------------------------------- */
+  --container-editorial: 1440px; /* every page except the portfolio index */
+  --container-gallery: 1600px; /* portfolio index needs the extra width */
+
+  /* --- motion ------------------------------------------------------------
+     Editorial, not demonstrative. Durations stay inside the 160–300ms band
+     required by the brief; only the hero reveal is allowed to be slower. */
+  --ease-out-editorial: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-editorial: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 160ms;
+  --duration-base: 220ms;
+  --duration-slow: 300ms;
+  --duration-reveal: 620ms;
+}
+
+/* Breakpoint used by the prototype for the primary nav. It is unusually wide
+   (1180px) because the Russian menu labels are long — collapsing at the usual
+   1024px would wrap the nav. */
+@custom-variant nav-desktop (@media (width >= 1180px));
+
+/* ==========================================================================
+   Base layer
+   ========================================================================== */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Sticky header is ~72px; keep anchor targets clear of it. */
+    scroll-padding-top: 90px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-wrap: pretty;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: oklch(1 0 0);
+  }
+
+  /* A visible, high-contrast focus ring is a hard requirement — never remove
+     it. `:focus-visible` keeps it off mouse clicks. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 1px;
+  }
+
+  /* Honour the OS-level reduced-motion setting for everything that is not
+     essential to comprehension. Motion components additionally consult
+     useReducedMotion(); this is the CSS-side backstop. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+@utility container-editorial {
+  width: 100%;
+  max-width: var(--container-editorial);
+  margin-inline: auto;
+  padding-inline: clamp(18px, 5vw, 64px);
+}
+
+@utility container-gallery {
+  width: 100%;
+  max-width: var(--container-gallery);
+  margin-inline: auto;
+  padding-inline: clamp(18px, 5vw, 64px);
+}
+
+/* Standard vertical rhythm for a full editorial section. */
+@utility section-y {
+  padding-block: clamp(64px, 8vw, 128px);
+}
+
+/* The small uppercase label that sits above every section heading. */
+@utility eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* Screen-reader-only, but focusable (used by the skip link). */
+@utility sr-only-focusable {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+
+  &:focus {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 12px 20px;
+    overflow: visible;
+    clip-path: none;
+    background-color: var(--color-accent);
+    color: oklch(1 0 0);
+    border-radius: var(--radius-btn);
+  }
+}

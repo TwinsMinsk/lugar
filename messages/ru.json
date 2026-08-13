@@ -1,0 +1,99 @@
+{
+  "common": {
+    "loading": "Загрузка…",
+    "close": "Закрыть",
+    "back": "Назад",
+    "more": "Подробнее",
+    "required": "обязательно"
+  },
+  "nav": {
+    "skipToContent": "Перейти к содержимому",
+    "openMenu": "Открыть меню",
+    "closeMenu": "Закрыть меню",
+    "mainNavigation": "Основная навигация",
+    "languageSwitcher": "Выбор языка",
+    "switchTo": "Переключить на {language}",
+    "currentLanguage": "Текущий язык: {language}"
+  },
+  "cta": {
+    "whatsapp": "Получить расчёт в WhatsApp",
+    "whatsappShort": "Написать в WhatsApp",
+    "price": "Узнать стоимость",
+    "calculate": "Рассчитать проект",
+    "measure": "Заказать замер",
+    "allWorks": "Все работы",
+    "callPhone": "Позвонить по номеру {phone}"
+  },
+  "form": {
+    "title": "Расскажите о проекте",
+    "subtitle": "Заполните форму — вернёмся с расчётом и сроками.",
+    "name": "Имя",
+    "namePlaceholder": "Как к вам обращаться",
+    "phone": "Телефон",
+    "phonePlaceholder": "+34 600 00 00 00",
+    "phoneHint": "Укажите номер с кодом страны",
+    "service": "Что вас интересует",
+    "servicePlaceholder": "Выберите направление",
+    "city": "Город или регион",
+    "cityPlaceholder": "Например, Марбелья",
+    "comment": "Комментарий",
+    "commentPlaceholder": "Размеры, пожелания, сроки",
+    "budget": "Ориентировочный бюджет",
+    "budgetOptional": "необязательно",
+    "files": "Фото или планировка",
+    "filesHint": "JPG, PNG или PDF, до 10 МБ",
+    "consentPersonal": "Я согласен на обработку персональных данных в соответствии с <policy>политикой конфиденциальности</policy>.",
+    "consentWhatsapp": "Согласен получать ответ в WhatsApp на указанный номер.",
+    "submit": "Отправить заявку",
+    "submitting": "Отправляем…",
+    "successTitle": "Заявка отправлена",
+    "successBody": "Мы свяжемся с вами в ближайшее время. Номер вашей заявки — {publicId}.",
+    "successWhatsapp": "Продолжить в WhatsApp",
+    "errors": {
+      "nameRequired": "Укажите имя",
+      "nameTooLong": "Слишком длинное имя",
+      "phoneRequired": "Укажите телефон",
+      "phoneInvalid": "Проверьте номер телефона",
+      "serviceRequired": "Выберите направление",
+      "commentTooLong": "Комментарий слишком длинный",
+      "consentRequired": "Без согласия мы не сможем обработать заявку",
+      "fileTooLarge": "Файл больше 10 МБ",
+      "fileType": "Поддерживаются JPG, PNG и PDF",
+      "rateLimited": "Слишком много попыток. Попробуйте через несколько минут.",
+      "generic": "Не удалось отправить заявку. Попробуйте ещё раз или напишите в WhatsApp."
+    }
+  },
+  "portfolio": {
+    "filterLabel": "Фильтр по категориям",
+    "filterAll": "Все",
+    "showing": "Показано {count} из {total}",
+    "loadMore": "Показать ещё",
+    "empty": "В этой категории пока нет работ.",
+    "relatedTitle": "Похожие работы",
+    "category": "Категория",
+    "openProject": "Открыть проект «{title}»"
+  },
+  "consent": {
+    "title": "Мы используем файлы cookie",
+    "body": "Необходимые cookie нужны для работы сайта. Аналитику и маркетинг включаем только с вашего согласия.",
+    "acceptAll": "Принять все",
+    "rejectAll": "Только необходимые",
+    "settings": "Настроить",
+    "save": "Сохранить выбор",
+    "categoryNecessary": "Необходимые",
+    "categoryNecessaryHint": "Всегда включены. Обеспечивают базовую работу сайта.",
+    "categoryAnalytics": "Аналитика",
+    "categoryAnalyticsHint": "Помогают понять, как посетители пользуются сайтом.",
+    "categoryMarketing": "Маркетинг",
+    "categoryMarketingHint": "Используются для оценки эффективности рекламы.",
+    "manage": "Настройки cookie"
+  },
+  "error": {
+    "notFoundTitle": "Страница не найдена",
+    "notFoundBody": "Возможно, страница была перемещена или удалена.",
+    "notFoundHome": "На главную",
+    "genericTitle": "Что-то пошло не так",
+    "genericBody": "Мы уже разбираемся. Попробуйте обновить страницу.",
+    "retry": "Обновить"
+  }
+}
