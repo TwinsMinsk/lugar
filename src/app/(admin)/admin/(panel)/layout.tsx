@@ -14,6 +14,14 @@ import { can, requireUser, type Capability } from '@/lib/auth/guards';
  * capability it needs, because a layout guard protects the *layout*, not the
  * data — a route handler or server action reached directly never renders it.
  */
+/**
+ * Every admin route depends on the session, so none of it can be prerendered.
+ * `instant = false` opts this subtree into blocking dynamic rendering — the
+ * documented escape hatch under Cache Components — rather than scattering
+ * Suspense boundaries around auth checks that have nothing to stream.
+ */
+export const instant = false;
+
 type NavItem = {
   href: string;
   label: string;

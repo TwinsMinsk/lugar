@@ -43,6 +43,11 @@ const serverSchema = z
 
     BETTER_AUTH_SECRET: requiredInProd('BETTER_AUTH_SECRET'),
     BETTER_AUTH_URL: optionalString,
+    /**
+     * Comma-separated extra origins allowed to submit credentials (preview
+     * domains, the E2E port). Empty in a normal deploy.
+     */
+    BETTER_AUTH_TRUSTED_ORIGINS: optionalString,
     INITIAL_OWNER_EMAIL: z
       .email()
       .optional()

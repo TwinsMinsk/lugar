@@ -40,10 +40,40 @@ const roles = {
  * accounts come from exactly two places — the one-time CLI bootstrap of the
  * first owner, and invitations issued by an existing owner.
  */
+/**
+ * Origins allowed to submit credentials.
+ *
+ * better-auth rejects a request whose Origin does not match `baseURL`, and the
+ * client surfaces that rejection as a generic sign-in failure — so a
+ * `BETTER_AUTH_URL` that does not exactly match the deployed origin presents as
+ * "wrong password" for every user, with the real cause visible only in the
+ * server log. That is a genuinely expensive misconfiguration to diagnose.
+ *
+ * Listing both configured URLs covers the deploy. Anything else — a preview
+ * domain, or the port the E2E suite serves on — is opt-in through
+ * BETTER_AUTH_TRUSTED_ORIGINS rather than inferred from NODE_ENV: a production
+ * build is exactly what `next start` and the E2E run use, so a NODE_ENV check
+ * would silently do nothing there while appearing to work.
+ */
+function trustedOrigins(): string[] {
+  const origins = new Set<string>();
+  const candidates = [
+    env.BETTER_AUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    ...(env.BETTER_AUTH_TRUSTED_ORIGINS ?? '').split(','),
+  ];
+  for (const candidate of candidates) {
+    const trimmed = candidate?.trim().replace(/\/$/, '');
+    if (trimmed) origins.add(trimmed);
+  }
+  return [...origins];
+}
+
 export const auth = betterAuth({
   appName: 'LUGAR',
   baseURL: env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   secret: env.BETTER_AUTH_SECRET,
+  trustedOrigins: trustedOrigins(),
 
   database: drizzleAdapter(db, {
     provider: 'pg',

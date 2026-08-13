@@ -5,6 +5,14 @@ import { Logo } from '@/components/layout/logo';
 import { getSession } from '@/lib/auth/guards';
 import { LoginForm } from './login-form';
 
+/**
+ * Every admin route depends on the session, so none of it can be prerendered.
+ * `instant = false` opts this subtree into blocking dynamic rendering — the
+ * documented escape hatch under Cache Components — rather than scattering
+ * Suspense boundaries around auth checks that have nothing to stream.
+ */
+export const instant = false;
+
 export const metadata = {
   title: 'Вход',
   robots: { index: false, follow: false },
