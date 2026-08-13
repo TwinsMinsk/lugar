@@ -1,0 +1,272 @@
+import 'server-only';
+
+import { and, eq, isNotNull } from 'drizzle-orm';
+import { cacheLife, cacheTag } from 'next/cache';
+
+import { anyBlockSchema, type AnyBlock } from '@/content/blocks/union';
+import { db } from '@/db/client';
+import { documentLocales, documentRevisions, documents } from '@/db/schema';
+import { LOCALES, type Locale } from '@/i18n/routing';
+import { PUBLIC_CACHE_PROFILE, tags } from '../cache-tags';
+
+/**
+ * Public document reads.
+ *
+ * Every export here hard-codes `status = 'published'` and
+ * `published_revision_id IS NOT NULL`, and no function accepts a revision id
+ * from the caller. Draft leakage is therefore prevented structurally rather
+ * than by remembering to filter — drafts are read through a separate module
+ * whose every export begins with a preview-token check.
+ */
+
+export type PublishedRef = {
+  documentId: string;
+  revisionId: string;
+  kind: 'page' | 'project';
+  template: string;
+  slug: string;
+  noindex: boolean;
+  publishedAt: Date | null;
+};
+
+export type DocumentMeta = {
+  seo?: Partial<
+    Record<
+      Locale,
+      {
+        title?: string;
+        description?: string;
+        canonical?: string;
+        ogImageAssetId?: string;
+      }
+    >
+  >;
+};
+
+export type PublishedDocument = PublishedRef & {
+  blocks: AnyBlock[];
+  meta: DocumentMeta;
+};
+
+/** Slug of the portfolio index per locale — the parent segment of project URLs. */
+export async function getPortfolioIndexSlug(locale: Locale): Promise<string | null> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  cacheTag(tags.projectsIndex(locale));
+
+  const [row] = await db
+    .select({ slug: documentLocales.slug })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documents.template, 'portfolio_index'),
+        eq(documentLocales.locale, locale),
+        eq(documentLocales.status, 'published'),
+        isNotNull(documentLocales.publishedRevisionId),
+      ),
+    )
+    .limit(1);
+
+  return row?.slug ?? null;
+}
+
+/** Resolve a published page by its locale slug. `''` is the home page. */
+export async function resolvePage(locale: Locale, slug: string): Promise<PublishedRef | null> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  cacheTag(tags.path('page', locale, slug));
+
+  const [row] = await db
+    .select({
+      documentId: documentLocales.documentId,
+      revisionId: documentLocales.publishedRevisionId,
+      noindex: documentLocales.noindex,
+      publishedAt: documentLocales.publishedAt,
+      slug: documentLocales.slug,
+      template: documents.template,
+    })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documentLocales.kind, 'page'),
+        eq(documentLocales.locale, locale),
+        eq(documentLocales.slug, slug),
+        eq(documentLocales.status, 'published'),
+        isNotNull(documentLocales.publishedRevisionId),
+      ),
+    )
+    .limit(1);
+
+  if (!row?.revisionId) return null;
+  return {
+    documentId: row.documentId,
+    revisionId: row.revisionId,
+    kind: 'page',
+    template: row.template,
+    slug: row.slug,
+    noindex: row.noindex,
+    publishedAt: row.publishedAt,
+  };
+}
+
+/** Resolve a published portfolio project by its locale slug. */
+export async function resolveProject(locale: Locale, slug: string): Promise<PublishedRef | null> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  cacheTag(tags.path('project', locale, slug));
+
+  const [row] = await db
+    .select({
+      documentId: documentLocales.documentId,
+      revisionId: documentLocales.publishedRevisionId,
+      noindex: documentLocales.noindex,
+      publishedAt: documentLocales.publishedAt,
+      slug: documentLocales.slug,
+      template: documents.template,
+    })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documentLocales.kind, 'project'),
+        eq(documentLocales.locale, locale),
+        eq(documentLocales.slug, slug),
+        eq(documentLocales.status, 'published'),
+        isNotNull(documentLocales.publishedRevisionId),
+      ),
+    )
+    .limit(1);
+
+  if (!row?.revisionId) return null;
+  return {
+    documentId: row.documentId,
+    revisionId: row.revisionId,
+    kind: 'project',
+    template: row.template,
+    slug: row.slug,
+    noindex: row.noindex,
+    publishedAt: row.publishedAt,
+  };
+}
+
+/**
+ * Load a frozen revision.
+ *
+ * Blocks are validated per-item rather than as a whole array: one corrupt block
+ * must not take down an otherwise good page. Invalid blocks are dropped from
+ * public output and reported, which is the safe direction to fail.
+ */
+export async function getRevision(revisionId: string): Promise<{
+  blocks: AnyBlock[];
+  meta: DocumentMeta;
+  invalidCount: number;
+} | null> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  cacheTag(tags.revision(revisionId));
+
+  const [row] = await db
+    .select({ blocks: documentRevisions.blocks, meta: documentRevisions.meta })
+    .from(documentRevisions)
+    .where(eq(documentRevisions.id, revisionId))
+    .limit(1);
+
+  if (!row) return null;
+
+  const raw = Array.isArray(row.blocks) ? row.blocks : [];
+  const blocks: AnyBlock[] = [];
+  let invalidCount = 0;
+
+  for (const candidate of raw) {
+    const parsed = anyBlockSchema.safeParse(candidate);
+    if (parsed.success) {
+      if (!parsed.data.hidden) blocks.push(parsed.data);
+    } else {
+      invalidCount += 1;
+    }
+  }
+
+  return { blocks, meta: (row.meta ?? {}) as DocumentMeta, invalidCount };
+}
+
+export async function getPublishedDocument(ref: PublishedRef): Promise<PublishedDocument | null> {
+  const revision = await getRevision(ref.revisionId);
+  if (!revision) return null;
+  return { ...ref, blocks: revision.blocks, meta: revision.meta };
+}
+
+/**
+ * Every published locale URL for one document, for hreflang alternates.
+ *
+ * Only locales that are actually published are returned — emitting an hreflang
+ * URL that 404s is worse than omitting the alternate entirely.
+ */
+export async function getLocaleAlternates(
+  documentId: string,
+): Promise<Array<{ locale: Locale; slug: string; kind: 'page' | 'project' }>> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  for (const locale of LOCALES) cacheTag(tags.document(documentId, locale));
+
+  const rows = await db
+    .select({
+      locale: documentLocales.locale,
+      slug: documentLocales.slug,
+      kind: documentLocales.kind,
+    })
+    .from(documentLocales)
+    .where(
+      and(
+        eq(documentLocales.documentId, documentId),
+        eq(documentLocales.status, 'published'),
+        isNotNull(documentLocales.publishedRevisionId),
+      ),
+    );
+
+  return rows.map((row) => ({
+    locale: row.locale as Locale,
+    slug: row.slug,
+    kind: row.kind as 'page' | 'project',
+  }));
+}
+
+/** All published paths, for sitemap generation. */
+export async function listPublishedPaths(): Promise<
+  Array<{
+    documentId: string;
+    locale: Locale;
+    slug: string;
+    kind: 'page' | 'project';
+    publishedAt: Date | null;
+    noindex: boolean;
+  }>
+> {
+  'use cache';
+  cacheLife(PUBLIC_CACHE_PROFILE);
+  for (const locale of LOCALES) {
+    cacheTag(tags.projectsIndex(locale));
+    cacheTag(tags.navigation(locale));
+  }
+
+  const rows = await db
+    .select({
+      documentId: documentLocales.documentId,
+      locale: documentLocales.locale,
+      slug: documentLocales.slug,
+      kind: documentLocales.kind,
+      publishedAt: documentLocales.publishedAt,
+      noindex: documentLocales.noindex,
+    })
+    .from(documentLocales)
+    .where(
+      and(eq(documentLocales.status, 'published'), isNotNull(documentLocales.publishedRevisionId)),
+    );
+
+  return rows.map((row) => ({
+    ...row,
+    locale: row.locale as Locale,
+    kind: row.kind as 'page' | 'project',
+  }));
+}

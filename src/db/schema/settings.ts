@@ -7,7 +7,17 @@
  * phone number getting copy-pasted into three locales of three pages.
  */
 import { sql } from 'drizzle-orm';
-import { boolean, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import { ts, timestamps, uuid7 } from './_shared';
 
@@ -52,5 +62,29 @@ export const auditLog = pgTable(
   (t) => [
     index('audit_entity_idx').on(t.entityType, t.entityId, t.occurredAt.desc()),
     index('audit_actor_idx').on(t.actorUserId, t.occurredAt.desc()),
+  ],
+);
+
+/**
+ * Fixed-window rate limiting.
+ *
+ * Hand-rolled against the existing Drizzle pool rather than pulling in
+ * `rate-limiter-flexible`: its Postgres backend expects a `pg` Pool, and this
+ * project uses postgres-js. Adding `pg` purely for this would mean a second
+ * connection pool competing for Railway's shared connection ceiling — a real
+ * operational cost for what is a two-column upsert.
+ */
+export const rateLimits = pgTable(
+  'rate_limits',
+  {
+    key: text('key').notNull(),
+    /** Start of the fixed window, in epoch milliseconds. */
+    windowStart: bigint('window_start', { mode: 'number' }).notNull(),
+    count: integer('count').notNull().default(0),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.key, t.windowStart] }),
+    index('rate_limits_expiry_idx').on(t.expiresAt),
   ],
 );

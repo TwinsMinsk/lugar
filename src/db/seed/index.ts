@@ -14,6 +14,7 @@ import '../../../scripts/load-env';
 
 import { db, pgClient } from '../client';
 import { leadStatuses, portfolioCategories, serviceCategories, siteSettings } from '../schema';
+import { seedNavigation, seedPages, seedPlaceholderMedia } from './pages';
 import { LEAD_STATUSES, PORTFOLIO_CATEGORIES, SERVICE_CATEGORIES, SITE_SETTINGS } from './taxonomy';
 
 async function seedLeadStatuses() {
@@ -90,6 +91,9 @@ async function main() {
   const portfolio = await seedPortfolioCategories();
   const services = await seedServiceCategories();
   const settings = await seedSiteSettings();
+  const placeholders = await seedPlaceholderMedia();
+  const pages = await seedPages();
+  const navigation = await seedNavigation();
 
   const pending = SITE_SETTINGS.filter((s) => s.needsReview).length;
 
@@ -98,6 +102,9 @@ async function main() {
   console.log(`    portfolio_categories  ${portfolio}/${PORTFOLIO_CATEGORIES.length}`);
   console.log(`    service_categories    ${services}/${SERVICE_CATEGORIES.length}`);
   console.log(`    site_settings         ${settings}/${SITE_SETTINGS.length}`);
+  console.log(`    placeholder media     ${placeholders}`);
+  console.log(`    page documents        ${pages}`);
+  console.log(`    navigation items      ${navigation}`);
   console.log(`\n  ${pending} settings are flagged needs_review — the owner must supply real`);
   console.log(
     '  values (social URLs, address, legal details, logo, analytics IDs) before launch.\n',

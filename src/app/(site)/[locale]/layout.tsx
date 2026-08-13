@@ -4,14 +4,23 @@ import { notFound } from 'next/navigation';
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { Footer } from '@/components/layout/footer';
+import { Header } from '@/components/layout/header';
+import { StickyMobileCta } from '@/components/layout/sticky-mobile-cta';
+import { MotionProvider } from '@/components/motion/motion-provider';
+import { t } from '@/content/i18n';
+import { getServiceCategories } from '@/data/public/portfolio';
+import { AttributionBeacon } from '@/features/attribution/attribution-beacon';
+import { LeadDialog } from '@/features/leads/lead-dialog';
+import { LeadDialogProvider } from '@/features/leads/lead-dialog-context';
 import { LOCALE_TAG, routing, type Locale } from '@/i18n/routing';
 import '../../globals.css';
 
 /**
- * Self-hosted via next/font, not the prototype's <link> to fonts.googleapis.
- * next/font inlines the @font-face at build time and preloads the files from
- * our own origin, which removes a render-blocking third-party round trip and
- * removes the layout shift the prototype would otherwise ship.
+ * Fonts are self-hosted through next/font rather than the prototype's <link>
+ * to fonts.googleapis.com. That removes a render-blocking third-party round
+ * trip on the critical path and, because next/font emits size-adjust metrics,
+ * removes the font-swap layout shift the prototype would otherwise ship.
  */
 const alegreya = Alegreya({
   subsets: ['latin', 'cyrillic'],
@@ -44,14 +53,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
-  const t = await getTranslations({ locale, namespace: 'common' });
 
   return {
-    // Per-page titles fill the slot; the brand suffix is applied once here.
     title: { default: 'LUGAR', template: '%s — LUGAR' },
     applicationName: 'LUGAR',
+    // Stops iOS from turning measurements and dimensions into phone links.
     formatDetection: { telephone: false },
-    other: { 'x-ui-locale': t('loading') ? locale : locale },
   };
 }
 
@@ -62,16 +69,43 @@ export default async function SiteLayout({
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params;
-  if (!hasLocale(routing.locales, locale)) notFound();
+  const { locale: rawLocale } = await params;
+  if (!hasLocale(routing.locales, rawLocale)) notFound();
+  const locale = rawLocale as Locale;
 
   // Required for static rendering of a locale-segmented tree.
   setRequestLocale(locale);
 
+  const [tNav, korpus, mebel, dveri] = await Promise.all([
+    getTranslations('nav'),
+    getServiceCategories('korpusnaya'),
+    getServiceCategories('mebel'),
+    getServiceCategories('dveri'),
+  ]);
+
+  const services = [...korpus, ...mebel, ...dveri].map((category) => ({
+    value: category.slug,
+    label: t(category.label, locale) ?? category.slug,
+  }));
+
   return (
-    <html lang={LOCALE_TAG[locale as Locale]} className={`${alegreya.variable} ${golos.variable}`}>
+    <html lang={LOCALE_TAG[locale]} className={`${alegreya.variable} ${golos.variable}`}>
       <body>
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <LeadDialogProvider>
+            <MotionProvider>
+              <a href="#main" className="sr-only-focusable">
+                {tNav('skipToContent')}
+              </a>
+              <AttributionBeacon />
+              <Header locale={locale} />
+              <main id="main">{children}</main>
+              <Footer locale={locale} />
+              <StickyMobileCta />
+              <LeadDialog services={services} />
+            </MotionProvider>
+          </LeadDialogProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

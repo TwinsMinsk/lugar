@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
 
   reactStrictMode: true,
 
+  // Cache Components: enables `use cache` + cacheTag/cacheLife.
+  cacheComponents: true,
+
   // Fail the production build on type errors rather than shipping them.
   // Next 16 removed `next lint` and the `eslint` config key — linting runs as
   // its own `npm run lint` step in CI.
