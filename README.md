@@ -124,7 +124,7 @@ Full detail, including the decisions that deviate from the original brief and wh
 
 ---
 
-## Project status
+## Pending owner inputs
 
 Outstanding inputs required from the owner are tracked as `needs_review` rows in `site_settings` —
 `npm run db:seed` reports the count. Nothing in this repository invents a business fact: absent
