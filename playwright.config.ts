@@ -20,6 +20,7 @@ const ADMIN_SPECS = [
   /leads\.spec\.ts/,
   /media\.spec\.ts/,
   /navigation\.spec\.ts/,
+  /pipeline\.spec\.ts/,
   /portfolio\.spec\.ts/,
   /redirects\.spec\.ts/,
   /settings\.spec\.ts/,

@@ -17,6 +17,7 @@ import {
   documents,
   formSubmissions,
   invitation,
+  leadStatuses,
   leads,
   user,
 } from '../src/db/schema';
@@ -91,10 +92,26 @@ async function cleanTestLeads() {
   console.log(`Removed ${removed.length} test lead(s) and ${contactIds.length} contact(s).`);
 }
 
+/**
+ * Pipeline stages the suite creates.
+ *
+ * Runs after the leads, because `leads.status_id` is a restricted foreign key:
+ * a stage still referenced by any lead — including one the application would
+ * only ever archive — cannot be deleted.
+ */
+async function cleanTestStages() {
+  const removed = await db
+    .delete(leadStatuses)
+    .where(like(leadStatuses.slug, 'e2e-%'))
+    .returning({ id: leadStatuses.id });
+  if (removed.length > 0) console.log(`Removed ${removed.length} test pipeline stage(s).`);
+}
+
 try {
   await main();
   await cleanTestUsers();
   await cleanTestLeads();
+  await cleanTestStages();
 } catch (error) {
   console.error('Cleanup failed:', error);
   process.exitCode = 1;

@@ -40,6 +40,11 @@ const ACTION_LABEL: Record<string, string> = {
   'users.unbanned': 'Доступ восстановлен',
   'lead.deleted': 'Заявка удалена',
   'crm.exported': 'Выгрузка заявок',
+  'pipeline.stage_created': 'Этап воронки создан',
+  'pipeline.stage_updated': 'Этап воронки изменён',
+  'pipeline.stage_archived': 'Этап воронки убран',
+  'pipeline.stage_restored': 'Этап воронки возвращён',
+  'pipeline.entry_changed': 'Изменена точка входа заявок',
 };
 
 const ENTITY_LABEL: Record<string, string> = {
@@ -52,6 +57,7 @@ const ENTITY_LABEL: Record<string, string> = {
   user: 'пользователь',
   invitation: 'приглашение',
   lead: 'заявка',
+  lead_status: 'этап воронки',
 };
 
 export type AuditFilterValues = {
