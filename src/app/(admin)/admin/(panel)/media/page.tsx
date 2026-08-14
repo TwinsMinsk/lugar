@@ -16,9 +16,8 @@ export default async function AdminMediaPage({
   const base = publicEnv.mediaBaseUrl.replace(/\/$/, '');
   const items: MediaItem[] = assets.map((asset) => ({
     id: asset.id,
-    url: base
-      ? `${base}/${asset.storageKey}?v=${asset.version}`
-      : `/api/media/${asset.storageKey}?v=${asset.version}`,
+    // Content-addressed keys already change when the file does; see mediaUrl().
+    url: base ? `${base}/${asset.storageKey}` : `/api/media/${asset.storageKey}`,
     width: asset.width,
     height: asset.height,
     bytes: asset.bytes,

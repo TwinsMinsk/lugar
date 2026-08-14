@@ -10,14 +10,17 @@ import { cn } from '@/lib/utils';
  * Resolve a public URL for an asset.
  *
  * With R2 configured this is the CDN origin; in development it falls back to
- * the same-origin media route backed by local disk. The `v` parameter is the
- * asset's version, so "replace in place" busts caches without changing the
- * storage key or touching any block that references it.
+ * the same-origin media route backed by local disk.
+ *
+ * No cache-busting query string: storage keys are content-addressed by SHA-256,
+ * so replacing an asset's file already produces a different URL. A `?v=` would
+ * add nothing — and Next 16 rejects local image sources with query strings
+ * unless an *exact* search value is allowlisted, precisely to prevent
+ * enumeration. Keeping the URL clean sidesteps that entirely.
  */
 export function mediaUrl(asset: MediaAsset): string {
   const base = publicEnv.mediaBaseUrl.replace(/\/$/, '');
-  const path = base ? `${base}/${asset.storageKey}` : `/api/media/${asset.storageKey}`;
-  return `${path}?v=${asset.version}`;
+  return base ? `${base}/${asset.storageKey}` : `/api/media/${asset.storageKey}`;
 }
 
 /**

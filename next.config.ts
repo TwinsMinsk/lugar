@@ -46,6 +46,13 @@ const nextConfig: NextConfig = {
           },
         ]
       : [],
+    /**
+     * The development media route serves from local disk. Allowlisted
+     * explicitly because Next 16 requires local image sources to match a
+     * pattern; no `search` entry is needed, since media URLs carry no query
+     * string (storage keys are content-addressed — see mediaUrl()).
+     */
+    localPatterns: [{ pathname: '/api/media/**' }],
     formats: ['image/avif', 'image/webp'],
     // Photography-first site: keep the large end of the ladder.
     deviceSizes: [320, 420, 640, 768, 1024, 1280, 1600, 1920, 2560],

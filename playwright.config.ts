@@ -24,17 +24,17 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'desktop',
-      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /auth\.setup\.ts/],
+      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/, /auth\.setup\.ts/],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
       name: 'mobile',
-      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /auth\.setup\.ts/],
+      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/, /auth\.setup\.ts/],
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'admin',
-      testMatch: [/admin\.spec\.ts/, /media\.spec\.ts/],
+      testMatch: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/],
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],

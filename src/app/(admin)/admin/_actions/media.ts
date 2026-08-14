@@ -230,8 +230,11 @@ export async function deleteMedia(assetId: string): Promise<MediaActionResult> {
  * Replace an asset's file in place.
  *
  * Keeps the same id, so every block that points at it follows automatically and
- * no revision has to be rewritten. The version counter is bumped and appended to
- * the public URL, which busts caches without changing the storage key.
+ * no revision has to be rewritten. Cache busting is inherent rather than
+ * bolted on: storage keys are content-addressed, so new bytes mean a new key
+ * and therefore a new URL. The `version` counter is retained only as an
+ * audit signal — it is deliberately not in the URL, because Next 16 rejects
+ * local image sources carrying a query string.
  */
 export async function replaceMedia(formData: FormData): Promise<MediaActionResult> {
   const { user } = await requireCapability('media.write');
