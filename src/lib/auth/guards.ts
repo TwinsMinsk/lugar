@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { headers } from 'next/headers';
-import { forbidden, unauthorized } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { auth, type Role } from './server';
 
@@ -11,6 +11,16 @@ import { auth, type Role } from './server';
  * Every private read and every mutation calls one of these. Hiding a button in
  * the UI is not access control; `proxy.ts` checking for a cookie is not access
  * control either. This module is.
+ *
+ * These deliberately use `redirect()` and `notFound()` rather than Next's
+ * `unauthorized()` / `forbidden()`. Those read better, but they are gated
+ * behind the experimental `authInterrupts` flag and do nothing without it — an
+ * end-to-end test caught /admin/users returning 200 to a content editor for
+ * exactly that reason. An authorization boundary must not depend on an
+ * experimental flag that a future config change can silently remove.
+ *
+ * A capability failure renders 404 rather than 403 on purpose: someone who may
+ * not see a resource also learns nothing about whether it exists.
  *
  * Capabilities are declared per role in one table so a permission question has
  * exactly one answer, rather than being re-litigated at each call site.
@@ -58,15 +68,17 @@ export async function getSession() {
 /** Requires any authenticated, non-banned user. */
 export async function requireUser() {
   const result = await getSession();
-  if (!result?.user) unauthorized();
-  if (result.user.banned) forbidden();
+  if (!result?.user) redirect('/admin/login');
+  // A banned account keeps its session cookie until it expires, so the ban has
+  // to be enforced on read, not only at sign-in.
+  if (result.user.banned) notFound();
   return { session: result.session, user: result.user, role: result.user.role as Role };
 }
 
 /** Requires a specific capability. This is the guard almost everything uses. */
 export async function requireCapability(capability: Capability) {
   const ctx = await requireUser();
-  if (!roleCan(ctx.role, capability)) forbidden();
+  if (!roleCan(ctx.role, capability)) notFound();
   return ctx;
 }
 

@@ -53,7 +53,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   }
 
   const settings = await getSiteSettings();
-  const pending = settings.pendingReview.length;
+  // Only surfaced to someone who can actually act on it — a content editor
+  // following this link would just get a 404.
+  const canEditSettings = await can('settings.write');
+  const pending = canEditSettings ? settings.pendingReview.length : 0;
 
   return (
     <div className="flex min-h-screen flex-col">

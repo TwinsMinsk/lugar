@@ -11,7 +11,7 @@ import './load-env';
 import { inArray, like, or } from 'drizzle-orm';
 
 import { db, pgClient } from '../src/db/client';
-import { documentLocales, documents } from '../src/db/schema';
+import { documentLocales, documents, invitation, user } from '../src/db/schema';
 
 const TEST_SLUG_PATTERNS = ['test-proekt-%', 'dubl-%', 'opublikovannyy-%'];
 
@@ -40,8 +40,24 @@ async function main() {
   console.log(`Removed ${ids.length} test project(s).`);
 }
 
+/** Accounts the invitation specs create, which use a reserved test domain. */
+async function cleanTestUsers() {
+  const invitations = await db
+    .delete(invitation)
+    .where(like(invitation.email, '%@example.test'))
+    .returning({ id: invitation.id });
+  const users = await db
+    .delete(user)
+    .where(like(user.email, '%@example.test'))
+    .returning({ id: user.id });
+  if (users.length || invitations.length) {
+    console.log(`Removed ${users.length} test user(s) and ${invitations.length} invitation(s).`);
+  }
+}
+
 try {
   await main();
+  await cleanTestUsers();
 } catch (error) {
   console.error('Cleanup failed:', error);
   process.exitCode = 1;
