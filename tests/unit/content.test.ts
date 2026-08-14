@@ -4,6 +4,7 @@ import { collectMediaUsage } from '@/content/blocks/media-usage';
 import { BLOCK_REGISTRY, blocksAllowedOn } from '@/content/blocks/registry';
 import { anyBlockSchema, BLOCK_TYPES } from '@/content/blocks/union';
 import { t, tRequired, translatedLocales } from '@/content/i18n';
+import { coerceSettingValue, SETTINGS_BY_KEY } from '@/content/settings-registry';
 import { coerceSettingString } from '@/data/public/settings';
 import { documentPath, localePath, whatsappLink } from '@/lib/routes';
 
@@ -186,5 +187,54 @@ describe('settings coercion', () => {
     // phone link would be worse than rendering nothing.
     expect(coerceSettingString({ ru: 'x' })).toBeNull();
     expect(coerceSettingString(['a'])).toBeNull();
+  });
+});
+
+describe('setting value coercion', () => {
+  it('restores string-ness that JSONB did not preserve', () => {
+    // This exact value has caused three separate defects: a dead click-to-chat
+    // link, a form field that rendered blank, and a save that failed
+    // validation on a value the database itself supplied.
+    expect(coerceSettingValue('phone_digits', 34624527303)).toBe('34624527303');
+    expect(coerceSettingValue('phone', '+34 624 52 73 03')).toBe('+34 624 52 73 03');
+    expect(coerceSettingValue('url', 'https://example.com')).toBe('https://example.com');
+  });
+
+  it('leaves absent values absent', () => {
+    expect(coerceSettingValue('text', null)).toBeNull();
+    expect(coerceSettingValue('text', undefined)).toBeUndefined();
+  });
+
+  it('treats a boolean as a real answer rather than a string', () => {
+    expect(coerceSettingValue('boolean', true)).toBe(true);
+    expect(coerceSettingValue('boolean', 'true')).toBe(true);
+    expect(coerceSettingValue('boolean', false)).toBe(false);
+    expect(coerceSettingValue('boolean', null)).toBeNull();
+  });
+
+  it('passes localised maps through untouched', () => {
+    const value = { ru: 'Испания', es: 'España' };
+    expect(coerceSettingValue('localized', value)).toBe(value);
+  });
+});
+
+describe('settings registry', () => {
+  it('rejects a non-http scheme in a link that becomes a public anchor', () => {
+    const instagram = SETTINGS_BY_KEY.get('social.instagram')!;
+    // A javascript: URL in the footer would be stored XSS.
+    expect(instagram.schema.safeParse('javascript:alert(1)').success).toBe(false);
+    expect(instagram.schema.safeParse('https://instagram.com/lugar').success).toBe(true);
+  });
+
+  it('enforces E.164 on the number used for tel: links', () => {
+    const phone = SETTINGS_BY_KEY.get('contact.phoneE164')!;
+    expect(phone.schema.safeParse('8 (999) 123-45-67').success).toBe(false);
+    expect(phone.schema.safeParse('+34624527303').success).toBe(true);
+  });
+
+  it('requires Russian on a localised setting, since it is the fallback', () => {
+    const area = SETTINGS_BY_KEY.get('contact.serviceArea')!;
+    expect(area.schema.safeParse({ es: 'España' }).success).toBe(false);
+    expect(area.schema.safeParse({ ru: 'Испания' }).success).toBe(true);
   });
 });
