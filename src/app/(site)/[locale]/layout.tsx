@@ -16,6 +16,7 @@ import { DOCUMENT_IDS } from '@/db/seed/content';
 import { AnalyticsBeacon } from '@/features/analytics/analytics-beacon';
 import { AttributionBeacon } from '@/features/attribution/attribution-beacon';
 import { ConsentGate } from '@/features/consent/consent-gate';
+import { PreviewBanner } from '@/features/preview/preview-banner';
 import { LeadDialog } from '@/features/leads/lead-dialog';
 import { LeadDialogProvider } from '@/features/leads/lead-dialog-context';
 import { LOCALE_TAG, routing, type Locale } from '@/i18n/routing';
@@ -100,6 +101,11 @@ export default async function SiteLayout({
         <NextIntlClientProvider>
           <LeadDialogProvider>
             <MotionProvider>
+              {/* Draft state is per-request, so it streams rather than being
+                  baked into the prerendered shell. */}
+              <Suspense fallback={null}>
+                <PreviewBanner />
+              </Suspense>
               <a href="#main" className="sr-only-focusable">
                 {tNav('skipToContent')}
               </a>

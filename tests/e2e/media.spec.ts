@@ -42,6 +42,11 @@ async function makeJpeg(width: number, height: number, seed = Date.now()): Promi
 }
 
 test.describe('media library', () => {
+  // These specs upload to and delete from the *same* library, so a count
+  // assertion in one races an upload in another. Serial execution is a
+  // property of the fixture, not a workaround for flakiness.
+  test.describe.configure({ mode: 'serial' });
+
   test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
 
   test('refuses an upload with no alt text', async ({ page }) => {

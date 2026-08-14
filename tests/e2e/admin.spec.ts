@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /**
  * The M3 acceptance path: a non-technical owner changes a heading, publishes,
@@ -103,3 +103,54 @@ test.describe('admin', () => {
     await expect(page.locator('h1')).not.toHaveText(marker);
   });
 });
+
+test.describe('draft preview', () => {
+  test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
+
+  test('a draft is visible in preview, absent publicly, and never indexable', async ({ page }) => {
+    const marker = `Превью ${Date.now()}`;
+
+    await page.goto('/admin/pages');
+    await page.getByRole('link', { name: 'dveri' }).click();
+
+    await page.getByLabel('Заголовок', { exact: true }).first().fill(marker);
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click();
+    await expect(page.getByText('Черновик сохранён')).toBeVisible({ timeout: 15_000 });
+
+    // Public: unchanged, because nothing was published.
+    await page.goto('/dveri');
+    await expect(page.locator('h1')).not.toHaveText(marker);
+
+    // Preview: the same URL now renders the draft.
+    await page.goto('/api/preview?documentId=' + (await documentIdFromUrl(page)) + '&locale=ru');
+    await expect(page.locator('h1')).toHaveText(marker);
+    await expect(page.getByText('Черновик.')).toBeVisible();
+    // A preview render must never be indexable, whatever the page's own setting.
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+
+    // Leaving draft mode returns the published page.
+    await page.getByRole('link', { name: 'Выйти из черновика' }).click();
+    await expect(page.locator('h1')).not.toHaveText(marker);
+    await expect(page.getByText('Черновик.')).toBeHidden();
+  });
+
+  test('preview refuses an unsigned request from a stranger', async ({ browser }) => {
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+
+    // No session and no token: the endpoint must not reveal that the document
+    // exists, let alone enable draft mode.
+    const response = await page.goto(
+      '/api/preview?documentId=00000000-0000-4000-8000-000000000000&locale=ru',
+    );
+    expect(response?.status()).toBe(404);
+    await context.close();
+  });
+});
+
+/** Reads the document id out of the editor URL the test just visited. */
+async function documentIdFromUrl(page: Page): Promise<string> {
+  await page.goto('/admin/pages');
+  const href = await page.getByRole('link', { name: 'dveri' }).getAttribute('href');
+  return href!.split('/').pop()!;
+}

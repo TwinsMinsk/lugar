@@ -20,6 +20,12 @@ import { documentPath, localePath } from '@/lib/routes';
  * be resolved (a 404, an admin path, a malformed `from`), because sending a
  * visitor to a broken URL is worse than sending them to a working one.
  */
+/** Relative Location, so the origin cannot drift. See
+ *  src/app/api/preview/route.ts for the full reasoning. */
+function relativeRedirect(pathname: string): NextResponse {
+  return new NextResponse(null, { status: 307, headers: { Location: pathname } });
+}
+
 function stripLocalePrefix(pathname: string): { locale: Locale; path: string } {
   const segments = pathname.split('/').filter(Boolean);
   const first = segments[0];
@@ -36,7 +42,7 @@ export async function GET(
   const { locale: rawTarget } = await params;
 
   if (!(LOCALES as readonly string[]).includes(rawTarget)) {
-    return NextResponse.redirect(new URL('/', request.url));
+    return relativeRedirect('/');
   }
   const target = rawTarget as Locale;
 
@@ -45,7 +51,7 @@ export async function GET(
   // the query string, which would make this an open redirect.
   const safeFrom = from.startsWith('/') && !from.startsWith('//') ? from : '/';
 
-  const fallback = NextResponse.redirect(new URL(localePath(target, '/'), request.url));
+  const fallback = relativeRedirect(localePath(target, '/'));
 
   try {
     const { locale: currentLocale, path } = stripLocalePrefix(safeFrom);
@@ -75,8 +81,9 @@ export async function GET(
 
     const targetIndexSlug = match.kind === 'project' ? await getPortfolioIndexSlug(target) : null;
 
-    const destination = localePath(target, documentPath(match.kind, match.slug, targetIndexSlug));
-    return NextResponse.redirect(new URL(destination, request.url));
+    return relativeRedirect(
+      localePath(target, documentPath(match.kind, match.slug, targetIndexSlug)),
+    );
   } catch {
     return fallback;
   }

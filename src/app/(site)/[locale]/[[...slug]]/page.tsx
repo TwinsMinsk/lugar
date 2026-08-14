@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { draftMode } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
@@ -95,11 +96,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     languages['x-default'] = languages[LOCALE_TAG.ru]!;
   }
 
+  // A preview render shows unpublished content, so it must never be indexed —
+  // regardless of the document's own robots setting.
+  const { isEnabled: isPreview } = await draftMode();
+
   return {
     title: seo.title,
     description: seo.description,
     alternates: { canonical, languages },
-    robots: loaded.ref.noindex ? { index: false, follow: false } : undefined,
+    robots: isPreview || loaded.ref.noindex ? { index: false, follow: false } : undefined,
     openGraph: {
       type: 'website',
       siteName: 'LUGAR',

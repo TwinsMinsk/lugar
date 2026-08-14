@@ -34,16 +34,28 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
           </h1>
         </div>
 
-        {ru && ru.status === 'published' ? (
-          <Link
-            href={localePath('ru', documentPath(document.kind, ru.slug, 'raboty'))}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Preview enters draft mode for this document, so the page renders
+              the unsaved-to-public draft. Requires an admin session. */}
+          <a
+            href={`/api/preview?documentId=${document.id}&locale=ru`}
             target="_blank"
             rel="noopener"
             className="text-accent text-[13px] underline underline-offset-2"
           >
-            Открыть на сайте ↗
-          </Link>
-        ) : null}
+            Посмотреть черновик ↗
+          </a>
+          {ru && ru.status === 'published' ? (
+            <Link
+              href={localePath('ru', documentPath(document.kind, ru.slug, 'raboty'))}
+              target="_blank"
+              rel="noopener"
+              className="text-ink-faint hover:text-accent text-[13px]"
+            >
+              Открыть опубликованную ↗
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {document.invalidBlocks > 0 ? (

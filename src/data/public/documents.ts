@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, or } from 'drizzle-orm';
 import { cacheLife, cacheTag } from 'next/cache';
+import { draftMode } from 'next/headers';
 
 import { anyBlockSchema, type AnyBlock } from '@/content/blocks/union';
 import { db } from '@/db/client';
@@ -14,9 +15,18 @@ import { PUBLIC_CACHE_PROFILE, tags } from '../cache-tags';
  *
  * Every export here hard-codes `status = 'published'` and
  * `published_revision_id IS NOT NULL`, and no function accepts a revision id
- * from the caller. Draft leakage is therefore prevented structurally rather
- * than by remembering to filter — drafts are read through a separate module
- * whose every export begins with a preview-token check.
+ * from the caller. A caller cannot ask for a draft; it can only be *in* draft
+ * mode, which is a separate, authorised state.
+ *
+ * Draft mode is honoured here rather than in a parallel module because Next
+ * guarantees two things that make it safe: `draftMode().isEnabled` is readable
+ * inside a `use cache` scope (unlike cookies() or headers()), and while it is
+ * enabled nothing under such a scope is written to the cache. So a preview
+ * render cannot become the next visitor's cached page — which is exactly the
+ * failure a hand-rolled preview path tends to produce.
+ *
+ * Entering draft mode requires a signed token or an admin session; see
+ * src/app/api/preview/route.ts.
  */
 
 export type PublishedRef = {
@@ -48,6 +58,18 @@ export type PublishedDocument = PublishedRef & {
   meta: DocumentMeta;
 };
 
+/**
+ * Which revision to render, and whether unpublished locales are visible.
+ *
+ * Off: published revision only. On: the document's live draft, and a locale
+ * that has never been published becomes reachable so the owner can review
+ * something before its first publish.
+ */
+async function previewState(): Promise<boolean> {
+  const { isEnabled } = await draftMode();
+  return isEnabled;
+}
+
 /** Slug of the portfolio index per locale — the parent segment of project URLs. */
 export async function getPortfolioIndexSlug(locale: Locale): Promise<string | null> {
   'use cache';
@@ -77,10 +99,13 @@ export async function resolvePage(locale: Locale, slug: string): Promise<Publish
   cacheLife(PUBLIC_CACHE_PROFILE);
   cacheTag(tags.path('page', locale, slug));
 
+  const preview = await previewState();
+
   const [row] = await db
     .select({
       documentId: documentLocales.documentId,
-      revisionId: documentLocales.publishedRevisionId,
+      publishedRevisionId: documentLocales.publishedRevisionId,
+      draftRevisionId: documents.draftRevisionId,
       noindex: documentLocales.noindex,
       publishedAt: documentLocales.publishedAt,
       slug: documentLocales.slug,
@@ -93,16 +118,22 @@ export async function resolvePage(locale: Locale, slug: string): Promise<Publish
         eq(documentLocales.kind, 'page'),
         eq(documentLocales.locale, locale),
         eq(documentLocales.slug, slug),
-        eq(documentLocales.status, 'published'),
-        isNotNull(documentLocales.publishedRevisionId),
+        preview
+          ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
+          : eq(documentLocales.status, 'published'),
+        preview ? undefined : isNotNull(documentLocales.publishedRevisionId),
       ),
     )
     .limit(1);
 
-  if (!row?.revisionId) return null;
+  const revisionId = preview
+    ? (row?.draftRevisionId ?? row?.publishedRevisionId)
+    : row?.publishedRevisionId;
+
+  if (!row || !revisionId) return null;
   return {
     documentId: row.documentId,
-    revisionId: row.revisionId,
+    revisionId,
     kind: 'page',
     template: row.template,
     slug: row.slug,
@@ -117,10 +148,13 @@ export async function resolveProject(locale: Locale, slug: string): Promise<Publ
   cacheLife(PUBLIC_CACHE_PROFILE);
   cacheTag(tags.path('project', locale, slug));
 
+  const preview = await previewState();
+
   const [row] = await db
     .select({
       documentId: documentLocales.documentId,
-      revisionId: documentLocales.publishedRevisionId,
+      publishedRevisionId: documentLocales.publishedRevisionId,
+      draftRevisionId: documents.draftRevisionId,
       noindex: documentLocales.noindex,
       publishedAt: documentLocales.publishedAt,
       slug: documentLocales.slug,
@@ -133,16 +167,22 @@ export async function resolveProject(locale: Locale, slug: string): Promise<Publ
         eq(documentLocales.kind, 'project'),
         eq(documentLocales.locale, locale),
         eq(documentLocales.slug, slug),
-        eq(documentLocales.status, 'published'),
-        isNotNull(documentLocales.publishedRevisionId),
+        preview
+          ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
+          : eq(documentLocales.status, 'published'),
+        preview ? undefined : isNotNull(documentLocales.publishedRevisionId),
       ),
     )
     .limit(1);
 
-  if (!row?.revisionId) return null;
+  const revisionId = preview
+    ? (row?.draftRevisionId ?? row?.publishedRevisionId)
+    : row?.publishedRevisionId;
+
+  if (!row || !revisionId) return null;
   return {
     documentId: row.documentId,
-    revisionId: row.revisionId,
+    revisionId,
     kind: 'project',
     template: row.template,
     slug: row.slug,
