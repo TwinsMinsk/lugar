@@ -15,6 +15,7 @@ const baseURL = `http://127.0.0.1:${PORT}`;
  * with no session and fails as if the feature were broken.
  */
 const ADMIN_SPECS = [
+  /accessibility-admin\.spec\.ts/,
   /admin\.spec\.ts/,
   /leads\.spec\.ts/,
   /media\.spec\.ts/,

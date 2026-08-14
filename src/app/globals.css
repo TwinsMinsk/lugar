@@ -21,8 +21,16 @@
   --color-ink-strong: oklch(0.3 0.006 85);
   --color-ink-muted: oklch(0.4 0.006 85); /* long-form paragraphs */
   --color-ink-soft: oklch(0.5 0.006 85); /* card descriptions */
-  --color-ink-faint: oklch(0.58 0.006 85); /* meta, labels */
-  --color-ink-ghost: oklch(0.62 0.006 85); /* least prominent */
+  /* The bottom two rungs are darker than the prototype authored them.
+     At 0.58 and 0.62 they measured 3.60:1 and 3.05:1 against the muted band —
+     below the 4.5:1 WCAG AA needs, and they carry 9-12px labels, so the
+     large-text exemption does not apply. 0.519 is the lightest value clearing
+     4.5:1 on every light surface the ink ramp is drawn on — including
+     --color-slot, which is darker than the muted band and is what the media
+     picker's "не выбрано" label sits on. These sit just under it and keep the
+     ramp's ordering intact (soft 0.50 < faint 0.51 < ghost 0.518). */
+  --color-ink-faint: oklch(0.51 0.006 85); /* meta, labels */
+  --color-ink-ghost: oklch(0.518 0.006 85); /* least prominent */
   --color-ink-nav: oklch(0.36 0.006 85); /* header nav links */
   --color-ink-filter: oklch(0.42 0.006 85); /* inactive filter chips */
 
@@ -45,7 +53,11 @@
   --color-on-dark-bright: oklch(0.9 0.004 85);
   --color-on-dark-muted: oklch(0.82 0.006 85);
   --color-on-dark-soft: oklch(0.78 0.006 85);
-  --color-on-dark-faint: oklch(0.62 0.006 85);
+  /* Lightened from the prototype's 0.62, which measured 3.73:1 on
+     --color-dark and carries 11px labels in the contact block. 0.67 is the
+     darkest value clearing 4.5:1 there; this keeps a margin and stays below
+     on-dark-soft, so the ramp still reads in the intended order. */
+  --color-on-dark-faint: oklch(0.68 0.006 85);
 
   /* --- typography --------------------------------------------------------
      Loaded via next/font in src/app/layout.tsx, which sets these variables.

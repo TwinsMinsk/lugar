@@ -61,7 +61,20 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
         </p>
       ) : null}
 
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      {/*
+        Focusable because it scrolls.
+
+        A horizontally scrolling region that cannot take focus is unreachable
+        for anyone using a keyboard: there is no way to bring the later columns
+        into view. tabIndex makes it a stop, and the label says what will move
+        when the arrow keys are pressed.
+      */}
+      <div
+        role="region"
+        aria-label="Колонки воронки"
+        tabIndex={0}
+        className="focus-visible:outline-accent flex gap-3 overflow-x-auto pb-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
         {columns.map((column) => (
           <section
             key={column.status.id}
