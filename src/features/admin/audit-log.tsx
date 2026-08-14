@@ -38,6 +38,8 @@ const ACTION_LABEL: Record<string, string> = {
   'users.role_changed': 'Изменена роль',
   'users.banned': 'Доступ заблокирован',
   'users.unbanned': 'Доступ восстановлен',
+  'lead.deleted': 'Заявка удалена',
+  'crm.exported': 'Выгрузка заявок',
 };
 
 const ENTITY_LABEL: Record<string, string> = {
@@ -49,6 +51,7 @@ const ENTITY_LABEL: Record<string, string> = {
   settings: 'настройки',
   user: 'пользователь',
   invitation: 'приглашение',
+  lead: 'заявка',
 };
 
 export type AuditFilterValues = {

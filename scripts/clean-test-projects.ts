@@ -1,5 +1,5 @@
 /**
- * Removes portfolio projects created by the end-to-end suite.
+ * Removes the rows the end-to-end suite creates.
  *
  * Development only. Projects are archived rather than deleted in the
  * application, deliberately — revisions and media usage rows are what make
@@ -11,7 +11,15 @@ import './load-env';
 import { inArray, like, or } from 'drizzle-orm';
 
 import { db, pgClient } from '../src/db/client';
-import { documentLocales, documents, invitation, user } from '../src/db/schema';
+import {
+  contacts,
+  documentLocales,
+  documents,
+  formSubmissions,
+  invitation,
+  leads,
+  user,
+} from '../src/db/schema';
 
 const TEST_SLUG_PATTERNS = ['test-proekt-%', 'dubl-%', 'opublikovannyy-%'];
 
@@ -55,9 +63,38 @@ async function cleanTestUsers() {
   }
 }
 
+/**
+ * Leads the suite submits through the public form.
+ *
+ * Matched on the contact name the specs generate, never on a phone prefix: a
+ * real Spanish mobile could plausibly share any prefix a test picked, and this
+ * script hard-deletes.
+ */
+async function cleanTestLeads() {
+  const matches = await db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(like(contacts.fullName, 'E2E %'));
+
+  const contactIds = matches.map((row) => row.id);
+  if (contactIds.length === 0) return;
+
+  // form_submissions references leads without a cascade, so it goes first.
+  const removed = await db
+    .delete(leads)
+    .where(inArray(leads.contactId, contactIds))
+    .returning({ id: leads.id });
+
+  await db.delete(formSubmissions).where(inArray(formSubmissions.contactId, contactIds));
+  await db.delete(contacts).where(inArray(contacts.id, contactIds));
+
+  console.log(`Removed ${removed.length} test lead(s) and ${contactIds.length} contact(s).`);
+}
+
 try {
   await main();
   await cleanTestUsers();
+  await cleanTestLeads();
 } catch (error) {
   console.error('Cleanup failed:', error);
   process.exitCode = 1;

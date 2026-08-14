@@ -106,6 +106,13 @@ test.describe('users and invitations', () => {
     await inviteePage.goto('/admin/settings');
     await expect(inviteePage.getByLabel('Instagram')).toHaveCount(0);
 
+    // The CRM holds names and phone numbers. A content editor has no business
+    // there, and the export route guards itself separately from the pages.
+    await inviteePage.goto('/admin/leads');
+    await expect(inviteePage.getByRole('heading', { name: 'Заявки' })).toHaveCount(0);
+    const csv = await inviteePage.request.get('/api/admin/leads/export');
+    expect(csv.status()).toBe(404);
+
     // And the navigation does not offer what they cannot reach.
     await inviteePage.goto('/admin');
     await expect(inviteePage.getByRole('link', { name: 'Пользователи' })).toHaveCount(0);
