@@ -188,7 +188,9 @@ test.describe('leads', () => {
     await expect(page.getByText('окно 24 ч открыто')).toBeVisible();
   });
 
-  test('the CSV export contains the lead and neutralises spreadsheet formulas', async ({ page }) => {
+  test('the CSV export contains the lead and neutralises spreadsheet formulas', async ({
+    page,
+  }) => {
     const response = await page.request.get('/api/admin/leads/export');
     expect(response.status()).toBe(200);
     expect(response.headers()['content-disposition']).toContain('attachment');
@@ -200,7 +202,10 @@ test.describe('leads', () => {
     expect(body).toContain(publicId);
 
     // No cell may start with a bare formula character.
-    const cells = body.split(/\r\n/).slice(1).flatMap((line) => line.split('","'));
+    const cells = body
+      .split(/\r\n/)
+      .slice(1)
+      .flatMap((line) => line.split('","'));
     for (const cell of cells) {
       expect(cell.replace(/^"/, '')).not.toMatch(/^[=+@]/);
     }

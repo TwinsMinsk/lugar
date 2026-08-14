@@ -34,9 +34,7 @@ async function requestContext() {
 
 const statusSchema = z.object({ leadId: z.uuid(), statusId: z.uuid() });
 
-export async function changeLeadStatus(
-  input: z.input<typeof statusSchema>,
-): Promise<LeadResult> {
+export async function changeLeadStatus(input: z.input<typeof statusSchema>): Promise<LeadResult> {
   const { user: actor } = await requireCapability('crm.write');
 
   const parsed = statusSchema.safeParse(input);
@@ -158,7 +156,10 @@ export async function addLeadNote(input: z.input<typeof noteSchema>): Promise<Le
       actorUserId: actor.id,
       body,
     });
-    await tx.update(leads).set({ lastActivityAt: sql`now()` }).where(eq(leads.id, leadId));
+    await tx
+      .update(leads)
+      .set({ lastActivityAt: sql`now()` })
+      .where(eq(leads.id, leadId));
   });
 
   return { ok: true };
@@ -202,7 +203,10 @@ export async function createLeadTask(input: z.input<typeof taskSchema>): Promise
       actorUserId: actor.id,
       body: title,
     });
-    await tx.update(leads).set({ lastActivityAt: sql`now()` }).where(eq(leads.id, leadId));
+    await tx
+      .update(leads)
+      .set({ lastActivityAt: sql`now()` })
+      .where(eq(leads.id, leadId));
   });
 
   return { ok: true };
@@ -217,7 +221,10 @@ export async function completeLeadTask(taskId: string): Promise<LeadResult> {
   if (task.completedAt) return { ok: true };
 
   await db.transaction(async (tx) => {
-    await tx.update(leadTasks).set({ completedAt: sql`now()` }).where(eq(leadTasks.id, taskId));
+    await tx
+      .update(leadTasks)
+      .set({ completedAt: sql`now()` })
+      .where(eq(leadTasks.id, taskId));
     if (task.leadId) {
       await tx.insert(leadActivities).values({
         leadId: task.leadId,
@@ -226,7 +233,10 @@ export async function completeLeadTask(taskId: string): Promise<LeadResult> {
         actorUserId: actor.id,
         body: task.title,
       });
-      await tx.update(leads).set({ lastActivityAt: sql`now()` }).where(eq(leads.id, task.leadId));
+      await tx
+        .update(leads)
+        .set({ lastActivityAt: sql`now()` })
+        .where(eq(leads.id, task.leadId));
     }
   });
 
@@ -254,7 +264,10 @@ export async function deleteLead(leadId: string): Promise<LeadResult> {
   const context = await requestContext();
 
   await db.transaction(async (tx) => {
-    await tx.update(leads).set({ deletedAt: sql`now()` }).where(eq(leads.id, leadId));
+    await tx
+      .update(leads)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(leads.id, leadId));
     await recordAudit(
       {
         actorUserId: actor.id,

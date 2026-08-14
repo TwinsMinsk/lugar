@@ -154,7 +154,10 @@ export async function listNavigationTargets(): Promise<NavigationTarget[]> {
   return rows.map((row) => ({
     id: row.id,
     label: row.seedKey?.replace(/^(page|project)\./, '') ?? row.template,
-    path: row.slug === '' ? '/' : `/${row.kind === 'project' ? `${projectParent}/` : ''}${row.slug ?? ''}`,
+    path:
+      row.slug === ''
+        ? '/'
+        : `/${row.kind === 'project' ? `${projectParent}/` : ''}${row.slug ?? ''}`,
     published: row.status === 'published' && row.publishedRevisionId !== null,
   }));
 }

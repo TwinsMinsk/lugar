@@ -133,7 +133,10 @@ test.describe('portfolio', () => {
 
     // And the project has its own crawlable page with exactly one h1.
     await expect
-      .poll(live(page, `/raboty/${slug}`, () => page.locator('h1').count()), LIVE)
+      .poll(
+        live(page, `/raboty/${slug}`, () => page.locator('h1').count()),
+        LIVE,
+      )
       .toBe(1);
     await expect(page.locator('h1')).toHaveText('Кухня в Марбелье');
 

@@ -1,9 +1,4 @@
-import {
-  countLeadsByStatus,
-  listAssignees,
-  listLeadStatuses,
-  listLeads,
-} from '@/data/admin/leads';
+import { countLeadsByStatus, listAssignees, listLeadStatuses, listLeads } from '@/data/admin/leads';
 import { LeadsTable } from '@/features/admin/leads-table';
 import { can, requireCapability } from '@/lib/auth/guards';
 

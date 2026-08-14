@@ -95,7 +95,12 @@ test.describe('admin', () => {
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
     // The change must be live on the public site.
-    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).toBe(marker);
+    await expect
+      .poll(
+        live(page, '/', () => h1Text(page)),
+        LIVE,
+      )
+      .toBe(marker);
 
     // Roll back to the revision that preceded it.
     await page.goto('/admin/pages');
@@ -107,7 +112,12 @@ test.describe('admin', () => {
     await rollback.first().click();
     await expect(page.getByText(/восстановлена \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
-    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).not.toBe(marker);
+    await expect
+      .poll(
+        live(page, '/', () => h1Text(page)),
+        LIVE,
+      )
+      .not.toBe(marker);
 
     // Restore explicitly rather than relying on the rollback target, which
     // would leave the draft holding the marker. afterAll is the safety net for
@@ -118,7 +128,12 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Опубликовать RU' }).click();
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
-    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).toBe(original);
+    await expect
+      .poll(
+        live(page, '/', () => h1Text(page)),
+        LIVE,
+      )
+      .toBe(original);
   });
 
   test('a draft edit does not reach the public site until published', async ({ page }) => {

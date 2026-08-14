@@ -81,7 +81,10 @@ export function LeadActions({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="lead-status" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          <label
+            htmlFor="lead-status"
+            className="text-ink-muted mb-1 block text-[12px] font-medium"
+          >
             Статус
           </label>
           <select
@@ -129,7 +132,10 @@ export function LeadActions({
         className="border-line rounded-[--radius-card] border border-dashed p-3"
         onSubmit={(event) => {
           event.preventDefault();
-          run(() => addLeadNote({ leadId, body: note }), () => setNote(''));
+          run(
+            () => addLeadNote({ leadId, body: note }),
+            () => setNote(''),
+          );
         }}
       >
         <label htmlFor="lead-note" className="text-ink-muted mb-1 block text-[12px] font-medium">

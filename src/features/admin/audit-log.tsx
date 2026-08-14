@@ -132,7 +132,10 @@ export function AuditLog({
         className="border-line bg-surface flex flex-wrap items-end gap-3 rounded-[--radius-card] border p-4"
       >
         <div className="min-w-[200px]">
-          <label htmlFor="audit-action" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          <label
+            htmlFor="audit-action"
+            className="text-ink-muted mb-1 block text-[12px] font-medium"
+          >
             Действие
           </label>
           <select
@@ -151,7 +154,10 @@ export function AuditLog({
         </div>
 
         <div className="min-w-[200px]">
-          <label htmlFor="audit-actor" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          <label
+            htmlFor="audit-actor"
+            className="text-ink-muted mb-1 block text-[12px] font-medium"
+          >
             Кто
           </label>
           <select
@@ -170,7 +176,10 @@ export function AuditLog({
         </div>
 
         <div className="min-w-[180px]">
-          <label htmlFor="audit-entity" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          <label
+            htmlFor="audit-entity"
+            className="text-ink-muted mb-1 block text-[12px] font-medium"
+          >
             Объект
           </label>
           <select

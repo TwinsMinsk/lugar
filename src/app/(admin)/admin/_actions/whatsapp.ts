@@ -48,9 +48,7 @@ const textSchema = z.object({
  * than trusted from the page: the window may well have closed while the message
  * was being typed.
  */
-export async function sendWhatsAppText(
-  input: z.input<typeof textSchema>,
-): Promise<WhatsAppResult> {
+export async function sendWhatsAppText(input: z.input<typeof textSchema>): Promise<WhatsAppResult> {
   const { user: actor } = await requireCapability('whatsapp.send');
 
   const parsed = textSchema.safeParse(input);
@@ -95,7 +93,10 @@ export async function sendWhatsAppText(
       body,
     });
 
-    await tx.update(leads).set({ lastActivityAt: sql`now()` }).where(eq(leads.id, leadId));
+    await tx
+      .update(leads)
+      .set({ lastActivityAt: sql`now()` })
+      .where(eq(leads.id, leadId));
   });
 
   return { ok: true };
@@ -151,7 +152,10 @@ export async function sendWhatsAppTemplate(
       body: `Шаблон: ${name}`,
     });
 
-    await tx.update(leads).set({ lastActivityAt: sql`now()` }).where(eq(leads.id, leadId));
+    await tx
+      .update(leads)
+      .set({ lastActivityAt: sql`now()` })
+      .where(eq(leads.id, leadId));
   });
 
   return { ok: true };

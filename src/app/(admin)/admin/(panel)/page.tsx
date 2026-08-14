@@ -115,7 +115,10 @@ export default async function AdminDashboard() {
             <Link href="/admin/leads" className="text-ink-faint hover:text-accent text-[13px]">
               Списком
             </Link>
-            <Link href="/admin/leads/board" className="text-ink-faint hover:text-accent text-[13px]">
+            <Link
+              href="/admin/leads/board"
+              className="text-ink-faint hover:text-accent text-[13px]"
+            >
               Воронкой
             </Link>
           </div>

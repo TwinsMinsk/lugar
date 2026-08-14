@@ -111,7 +111,12 @@ describe('envelope parsing', () => {
                 value: {
                   metadata: { phone_number_id: '55501' },
                   statuses: [
-                    { id: 'wamid.BBB', status, timestamp: '1786700001', recipient_id: '34600112233' },
+                    {
+                      id: 'wamid.BBB',
+                      status,
+                      timestamp: '1786700001',
+                      recipient_id: '34600112233',
+                    },
                   ],
                 },
               },
@@ -134,9 +139,7 @@ describe('envelope parsing', () => {
             {
               field: 'messages',
               value: {
-                statuses: [
-                  { id: 'wamid.CCC', status: 'failed', errors: [{ code: 131047 }] },
-                ],
+                statuses: [{ id: 'wamid.CCC', status: 'failed', errors: [{ code: 131047 }] }],
               },
             },
           ],

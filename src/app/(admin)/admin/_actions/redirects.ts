@@ -56,9 +56,7 @@ const createSchema = z.object({
   note: z.string().trim().max(200).optional(),
 });
 
-export async function createRedirect(
-  input: z.input<typeof createSchema>,
-): Promise<RedirectResult> {
+export async function createRedirect(input: z.input<typeof createSchema>): Promise<RedirectResult> {
   const { user: actor } = await requireCapability('seo.write');
 
   const parsed = createSchema.safeParse(input);

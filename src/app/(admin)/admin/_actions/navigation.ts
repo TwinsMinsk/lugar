@@ -31,7 +31,9 @@ async function requestContext() {
 }
 
 const labelSchema = z
-  .object(Object.fromEntries(LOCALES.map((locale) => [locale, z.string().trim().max(60).optional()])))
+  .object(
+    Object.fromEntries(LOCALES.map((locale) => [locale, z.string().trim().max(60).optional()])),
+  )
   .refine((value) => Boolean((value as Record<string, string>).ru?.trim()), {
     message: 'ru_required',
   });
@@ -197,11 +199,7 @@ export async function moveNavigationItem(
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const { id, position } = parsed.data;
 
-  const [item] = await db
-    .select()
-    .from(navigationItems)
-    .where(eq(navigationItems.id, id))
-    .limit(1);
+  const [item] = await db.select().from(navigationItems).where(eq(navigationItems.id, id)).limit(1);
   if (!item) return { ok: false, error: 'not_found' };
 
   const siblings = await db
@@ -253,11 +251,7 @@ export async function deleteNavigationItem(id: string): Promise<NavigationResult
   const { user: actor } = await requireCapability('navigation.write');
   if (!z.uuid().safeParse(id).success) return { ok: false, error: 'invalid_input' };
 
-  const [item] = await db
-    .select()
-    .from(navigationItems)
-    .where(eq(navigationItems.id, id))
-    .limit(1);
+  const [item] = await db.select().from(navigationItems).where(eq(navigationItems.id, id)).limit(1);
   if (!item) return { ok: false, error: 'not_found' };
 
   const context = await requestContext();

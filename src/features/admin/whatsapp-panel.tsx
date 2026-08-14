@@ -195,7 +195,10 @@ export function WhatsAppPanel({
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            run(() => sendWhatsAppText({ leadId, body }), () => setBody(''));
+            run(
+              () => sendWhatsAppText({ leadId, body }),
+              () => setBody(''),
+            );
           }}
         >
           <label htmlFor="wa-body" className="text-ink-muted text-[12px] font-medium">
@@ -234,8 +237,8 @@ export function WhatsAppPanel({
         */
         <div className="flex flex-col gap-2">
           <p className="text-ink-muted text-[12px] leading-snug">
-            Прошло больше 24 часов с последнего сообщения клиента. Свободный текст Meta не
-            пропустит — можно отправить только одобренный шаблон.
+            Прошло больше 24 часов с последнего сообщения клиента. Свободный текст Meta не пропустит
+            — можно отправить только одобренный шаблон.
           </p>
 
           {templates.length === 0 ? (

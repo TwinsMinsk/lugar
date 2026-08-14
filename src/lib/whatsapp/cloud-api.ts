@@ -1,7 +1,12 @@
 import 'server-only';
 
 import { env } from '@/env';
-import { classifyError, type SendResult, type SendTemplateParams, type SendTextParams } from './provider';
+import {
+  classifyError,
+  type SendResult,
+  type SendTemplateParams,
+  type SendTextParams,
+} from './provider';
 
 /**
  * Meta Cloud API transport.
@@ -95,7 +100,8 @@ async function post(payload: unknown): Promise<SendResult> {
   }
 
   const code = body.error?.code ?? -1;
-  const message = body.error?.error_data?.details ?? body.error?.message ?? `HTTP ${response.status}`;
+  const message =
+    body.error?.error_data?.details ?? body.error?.message ?? `HTTP ${response.status}`;
   const classification = classifyError(code, response.status);
 
   if (classification === 'needs_template') return { status: 'needs_template', code };
@@ -135,9 +141,7 @@ export async function sendTemplateViaCloudApi(params: SendTemplateParams): Promi
     template: {
       name: params.name,
       language: { code: params.language },
-      ...(parameters.length > 0
-        ? { components: [{ type: 'body', parameters }] }
-        : {}),
+      ...(parameters.length > 0 ? { components: [{ type: 'body', parameters }] } : {}),
     },
   });
 }

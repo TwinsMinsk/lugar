@@ -288,7 +288,8 @@ async function processJob(job: ClaimedJob): Promise<void> {
   await recordAttempt(job, 'whatsapp', job.toPhoneE164, {
     providerCode: 'code' in result ? result.code : undefined,
     providerMessageId: result.status === 'sent' ? result.providerMessageId : undefined,
-    error: result.status === 'retryable' || result.status === 'permanent' ? result.message : undefined,
+    error:
+      result.status === 'retryable' || result.status === 'permanent' ? result.message : undefined,
     latencyMs: Date.now() - started,
   });
 

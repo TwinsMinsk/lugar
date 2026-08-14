@@ -196,7 +196,9 @@ function MenuSection({
               ) : (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <div className="min-w-[220px] flex-1">
-                    <div className={cn('text-[14px]', item.isVisible ? 'text-ink' : 'text-ink-faint')}>
+                    <div
+                      className={cn('text-[14px]', item.isVisible ? 'text-ink' : 'text-ink-faint')}
+                    >
                       {item.label.ru ?? '(без названия)'}
                       {item.isVisible ? null : (
                         <span className="text-ink-faint ml-2 text-[11px]">скрыт</span>
@@ -225,10 +227,12 @@ function MenuSection({
                     disabled={pending}
                     onChange={(event) => {
                       const position = Number(event.target.value);
-                      run(() => moveNavigationItem({ id: item.id, position }), () =>
-                        announce(
-                          `${item.label.ru ?? 'Пункт'} — позиция ${position} из ${items.length}`,
-                        ),
+                      run(
+                        () => moveNavigationItem({ id: item.id, position }),
+                        () =>
+                          announce(
+                            `${item.label.ru ?? 'Пункт'} — позиция ${position} из ${items.length}`,
+                          ),
                       );
                     }}
                     className="border-line-strong rounded-[--radius-btn] border px-2 py-1 text-[13px]"
@@ -245,8 +249,12 @@ function MenuSection({
                     disabled={pending || index === 0}
                     aria-label={`Переместить «${item.label.ru ?? ''}» выше`}
                     onClick={() =>
-                      run(() => nudgeNavigationItem(item.id, 'up'), () =>
-                        announce(`${item.label.ru ?? 'Пункт'} — позиция ${index} из ${items.length}`),
+                      run(
+                        () => nudgeNavigationItem(item.id, 'up'),
+                        () =>
+                          announce(
+                            `${item.label.ru ?? 'Пункт'} — позиция ${index} из ${items.length}`,
+                          ),
                       )
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'px-2 text-[13px]')}
@@ -258,10 +266,12 @@ function MenuSection({
                     disabled={pending || index === items.length - 1}
                     aria-label={`Переместить «${item.label.ru ?? ''}» ниже`}
                     onClick={() =>
-                      run(() => nudgeNavigationItem(item.id, 'down'), () =>
-                        announce(
-                          `${item.label.ru ?? 'Пункт'} — позиция ${index + 2} из ${items.length}`,
-                        ),
+                      run(
+                        () => nudgeNavigationItem(item.id, 'down'),
+                        () =>
+                          announce(
+                            `${item.label.ru ?? 'Пункт'} — позиция ${index + 2} из ${items.length}`,
+                          ),
                       )
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'px-2 text-[13px]')}
@@ -329,11 +339,7 @@ function ItemForm({
   initial?: NavItem;
   pending: boolean;
   submitLabel: string;
-  onSubmit: (
-    label: Partial<Record<Locale, string>>,
-    kind: TargetKind,
-    value: string,
-  ) => void;
+  onSubmit: (label: Partial<Record<Locale, string>>, kind: TargetKind, value: string) => void;
   onCancel: () => void;
 }) {
   const initialTarget = initial ? targetOf(initial) : { kind: 'document' as TargetKind, value: '' };

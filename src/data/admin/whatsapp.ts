@@ -182,22 +182,24 @@ export async function listApprovedTemplates(): Promise<ApprovedTemplate[]> {
       }>;
     };
 
-    return (payload.data ?? [])
-      // Only APPROVED is sendable. A paused or rejected template fails at send
-      // time with a code the operator cannot do anything about.
-      .filter((template) => template.status === 'APPROVED')
-      .map((template) => {
-        const body = template.components?.find((c) => c.type === 'BODY')?.text ?? '';
-        const placeholders = new Set(body.match(/\{\{(\d+)\}\}/g) ?? []);
-        return {
-          name: template.name ?? '',
-          language: template.language ?? 'ru',
-          category: template.category ?? 'UTILITY',
-          body,
-          variableCount: placeholders.size,
-        };
-      })
-      .filter((template) => template.name !== '');
+    return (
+      (payload.data ?? [])
+        // Only APPROVED is sendable. A paused or rejected template fails at send
+        // time with a code the operator cannot do anything about.
+        .filter((template) => template.status === 'APPROVED')
+        .map((template) => {
+          const body = template.components?.find((c) => c.type === 'BODY')?.text ?? '';
+          const placeholders = new Set(body.match(/\{\{(\d+)\}\}/g) ?? []);
+          return {
+            name: template.name ?? '',
+            language: template.language ?? 'ru',
+            category: template.category ?? 'UTILITY',
+            body,
+            variableCount: placeholders.size,
+          };
+        })
+        .filter((template) => template.name !== '')
+    );
   } catch {
     return [];
   }

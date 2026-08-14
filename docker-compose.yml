@@ -11,11 +11,11 @@ services:
       # Deterministic collation so ORDER BY on Cyrillic/Spanish text matches prod.
       LANG: C.UTF-8
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lugar -d lugar"]
+      test: ['CMD-SHELL', 'pg_isready -U lugar -d lugar']
       interval: 5s
       timeout: 3s
       retries: 10

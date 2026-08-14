@@ -18,9 +18,7 @@ test.describe('navigation', () => {
 
   /** How many times the label appears in the live footer. See ./live. */
   function footerLinks(page: Page, name: string) {
-    return live(page, '/', () =>
-      page.getByRole('contentinfo').getByRole('link', { name }).count(),
-    );
+    return live(page, '/', () => page.getByRole('contentinfo').getByRole('link', { name }).count());
   }
 
   test('an added item appears in the footer of the live site', async ({ page }) => {
