@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { live, LIVE } from './live';
+
 /**
  * Global settings.
  *
@@ -44,10 +46,10 @@ test.describe('settings', () => {
 
   test('a filled social link appears on the site, and clearing it removes it', async ({ page }) => {
     const url = 'https://www.instagram.com/lugar.test.profile/';
+    const instagram = () => page.getByRole('link', { name: 'Instagram' }).count();
 
     // Absent to begin with: the contact block renders no Instagram link.
-    await page.goto('/kontakty');
-    await expect(page.getByRole('link', { name: 'Instagram' })).toHaveCount(0);
+    await expect.poll(live(page, '/kontakty', instagram), LIVE).toBe(0);
 
     await page.goto('/admin/settings');
     await page.getByLabel('Instagram').fill(url);
@@ -55,7 +57,8 @@ test.describe('settings', () => {
     await expect(page.getByText('Настройки сохранены.')).toBeVisible({ timeout: 15_000 });
 
     // Now it is on the public site, pointing where the owner said.
-    await page.goto('/kontakty');
+    await expect.poll(live(page, '/kontakty', instagram), LIVE).toBe(1);
+
     const link = page.getByRole('link', { name: 'Instagram' }).first();
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('href', url);
@@ -70,7 +73,6 @@ test.describe('settings', () => {
     await page.reload();
     await expect(page.getByText('не заполнено').first()).toBeVisible();
 
-    await page.goto('/kontakty');
-    await expect(page.getByRole('link', { name: 'Instagram' })).toHaveCount(0);
+    await expect.poll(live(page, '/kontakty', instagram), LIVE).toBe(0);
   });
 });

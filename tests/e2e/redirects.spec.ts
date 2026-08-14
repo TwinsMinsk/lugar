@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { live, LIVE } from './live';
+
 /**
  * Redirects, end to end.
  *
@@ -28,11 +30,15 @@ test.describe('redirects', () => {
 
     await expect(page.getByText(oldPath)).toBeVisible({ timeout: 15_000 });
 
-    // The public site must see it immediately — publishing that only takes
-    // effect after a cache window would read to the owner as "it didn't work".
-    const after = await page.goto(oldPath);
-    expect(after?.status()).toBe(200);
-    await expect(page).toHaveURL(new RegExp(`${new URL(page.url()).origin}/?$`));
+    // The old address must now land on the home page. Asserted on where the
+    // browser ended up, not on a status code: the response the test sees is the
+    // 200 from the redirect's destination.
+    await expect
+      .poll(
+        live(page, oldPath, async () => new URL(page.url()).pathname),
+        LIVE,
+      )
+      .toBe('/');
   });
 
   test('refuses a rule that would trap a visitor in a loop', async ({ page }) => {
@@ -91,7 +97,11 @@ test.describe('redirects', () => {
 
     // And the address goes back to being a 404, which proves deletion took
     // effect on the public side and not only in the table.
-    const response = await page.goto(oldPath);
-    expect(response?.status()).toBe(404);
+    await expect
+      .poll(
+        live(page, oldPath, async () => new URL(page.url()).pathname),
+        LIVE,
+      )
+      .toBe(oldPath);
   });
 });

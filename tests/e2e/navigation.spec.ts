@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { live, LIVE } from './live';
+
 /**
  * The menu editor.
  *
@@ -14,20 +16,11 @@ test.describe('navigation', () => {
   const PREFIX = 'E2E пункт';
   const label = `${PREFIX} ${Date.now()}`;
 
-  /**
-   * How many times the label appears in the live footer.
-   *
-   * Reloading between attempts, because the page is cached HTML: re-querying
-   * the DOM we already have can never observe a change. The retry window
-   * absorbs one specific race — the rest of this suite runs in parallel, so a
-   * render of `/` can be in flight when the menu is saved and land in the cache
-   * just after it was invalidated. That resolves on the next request, and the
-   * window is far shorter than the route's own cache lifetime, so a genuinely
-   * broken invalidation still fails here.
-   */
-  async function footerLinks(page: Page, name: string): Promise<number> {
-    await page.goto('/');
-    return page.getByRole('contentinfo').getByRole('link', { name }).count();
+  /** How many times the label appears in the live footer. See ./live. */
+  function footerLinks(page: Page, name: string) {
+    return live(page, '/', () =>
+      page.getByRole('contentinfo').getByRole('link', { name }).count(),
+    );
   }
 
   test('an added item appears in the footer of the live site', async ({ page }) => {
@@ -48,7 +41,7 @@ test.describe('navigation', () => {
       timeout: 15_000,
     });
 
-    await expect.poll(() => footerLinks(page, label), { timeout: 20_000 }).toBe(1);
+    await expect.poll(footerLinks(page, label), LIVE).toBe(1);
   });
 
   test('reordering works from the keyboard, without dragging', async ({ page }) => {
@@ -75,7 +68,7 @@ test.describe('navigation', () => {
     await item.getByRole('button', { name: 'Скрыть' }).click();
     await expect(item.getByText('скрыт')).toBeVisible({ timeout: 15_000 });
 
-    await expect.poll(() => footerLinks(page, label), { timeout: 20_000 }).toBe(0);
+    await expect.poll(footerLinks(page, label), LIVE).toBe(0);
   });
 
   test('cleanup: deleting the item removes it from the site too', async ({ page }) => {
@@ -92,6 +85,6 @@ test.describe('navigation', () => {
       await expect(stale).toHaveCount(remaining - 1, { timeout: 15_000 });
     }
 
-    await expect.poll(() => footerLinks(page, label), { timeout: 20_000 }).toBe(0);
+    await expect.poll(footerLinks(page, label), LIVE).toBe(0);
   });
 });

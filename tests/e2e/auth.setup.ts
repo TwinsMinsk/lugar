@@ -1,6 +1,6 @@
 import { expect, test as setup } from '@playwright/test';
 
-export const ADMIN_STORAGE_STATE = 'tests/e2e/.auth/admin.json';
+import { ADMIN_STORAGE_STATE } from './storage-state';
 
 /**
  * Signs in once and saves the session for every admin spec to reuse.

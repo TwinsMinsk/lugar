@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { ADMIN_STORAGE_STATE } from './storage-state';
+import { h1Text, live, LIVE } from './live';
+
 /**
  * The M3 acceptance path: a non-technical owner changes a heading, publishes,
  * sees it live, and rolls it back — without a developer.
@@ -13,6 +16,37 @@ const PASSWORD = process.env.E2E_ADMIN_PASSWORD;
 
 test.describe('admin', () => {
   test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
+
+  /**
+   * The seeded heading, captured before it is edited.
+   *
+   * This spec publishes to the real home page, so it has to put it back. Doing
+   * that only at the end of the happy path is not enough: a failure anywhere in
+   * between leaves the marker live, and the next run then fails somewhere
+   * unrelated — which is exactly what happened, with a locale-routing test
+   * reporting the wrong heading hours later. Restoring in afterAll runs whether
+   * the test passed, failed or timed out.
+   */
+  let seededHeading: string | null = null;
+
+  test.afterAll(async ({ browser }) => {
+    if (seededHeading === null) return;
+
+    const context = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
+    const page = await context.newPage();
+    try {
+      await page.goto('/admin/pages');
+      await page.getByRole('link', { name: 'home' }).click();
+      const heading = page.getByLabel('Заголовок', { exact: true }).first();
+      if ((await heading.inputValue()) !== seededHeading) {
+        await heading.fill(seededHeading);
+        await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+        await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
+      }
+    } finally {
+      await context.close();
+    }
+  });
 
   test('rejects a wrong password without revealing whether the account exists', async ({
     browser,
@@ -53,14 +87,15 @@ test.describe('admin', () => {
     const heading = page.getByLabel('Заголовок', { exact: true }).first();
     const original = await heading.inputValue();
     expect(original.length).toBeGreaterThan(0);
+    // Recorded before the first edit, so afterAll can always put it back.
+    seededHeading = original;
     await heading.fill(marker);
 
     await page.getByRole('button', { name: 'Опубликовать RU' }).click();
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
     // The change must be live on the public site.
-    await page.goto('/');
-    await expect(page.locator('h1')).toHaveText(marker);
+    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).toBe(marker);
 
     // Roll back to the revision that preceded it.
     await page.goto('/admin/pages');
@@ -72,20 +107,18 @@ test.describe('admin', () => {
     await rollback.first().click();
     await expect(page.getByText(/восстановлена \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
-    await page.goto('/');
-    await expect(page.locator('h1')).not.toHaveText(marker);
+    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).not.toBe(marker);
 
-    // Restore explicitly rather than relying on the rollback target. This spec
-    // edits real seeded content, so leaving it mutated would poison both the
-    // next run and anyone looking at the local site afterwards.
+    // Restore explicitly rather than relying on the rollback target, which
+    // would leave the draft holding the marker. afterAll is the safety net for
+    // the paths that never reach this line.
     await page.goto('/admin/pages');
     await page.getByRole('link', { name: 'home' }).click();
     await page.getByLabel('Заголовок', { exact: true }).first().fill(original);
     await page.getByRole('button', { name: 'Опубликовать RU' }).click();
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
-    await page.goto('/');
-    await expect(page.locator('h1')).toHaveText(original);
+    await expect.poll(live(page, '/', () => h1Text(page)), LIVE).toBe(original);
   });
 
   test('a draft edit does not reach the public site until published', async ({ page }) => {
