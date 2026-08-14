@@ -186,7 +186,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
         <div className="flex flex-col gap-6">
           <section className="border-line bg-surface rounded-[--radius-card] border p-4">
-            <h2 className="font-display mb-3 text-[19px]">Клиент</h2>
+            <h2 className="font-display mb-3 text-[19px]">
+              <Link href={`/admin/contacts/${lead.contact.id}`} className="hover:text-accent">
+                Клиент ↗
+              </Link>
+            </h2>
             <dl className="flex flex-col gap-3">
               <Field
                 label="Телефон"

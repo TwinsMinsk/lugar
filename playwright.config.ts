@@ -17,6 +17,7 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 const ADMIN_SPECS = [
   /accessibility-admin\.spec\.ts/,
   /admin\.spec\.ts/,
+  /contacts\.spec\.ts/,
   /leads\.spec\.ts/,
   /media\.spec\.ts/,
   /navigation\.spec\.ts/,

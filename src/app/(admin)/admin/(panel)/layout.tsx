@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
   { href: '/admin/navigation', label: 'Меню', capability: 'navigation.write' },
   { href: '/admin/leads', label: 'Заявки', capability: 'crm.read' },
   { href: '/admin/leads/board', label: 'Воронка', capability: 'crm.read' },
+  { href: '/admin/contacts', label: 'Клиенты', capability: 'crm.read' },
   { href: '/admin/pipeline', label: 'Этапы', capability: 'settings.write' },
   { href: '/admin/redirects', label: 'Редиректы', capability: 'seo.write' },
   { href: '/admin/settings', label: 'Настройки', capability: 'settings.write' },
