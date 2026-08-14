@@ -1,15 +1,14 @@
 'use server';
 
 import { eq } from 'drizzle-orm';
-import { updateTag } from 'next/cache';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { coerceSettingValue, SETTINGS_BY_KEY } from '@/content/settings-registry';
-import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { siteSettings } from '@/db/schema';
 import { recordAudit } from '@/lib/audit';
+import { invalidatePublicPages } from '@/lib/cache-invalidation';
 import { requireCapability } from '@/lib/auth/guards';
 
 export type SettingsResult = { ok: true } | { ok: false; errors: Record<string, string> };
@@ -115,6 +114,8 @@ export async function updateSettings(input: z.input<typeof inputSchema>): Promis
     );
   });
 
-  updateTag(tags.settings());
+  // Settings reach the header and footer as well as page content, so the
+  // whole public site is invalidated rather than only the settings tag.
+  await invalidatePublicPages();
   return { ok: true };
 }

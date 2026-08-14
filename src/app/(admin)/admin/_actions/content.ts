@@ -429,9 +429,22 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
             : locale === 'ru'
               ? `/${slug}`
               : `/${locale}/${slug}`;
+        // Renaming *back* to a path we previously redirected away from would
+        // otherwise leave /a -> /b and /b -> /a pointing at each other. The
+        // page now lives here again, so its old redirect is simply wrong.
+        await tx.delete(redirects).where(eq(redirects.fromPath, to));
+
         await tx
           .insert(redirects)
-          .values({ fromPath: from, toPath: to, statusCode: 301, createdBy: user.id })
+          .values({
+            fromPath: from,
+            toPath: to,
+            statusCode: 301,
+            // Recorded so the redirects screen can explain where a rule the
+            // owner never typed came from.
+            note: 'Автоматически: адрес страницы изменён',
+            createdBy: user.id,
+          })
           .onConflictDoUpdate({
             target: redirects.fromPath,
             set: { toPath: to, isActive: true },
@@ -457,5 +470,6 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
   }
 
   await invalidateDocument(documentId);
+  updateTag(tags.redirects());
   return { ok: true };
 }

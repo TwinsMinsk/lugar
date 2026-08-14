@@ -24,6 +24,14 @@ export const tags = {
   media: (assetId: string) => `media:${assetId}`,
   /** Service and portfolio taxonomy. */
   taxonomy: () => 'taxonomy',
+  /**
+   * The whole redirect map, as one entry.
+   *
+   * Deliberately not tagged per path: a cache key derived from the requested
+   * URL would let anyone mint unbounded cache entries by requesting random
+   * 404s. One entry for the entire (small) table cannot be grown from outside.
+   */
+  redirects: () => 'redirects',
 } as const;
 
 /**

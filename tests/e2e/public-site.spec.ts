@@ -142,6 +142,24 @@ test.describe('lead capture', () => {
   });
 
   test('a valid submission succeeds and offers the WhatsApp hand-off', async ({ page }) => {
+    /**
+     * A fresh caller identity per run.
+     *
+     * Submissions are rate limited to five per hour, keyed on both the IP and
+     * the phone number — correct production behaviour that must not be relaxed.
+     * With a fixed number and a fixed loopback address, the suite could only be
+     * run twice in an hour before this failed as if lead capture were broken.
+     *
+     * The address goes in X-Forwarded-For, which is exactly where it comes from
+     * in the deploy, and the number stays a well-formed Spanish mobile so the
+     * E.164 parsing still gets a real workout.
+     */
+    const stamp = Date.now();
+    const phone = `+34 6${String(stamp).slice(-8)}`;
+    await page.setExtraHTTPHeaders({
+      'x-forwarded-for': `10.${Math.floor(stamp / 1000) % 256}.${stamp % 256}.7`,
+    });
+
     await page.goto('/?utm_source=e2e&utm_medium=test&utm_campaign=spec');
     await page
       .getByRole('button', { name: /Получить расчёт|Написать в WhatsApp/ })
@@ -150,7 +168,7 @@ test.describe('lead capture', () => {
 
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Имя').fill('E2E Клиент');
-    await dialog.getByLabel('Телефон').fill('+34 600 55 44 33');
+    await dialog.getByLabel('Телефон').fill(phone);
     await dialog.locator('input[name="consentPersonalData"]').check();
     await page.waitForTimeout(3000);
     await dialog.getByRole('button', { name: 'Отправить заявку' }).click();

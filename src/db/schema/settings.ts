@@ -62,6 +62,10 @@ export const auditLog = pgTable(
   (t) => [
     index('audit_entity_idx').on(t.entityType, t.entityId, t.occurredAt.desc()),
     index('audit_actor_idx').on(t.actorUserId, t.occurredAt.desc()),
+    // The unfiltered "what happened lately" view, which is the one the owner
+    // actually opens. Includes id so keyset pagination stays on the index
+    // instead of degrading to a sort once the log grows.
+    index('audit_recent_idx').on(t.occurredAt.desc(), t.id.desc()),
   ],
 );
 

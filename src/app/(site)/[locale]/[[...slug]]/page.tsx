@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { draftMode } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 
@@ -8,9 +8,10 @@ import { Blocks } from '@/content/blocks/render';
 import { PortfolioIndex } from '@/features/portfolio/portfolio-index';
 import { getPortfolioIndexSlug, listPublishedPaths } from '@/data/public/documents';
 import { loadPage } from '@/data/public/page-loader';
+import { resolveRedirect } from '@/data/public/redirects';
 import { publicEnv } from '@/env';
 import { LOCALE_TAG, routing, type Locale } from '@/i18n/routing';
-import { absoluteLocaleUrl, documentPath } from '@/lib/routes';
+import { absoluteLocaleUrl, documentPath, localePath } from '@/lib/routes';
 
 type PageProps = {
   params: Promise<{ locale: string; slug?: string[] }>;
@@ -125,7 +126,20 @@ export default async function PublicPage({ params }: PageProps) {
   setRequestLocale(locale);
 
   const loaded = await loadPage(locale, slug ?? []);
-  if (!loaded) notFound();
+  if (!loaded) {
+    // Only now — a document that resolves always wins over slug history, so a
+    // stale redirect can never shadow a page created later at the same URL.
+    const requested = localePath(locale, `/${(slug ?? []).join('/')}`);
+    const target = await resolveRedirect(requested);
+    if (target) {
+      // 308/307 rather than 301/302: these are the App Router's permanent and
+      // temporary redirects, and search engines treat them as equivalent to the
+      // older pair. What the admin editor calls "постоянный" maps to 308.
+      if (target.permanent) permanentRedirect(target.to);
+      redirect(target.to);
+    }
+    notFound();
+  }
 
   // The portfolio index is the one template with a section that is not editable
   // content: the filterable project grid is generated from published projects,

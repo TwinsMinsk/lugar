@@ -8,7 +8,7 @@ import { adminAc, defaultStatements } from 'better-auth/plugins/admin/access';
 
 import { db } from '@/db/client';
 import { account, session, user, verification } from '@/db/schema/auth';
-import { env } from '@/env';
+import { env, publicEnv } from '@/env';
 
 export const ROLES = ['owner', 'manager', 'content_editor'] as const;
 export type Role = (typeof ROLES)[number];
@@ -100,7 +100,18 @@ export const auth = betterAuth({
   },
 
   advanced: {
-    useSecureCookies: process.env.NODE_ENV === 'production',
+    /**
+     * Derived from the site's own URL, not from NODE_ENV.
+     *
+     * A Secure cookie is simply not sent over http, so tying this to NODE_ENV
+     * means a production build served on http — which is exactly what
+     * `next start` and the end-to-end suite do — cannot hold a session at all.
+     * The scheme of NEXT_PUBLIC_APP_URL is the thing that actually decides
+     * whether Secure is correct, so it is what decides here. Deploying over
+     * https keeps the flag on; there is no configuration in which this is
+     * weaker than the NODE_ENV check was.
+     */
+    useSecureCookies: publicEnv.appUrl.startsWith('https://'),
     defaultCookieAttributes: { sameSite: 'lax', httpOnly: true },
   },
 

@@ -6,6 +6,24 @@ loadEnv({ path: '.env.local', quiet: true });
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://127.0.0.1:${PORT}`;
 
+/**
+ * Specs that need a signed-in owner.
+ *
+ * One list, referenced by both the public projects' `testIgnore` and the admin
+ * project's `testMatch`. Kept as a single constant because two hand-maintained
+ * copies drift: a spec missing from `testIgnore` runs in the public projects
+ * with no session and fails as if the feature were broken.
+ */
+const ADMIN_SPECS = [
+  /admin\.spec\.ts/,
+  /media\.spec\.ts/,
+  /navigation\.spec\.ts/,
+  /portfolio\.spec\.ts/,
+  /redirects\.spec\.ts/,
+  /settings\.spec\.ts/,
+  /users\.spec\.ts/,
+];
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -24,17 +42,17 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'desktop',
-      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/, /settings\.spec\.ts/, /users\.spec\.ts/, /auth\.setup\.ts/],
+      testIgnore: [...ADMIN_SPECS, /auth\.setup\.ts/],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
       name: 'mobile',
-      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/, /settings\.spec\.ts/, /users\.spec\.ts/, /auth\.setup\.ts/],
+      testIgnore: [...ADMIN_SPECS, /auth\.setup\.ts/],
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'admin',
-      testMatch: [/admin\.spec\.ts/, /media\.spec\.ts/, /portfolio\.spec\.ts/, /settings\.spec\.ts/, /users\.spec\.ts/],
+      testMatch: ADMIN_SPECS,
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
@@ -46,7 +64,16 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx next start --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    /**
+     * Never reuse a server that happens to be listening.
+     *
+     * Playwright's default reuses one locally, which means a run can silently
+     * test a build from an hour ago — and it also means the build command in
+     * this config goes unexercised. Both bit us: the suite reported green
+     * against stale code while `npm run build` here was failing outright.
+     * A rebuild per run is worth a suite that cannot lie about what it tested.
+     */
+    reuseExistingServer: false,
     timeout: 300_000,
   },
 });

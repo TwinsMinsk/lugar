@@ -33,9 +33,12 @@ const NAV: NavItem[] = [
   { href: '/admin/pages', label: 'Страницы', capability: 'content.read' },
   { href: '/admin/portfolio', label: 'Портфолио', capability: 'content.read' },
   { href: '/admin/media', label: 'Медиа', capability: 'media.read' },
+  { href: '/admin/navigation', label: 'Меню', capability: 'navigation.write' },
   { href: '/admin/leads', label: 'Заявки', capability: 'crm.read' },
+  { href: '/admin/redirects', label: 'Редиректы', capability: 'seo.write' },
   { href: '/admin/settings', label: 'Настройки', capability: 'settings.write' },
   { href: '/admin/users', label: 'Пользователи', capability: 'users.manage' },
+  { href: '/admin/audit', label: 'Журнал', capability: 'audit.read' },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
