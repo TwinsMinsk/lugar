@@ -1,6 +1,13 @@
-import { createHmac } from 'node:crypto';
+import { expect, test } from '@playwright/test';
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import {
+  APP_SECRET,
+  postWebhook as post,
+  sign,
+  statusEnvelope as envelope,
+  VERIFY_TOKEN,
+  WEBHOOK_PATH as PATH,
+} from './whatsapp-helpers';
 
 /**
  * The Meta webhook, over real HTTP.
@@ -10,56 +17,10 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * non-200 for up to seven days, so each code below is a deliberate choice and a
  * regression in one of them is a week-long incident rather than an error.
  */
-const SECRET = process.env.WHATSAPP_APP_SECRET;
-const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-
-const PATH = '/api/whatsapp/webhook';
-
-function sign(body: string): string {
-  return `sha256=${createHmac('sha256', SECRET!).update(body, 'utf8').digest('hex')}`;
-}
-
-/**
- * Bodies are sent as Buffers, never as strings.
- *
- * Given `content-type: application/json`, Playwright JSON-encodes a string
- * body — so `this is not json` arrives as `"this is not json"`, the digest no
- * longer matches, and the route answers 403 for a reason that has nothing to do
- * with the route. These tests are about exact bytes, so the bytes are pinned.
- */
-function post(request: APIRequestContext, body: string, signature?: string) {
-  return request.post(PATH, {
-    headers: {
-      'content-type': 'application/json',
-      ...(signature ? { 'x-hub-signature-256': signature } : {}),
-    },
-    data: Buffer.from(body, 'utf8'),
-  });
-}
-
-function envelope(wamid: string) {
-  return JSON.stringify({
-    object: 'whatsapp_business_account',
-    entry: [
-      {
-        id: '900',
-        changes: [
-          {
-            field: 'messages',
-            value: {
-              metadata: { phone_number_id: '55501' },
-              statuses: [{ id: wamid, status: 'delivered', timestamp: '1786700000' }],
-            },
-          },
-        ],
-      },
-    ],
-  });
-}
 
 test.describe('whatsapp webhook', () => {
   test.skip(
-    !SECRET || !VERIFY_TOKEN,
+    !APP_SECRET || !VERIFY_TOKEN,
     'WHATSAPP_APP_SECRET / WHATSAPP_WEBHOOK_VERIFY_TOKEN are not set',
   );
 

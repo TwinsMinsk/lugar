@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { APP_SECRET, inboundEnvelope, postWebhook, sign } from './whatsapp-helpers';
+
 /**
  * The CRM.
  *
@@ -24,6 +26,15 @@ test.describe('leads', () => {
    */
   const hostileComment = '=HYPERLINK("http://evil.example","Счёт")';
   let publicId: string;
+  /**
+   * The lead's own URL, captured once.
+   *
+   * Later tests navigate straight to it instead of clicking through the list.
+   * `click()` resolves when the click lands, not when the navigation finishes,
+   * so a `.count()` immediately after it measures the list page — which made an
+   * "this control is absent" assertion pass without ever opening the card.
+   */
+  let leadHref: string;
 
   test('an enquiry from the public site arrives in the inbox with its source', async ({ page }) => {
     // A fresh caller identity: submissions are rate limited per IP and per
@@ -56,8 +67,11 @@ test.describe('leads', () => {
     // The attribution the visitor arrived with survived into the CRM.
     await expect(row).toContainText('e2e-crm');
 
-    publicId = (await row.getByRole('link').first().textContent())!.trim();
+    const link = row.getByRole('link').first();
+    publicId = (await link.textContent())!.trim();
+    leadHref = (await link.getAttribute('href'))!;
     expect(publicId).toMatch(/^LG-/);
+    expect(leadHref).toMatch(/^\/admin\/leads\/[0-9a-f-]{36}$/);
   });
 
   test('search finds the lead by the last digits of the phone', async ({ page }) => {
@@ -68,8 +82,7 @@ test.describe('leads', () => {
   });
 
   test('status, assignment and a note are recorded on the lead', async ({ page }) => {
-    await page.goto(`/admin/leads?q=${encodeURIComponent(name)}`);
-    await page.getByRole('link', { name: publicId }).click();
+    await page.goto(leadHref);
     await expect(page.getByRole('heading', { name: new RegExp(publicId) })).toBeVisible();
 
     // Exact: the list's status filter is a nav labelled "Фильтр по статусу",
@@ -129,6 +142,50 @@ test.describe('leads', () => {
     const rows = await page.getByRole('row').count();
     // Minus the header row; an empty list renders a message instead of a table.
     expect(Math.max(rows - 1, 0)).toBe(shown);
+  });
+
+  test('the card offers no free-form composer while the window is shut', async ({ page }) => {
+    await page.goto(leadHref);
+    // Proves we are on the card: without this the absence assertions below
+    // would pass just as happily on the list page.
+    await expect(page.getByRole('heading', { name: new RegExp(publicId) })).toBeVisible();
+
+    await expect(page.getByText('окно закрыто')).toBeVisible();
+
+    // Replaced, not disabled. A greyed-out textarea would invite the operator
+    // to write a message that cannot legally be sent and offer no way forward.
+    await expect(page.getByLabel('Ответ в WhatsApp')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /WhatsApp/ })).toBeVisible();
+  });
+
+  test('a customer message reaches the lead card and opens the window', async ({ page }) => {
+    test.skip(!APP_SECRET, 'WHATSAPP_APP_SECRET is not set');
+
+    const text = `Здравствуйте, уточню размеры ${stamp}`;
+    const body = inboundEnvelope({
+      wamid: `wamid.IN.${stamp}`,
+      from: phone.replace(/\D/g, ''),
+      text,
+    });
+
+    const response = await postWebhook(page.request, body, sign(body));
+    expect(response.status()).toBe(200);
+
+    // The webhook commits the envelope before responding and applies it after,
+    // so the card is polled rather than read once.
+    await expect
+      .poll(
+        async () => {
+          await page.goto(leadHref);
+          return page.getByText(text).count();
+        },
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(0);
+
+    // An inbound message is what opens the 24-hour service window, so the
+    // composer becomes available at the same moment.
+    await expect(page.getByText('окно 24 ч открыто')).toBeVisible();
   });
 
   test('the CSV export contains the lead and neutralises spreadsheet formulas', async ({ page }) => {

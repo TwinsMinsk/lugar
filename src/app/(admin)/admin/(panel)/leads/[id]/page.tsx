@@ -2,11 +2,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { getLead, listAssignees, listLeadStatuses } from '@/data/admin/leads';
-import { getSiteSettings } from '@/data/public/settings';
+import {
+  getPendingMessages,
+  getWhatsAppThread,
+  getWindowState,
+  listApprovedTemplates,
+} from '@/data/admin/whatsapp';
 import { LeadActions } from '@/features/admin/lead-actions';
-import { requireCapability } from '@/lib/auth/guards';
+import { WhatsAppPanel } from '@/features/admin/whatsapp-panel';
+import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink, whatsappLink } from '@/lib/routes';
-import { cn } from '@/lib/utils';
 
 export const metadata = { title: 'Заявка' };
 
@@ -52,10 +57,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const lead = await getLead(id);
   if (!lead) notFound();
 
-  const [statuses, assignees, settings] = await Promise.all([
+  const [statuses, assignees, canSendWhatsApp, canRequeue] = await Promise.all([
     listLeadStatuses(),
     listAssignees(),
-    getSiteSettings(),
+    can('whatsapp.send'),
+    can('whatsapp.requeue'),
+  ]);
+
+  const [thread, pending, windowState, templates] = await Promise.all([
+    getWhatsAppThread(lead.contact.id),
+    getPendingMessages(lead.id),
+    getWindowState(lead.contact.id),
+    // Only fetched for someone who could actually send one; the call goes out
+    // to Meta, so it is not worth making for a read-only viewer.
+    canSendWhatsApp ? listApprovedTemplates() : Promise.resolve([]),
   ]);
 
   const attribution = Object.entries({
@@ -185,31 +200,54 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <Field label="Город" value={lead.contact.city} />
             </dl>
 
-            <div className="mt-4 flex flex-col gap-2">
-              {settings.contact.whatsappNumber ? (
-                <a
-                  href={whatsappLink(lead.contact.phoneE164.replace(/\D/g, ''), greeting)}
-                  target="_blank"
-                  rel="noopener"
-                  className={cn(
-                    'border-line-strong hover:border-accent hover:text-accent rounded-[--radius-btn] border px-3 py-2 text-center text-[13px]',
-                  )}
-                >
-                  Написать в WhatsApp ↗
-                </a>
-              ) : null}
+            {/*
+              Consent is shown as a fact, not as a switch. Whether this person
+              agreed to be contacted on WhatsApp was decided by them, on the
+              form, and staff must not be able to flip it here.
+            */}
+            <p className="text-ink-faint mt-4 text-[12px] leading-snug">
+              {lead.contact.waOptIn
+                ? 'Клиент согласился на переписку в WhatsApp.'
+                : 'Согласия на WhatsApp нет — можно только позвонить или написать на email.'}
+            </p>
+          </section>
 
-              {/*
-                Consent is shown as a fact, not as a switch. Whether this person
-                agreed to be contacted on WhatsApp was decided by them, on the
-                form, and staff must not be able to flip it here.
-              */}
-              <p className="text-ink-faint text-[12px] leading-snug">
-                {lead.contact.waOptIn
-                  ? 'Клиент согласился на переписку в WhatsApp.'
-                  : 'Согласия на WhatsApp нет — можно только позвонить или написать на email.'}
-              </p>
+          <section className="border-line bg-surface rounded-[--radius-card] border p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-[19px]">WhatsApp</h2>
+              <span
+                className={
+                  'rounded-[--radius-btn] px-1.5 py-0.5 text-[11px] ' +
+                  (windowState.open
+                    ? 'bg-[oklch(0.94_0.05_150)] text-[oklch(0.38_0.08_150)]'
+                    : 'bg-[oklch(0.93_0.005_85)] text-[oklch(0.5_0.006_85)]')
+                }
+              >
+                {windowState.open ? 'окно 24 ч открыто' : 'окно закрыто'}
+              </span>
             </div>
+            <WhatsAppPanel
+              leadId={lead.id}
+              waOptIn={lead.contact.waOptIn}
+              canSend={windowState.canSend && canSendWhatsApp}
+              canRequeue={canRequeue}
+              windowOpen={windowState.open}
+              closesAt={windowState.closesAt?.toISOString() ?? null}
+              templates={templates}
+              handoffUrl={whatsappLink(lead.contact.phoneE164.replace(/\D/g, ''), greeting)}
+              thread={thread.map((message) => ({
+                ...message,
+                occurredAt: message.occurredAt.toISOString(),
+              }))}
+              pending={pending.map((item) => ({
+                id: item.id,
+                status: item.status,
+                bodyText: item.bodyText,
+                templateName: item.templateName,
+                lastErrorMessage: item.lastErrorMessage,
+                attemptCount: item.attemptCount,
+              }))}
+            />
           </section>
 
           <section className="border-line bg-surface rounded-[--radius-card] border p-4">
