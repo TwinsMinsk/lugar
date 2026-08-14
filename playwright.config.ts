@@ -19,11 +19,29 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    // Signs in once; admin specs reuse the session. See tests/e2e/auth.setup.ts
+    // for why per-test login is not viable.
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'desktop',
+      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /auth\.setup\.ts/],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    {
+      name: 'mobile',
+      testIgnore: [/admin\.spec\.ts/, /media\.spec\.ts/, /auth\.setup\.ts/],
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'admin',
+      testMatch: [/admin\.spec\.ts/, /media\.spec\.ts/],
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        storageState: 'tests/e2e/.auth/admin.json',
+      },
+    },
   ],
   webServer: {
     command: `npm run build && npx next start --port ${PORT}`,

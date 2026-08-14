@@ -150,21 +150,38 @@ class R2Storage implements StorageDriver {
 
 let cached: StorageDriver | null = null;
 
+/**
+ * Select the storage driver.
+ *
+ * The driver is chosen from explicit configuration, never inferred from
+ * NODE_ENV. That heuristic is wrong in exactly the cases that matter: both
+ * `next start` and the end-to-end suite run a production build, so a
+ * "development means local disk" rule silently refuses to store anything the
+ * moment you verify against a real build — which is precisely when you want to.
+ *
+ * Local disk therefore requires opting in with STORAGE_DRIVER=local. Absent
+ * both that and S3 credentials, this throws rather than quietly writing to a
+ * container filesystem that Railway discards on the next deploy.
+ */
 export function storage(): StorageDriver {
   if (cached) return cached;
 
   const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = env;
-  const configured = Boolean(S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY);
+  const s3Configured = Boolean(
+    S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY,
+  );
 
-  if (!configured) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'Object storage is not configured. Set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and ' +
-          'S3_SECRET_ACCESS_KEY. Local disk storage is not durable on Railway.',
-      );
-    }
+  if (env.STORAGE_DRIVER === 'local') {
     cached = new LocalStorage();
     return cached;
+  }
+
+  if (!s3Configured) {
+    throw new Error(
+      'Object storage is not configured. Either set S3_ENDPOINT, S3_BUCKET, ' +
+        'S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or set STORAGE_DRIVER=local ' +
+        'to use on-disk storage (development only — Railway discards it).',
+    );
   }
 
   cached = new R2Storage(S3_ENDPOINT!, S3_BUCKET!, S3_ACCESS_KEY_ID!, S3_SECRET_ACCESS_KEY!);

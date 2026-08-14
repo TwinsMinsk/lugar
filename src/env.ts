@@ -55,6 +55,12 @@ const serverSchema = z
 
     // Object storage. When unset, the storage layer falls back to local disk,
     // which is fine for development and never acceptable in production.
+    /**
+     * 'local' forces on-disk storage (development only). Otherwise S3/R2 is
+     * required — see src/lib/storage for why this is explicit rather than
+     * derived from NODE_ENV.
+     */
+    STORAGE_DRIVER: z.enum(['local', 's3']).optional(),
     S3_ENDPOINT: optionalString,
     S3_REGION: optionalString.pipe(z.string().default('auto').optional()),
     S3_ACCESS_KEY_ID: optionalString,

@@ -15,8 +15,12 @@ test.describe('admin', () => {
   test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
 
   test('rejects a wrong password without revealing whether the account exists', async ({
-    page,
+    browser,
   }) => {
+    // A fresh context: the suite is otherwise pre-authenticated, and a signed-in
+    // visitor is redirected away from the login form.
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
     await page.goto('/admin/login');
     await page.getByLabel('Email').fill('nobody@example.com');
     await page.getByLabel('Пароль').fill('wrong-password-entirely');
@@ -29,6 +33,7 @@ test.describe('admin', () => {
     // them turns this form into an account-enumeration oracle.
     await expect(message).toHaveText('Неверный email или пароль.');
     await expect(page).toHaveURL(/\/admin\/login/);
+    await context.close();
   });
 
   test('an owner can edit a heading, publish it, see it live and roll it back', async ({
@@ -36,12 +41,7 @@ test.describe('admin', () => {
   }) => {
     const marker = `Проверка ${Date.now()}`;
 
-    await page.goto('/admin/login');
-    await page.getByLabel('Email').fill(EMAIL!);
-    await page.getByLabel('Пароль').fill(PASSWORD!);
-    await page.getByRole('button', { name: 'Войти' }).click();
-    await expect(page).toHaveURL(/\/admin$/);
-
+    // Already authenticated by the setup project.
     // Open the home page in the editor.
     await page.goto('/admin/pages');
     await page.getByRole('link', { name: 'home' }).click();
@@ -90,13 +90,6 @@ test.describe('admin', () => {
 
   test('a draft edit does not reach the public site until published', async ({ page }) => {
     const marker = `Черновик ${Date.now()}`;
-
-    await page.goto('/admin/login');
-    await page.getByLabel('Email').fill(EMAIL!);
-    await page.getByLabel('Пароль').fill(PASSWORD!);
-    await page.getByRole('button', { name: 'Войти' }).click();
-    // Wait for the session to land, or the next navigation bounces to login.
-    await expect(page).toHaveURL(/\/admin$/);
 
     await page.goto('/admin/pages');
     await page.getByRole('link', { name: 'kontakty' }).click();
