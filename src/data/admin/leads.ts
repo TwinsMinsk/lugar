@@ -405,3 +405,144 @@ export async function getLead(leadId: string): Promise<LeadDetail | null> {
     files: fileRows,
   };
 }
+
+export type BoardColumn = {
+  status: LeadStatusRow;
+  total: number;
+  cards: Array<{
+    id: string;
+    publicId: string;
+    contactName: string | null;
+    contactPhone: string;
+    service: string | null;
+    city: string | null;
+    createdAt: Date;
+    assigneeEmail: string | null;
+    isStale: boolean;
+  }>;
+};
+
+/** How many cards a column shows before it just reports the remainder. */
+const BOARD_COLUMN_LIMIT = 25;
+
+/** A lead with no activity for this long is drawn as needing attention. */
+const STALE_DAYS = 5;
+
+/**
+ * The pipeline board.
+ *
+ * Columns are capped rather than unbounded: a "Новая" column holding six months
+ * of enquiries is a scroll, not a view, and rendering all of them costs every
+ * page load. The count above each column stays honest about what is not shown.
+ */
+export async function getLeadBoard(assignedToId?: string): Promise<BoardColumn[]> {
+  await requireCapability('crm.read');
+
+  const statuses = await listLeadStatuses();
+
+  const conditions: SQL[] = [isNull(leads.deletedAt)];
+  if (assignedToId === 'none') conditions.push(isNull(leads.assignedToId));
+  else if (assignedToId) conditions.push(eq(leads.assignedToId, assignedToId));
+
+  const rows = await db
+    .select({
+      id: leads.id,
+      publicId: leads.publicId,
+      statusId: leads.statusId,
+      contactName: contacts.fullName,
+      contactPhone: contacts.phoneE164,
+      service: leads.service,
+      city: leads.city,
+      createdAt: leads.createdAt,
+      lastActivityAt: leads.lastActivityAt,
+      assigneeEmail: user.email,
+      terminal: leadStatuses.isTerminal,
+    })
+    .from(leads)
+    .innerJoin(contacts, eq(contacts.id, leads.contactId))
+    .innerJoin(leadStatuses, eq(leadStatuses.id, leads.statusId))
+    .leftJoin(user, eq(user.id, leads.assignedToId))
+    .where(and(...conditions))
+    .orderBy(desc(leads.lastActivityAt));
+
+  const staleBefore = Date.now() - STALE_DAYS * 24 * 3600 * 1000;
+
+  return statuses.map((status) => {
+    const all = rows.filter((row) => row.statusId === status.id);
+    return {
+      status,
+      total: all.length,
+      cards: all.slice(0, BOARD_COLUMN_LIMIT).map((row) => ({
+        id: row.id,
+        publicId: row.publicId,
+        contactName: row.contactName,
+        contactPhone: row.contactPhone,
+        service: row.service,
+        city: row.city,
+        createdAt: row.createdAt,
+        assigneeEmail: row.assigneeEmail,
+        // A closed lead going quiet is the expected outcome, not a problem.
+        isStale: !row.terminal && row.lastActivityAt.getTime() < staleBefore,
+      })),
+    };
+  });
+}
+
+export type CrmSummary = {
+  newToday: number;
+  newThisWeek: number;
+  unassigned: number;
+  stale: number;
+  myOpenTasks: number;
+  overdueTasks: number;
+};
+
+/**
+ * The numbers worth putting on the dashboard.
+ *
+ * Chosen to answer "what needs me today", not "how are we doing" — an unworked
+ * enquiry and an overdue callback are the two ways this studio actually loses
+ * a customer, so those are what the owner sees first.
+ */
+export async function getCrmSummary(userId: string): Promise<CrmSummary> {
+  await requireCapability('crm.read');
+
+  /**
+   * The cutoff stays in SQL, on the constant side of the comparison.
+   *
+   * Passing a JS Date into a raw `sql` fragment fails at runtime: the driver
+   * has no column context there to infer the type from, and reports only
+   * "argument must be of type string ... received an instance of Date". Keeping
+   * the interval in the query avoids the parameter altogether and leaves the
+   * comparison indexable.
+   */
+  const staleCutoff = sql`now() - interval '${sql.raw(String(STALE_DAYS))} days'`;
+
+  const [counts] = await db
+    .select({
+      newToday: sql<number>`count(*) filter (where ${leads.createdAt} >= date_trunc('day', now()))::int`,
+      newThisWeek: sql<number>`count(*) filter (where ${leads.createdAt} >= now() - interval '7 days')::int`,
+      unassigned: sql<number>`count(*) filter (where ${leads.assignedToId} is null and not ${leadStatuses.isTerminal})::int`,
+      stale: sql<number>`count(*) filter (where ${leads.lastActivityAt} < ${staleCutoff} and not ${leadStatuses.isTerminal})::int`,
+    })
+    .from(leads)
+    .innerJoin(leadStatuses, eq(leadStatuses.id, leads.statusId))
+    .where(isNull(leads.deletedAt));
+
+  const [tasks] = await db
+    .select({
+      mine: sql<number>`count(*) filter (where ${leadTasks.assigneeId} = ${userId})::int`,
+      overdue: sql<number>`count(*) filter (where ${leadTasks.dueAt} is not null and ${leadTasks.dueAt} < now())::int`,
+    })
+    .from(leadTasks)
+    .where(isNull(leadTasks.completedAt));
+
+  return {
+    newToday: counts?.newToday ?? 0,
+    newThisWeek: counts?.newThisWeek ?? 0,
+    unassigned: counts?.unassigned ?? 0,
+    stale: counts?.stale ?? 0,
+    myOpenTasks: tasks?.mine ?? 0,
+    overdueTasks: tasks?.overdue ?? 0,
+  };
+}

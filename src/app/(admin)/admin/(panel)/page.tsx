@@ -1,8 +1,9 @@
 import Link from 'next/link';
 
 import { listDocuments } from '@/data/admin/documents';
+import { getCrmSummary } from '@/data/admin/leads';
 import { getSiteSettings } from '@/data/public/settings';
-import { can } from '@/lib/auth/guards';
+import { can, requireUser } from '@/lib/auth/guards';
 import { countPlaceholderMedia } from '@/data/admin/media';
 
 export const metadata = { title: 'Обзор' };
@@ -15,6 +16,8 @@ export const metadata = { title: 'Обзор' };
  * "what have I edited but not published" — not how many pages exist.
  */
 export default async function AdminDashboard() {
+  const { user } = await requireUser();
+
   const [pages, projects, settings, placeholders] = await Promise.all([
     listDocuments('page'),
     listDocuments('project'),
@@ -27,6 +30,7 @@ export default async function AdminDashboard() {
     .filter((doc) => doc.locales.some((locale) => locale.hasUnpublishedChanges));
 
   const canSeeLeads = await can('crm.read');
+  const crm = canSeeLeads ? await getCrmSummary(user.id) : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -104,10 +108,56 @@ export default async function AdminDashboard() {
         </ul>
       </section>
 
-      {canSeeLeads ? (
-        <p className="text-ink-faint text-[13px]">
-          Раздел «Заявки» появится в M4 — сейчас лиды пишутся в базу, но интерфейса ещё нет.
-        </p>
+      {crm ? (
+        <section>
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <h2 className="font-display text-[20px]">Заявки</h2>
+            <Link href="/admin/leads" className="text-ink-faint hover:text-accent text-[13px]">
+              Списком
+            </Link>
+            <Link href="/admin/leads/board" className="text-ink-faint hover:text-accent text-[13px]">
+              Воронкой
+            </Link>
+          </div>
+
+          {/*
+            What needs attention, not what looks good. An unworked enquiry and
+            an overdue callback are the two ways this studio actually loses a
+            customer, so they lead — and they are warnings only when the number
+            is not zero.
+          */}
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}
+          >
+            <Stat
+              label="Без ответственного"
+              value={crm.unassigned}
+              tone={crm.unassigned > 0 ? 'warn' : 'ok'}
+              href="/admin/leads?assignee=none"
+              hint="Заявка, за которую никто не взялся"
+            />
+            <Stat
+              label="Без движения больше 5 дней"
+              value={crm.stale}
+              tone={crm.stale > 0 ? 'warn' : 'ok'}
+              href="/admin/leads/board"
+            />
+            <Stat
+              label="Просроченных задач"
+              value={crm.overdueTasks}
+              tone={crm.overdueTasks > 0 ? 'warn' : 'ok'}
+              href="/admin/leads"
+            />
+            <Stat
+              label="Новых за неделю"
+              value={crm.newThisWeek}
+              tone="info"
+              href="/admin/leads"
+              hint={`Сегодня — ${crm.newToday}`}
+            />
+          </div>
+        </section>
       ) : null}
     </div>
   );

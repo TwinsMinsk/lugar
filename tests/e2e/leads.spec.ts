@@ -96,6 +96,41 @@ test.describe('leads', () => {
     await expect(page.getByRole('row').filter({ hasText: name })).toContainText('Связаться');
   });
 
+  test('the board moves a lead between stages from the keyboard', async ({ page }) => {
+    await page.goto('/admin/leads/board');
+
+    // The move control is a labelled select on the card, so this is the same
+    // path a keyboard or screen-reader user takes — there is no drag to fake.
+    const move = page.getByLabel(`Перенести заявку ${publicId}`);
+    await expect(move).toBeVisible();
+    await move.selectOption({ label: 'Квалификация' });
+
+    // The card is now under the target column, not merely reporting success.
+    // Matched on its move control rather than on the id text: the control's
+    // own screen-reader label repeats the id, so a text match is ambiguous.
+    const column = page.getByRole('region', { name: 'Квалификация' });
+    await expect(
+      column.getByRole('combobox', { name: `Перенести заявку ${publicId}` }),
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('the dashboard number agrees with the list it links to', async ({ page }) => {
+    await page.goto('/admin');
+
+    const card = page.getByRole('link').filter({ hasText: 'Без ответственного' }).first();
+    await expect(card).toBeVisible();
+    const shown = Number((await card.innerText()).match(/\d+/)?.[0] ?? -1);
+    expect(shown).toBeGreaterThanOrEqual(0);
+
+    // A dashboard number that disagrees with the screen it opens is worse than
+    // no number: it teaches the owner not to trust the dashboard.
+    await card.click();
+    await expect(page).toHaveURL(/assignee=none/);
+    const rows = await page.getByRole('row').count();
+    // Minus the header row; an empty list renders a message instead of a table.
+    expect(Math.max(rows - 1, 0)).toBe(shown);
+  });
+
   test('the CSV export contains the lead and neutralises spreadsheet formulas', async ({ page }) => {
     const response = await page.request.get('/api/admin/leads/export');
     expect(response.status()).toBe(200);
