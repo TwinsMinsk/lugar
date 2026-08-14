@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { env, publicEnv } from '@/env';
 import { whatsappLink } from '@/lib/routes';
+import { sendTemplateViaCloudApi, sendTextViaCloudApi } from './cloud-api';
 import type { SendResult, SendTemplateParams, SendTextParams, WhatsAppProvider } from './provider';
 
 /**
@@ -86,6 +87,38 @@ class MockProvider implements WhatsAppProvider {
   }
 }
 
+/**
+ * `cloud_api` — the real integration.
+ *
+ * Note what this class does *not* do: retry, back off, or decide when to give
+ * up. Those belong to the outbox worker, where the state survives the process
+ * being restarted mid-send. A provider that retried in memory would lose the
+ * attempt count on every deploy.
+ */
+class CloudApiProvider implements WhatsAppProvider {
+  readonly mode = 'cloud_api' as const;
+  readonly canSendProgrammatically = true;
+
+  async sendText(params: SendTextParams): Promise<SendResult> {
+    return sendTextViaCloudApi(params);
+  }
+
+  async sendTemplate(params: SendTemplateParams): Promise<SendResult> {
+    return sendTemplateViaCloudApi(params);
+  }
+
+  buildHandoffLink({ text }: { text?: string }) {
+    // Still offered in cloud_api mode: outside the 24h window a link the staff
+    // member opens on their own phone is the only way to start a conversation
+    // that no approved template covers.
+    return handoffLink(text);
+  }
+
+  verifyWebhookSignature(rawBody: string, header: string | null) {
+    return verifySignature(rawBody, header, env.WHATSAPP_APP_SECRET);
+  }
+}
+
 function hash(input: string): string {
   return createHmac('sha256', 'mock').update(input).digest('hex').slice(0, 24);
 }
@@ -100,11 +133,8 @@ export function whatsapp(): WhatsAppProvider {
       cached = new MockProvider();
       break;
     case 'cloud_api':
-      // Implemented in M4. Until then an explicitly-configured cloud_api mode
-      // must not silently behave like fallback, so this is a hard failure.
-      throw new Error(
-        'WHATSAPP_MODE=cloud_api is not implemented yet (lands in M4). Use fallback or mock.',
-      );
+      cached = new CloudApiProvider();
+      break;
     default:
       cached = new FallbackProvider();
   }
