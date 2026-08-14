@@ -102,6 +102,18 @@ npm run lint && npm run typecheck && npm test && npm run build
 Full detail, including the decisions that deviate from the original brief and why, is in
 [`docs/architecture.md`](docs/architecture.md).
 
+### Documentation
+
+| Document | Audience | Language |
+| --- | --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | developers | English |
+| [`docs/whatsapp-setup.md`](docs/whatsapp-setup.md) | the owner — connecting Meta | Russian |
+| [`docs/content-operations.md`](docs/content-operations.md) | whoever runs the site day to day | Russian |
+| [`docs/launch-checklist.md`](docs/launch-checklist.md) | the owner — go/no-go | Russian |
+
+The three operational guides are in Russian on purpose: they exist for the person who has to follow
+them, and that person is the studio owner.
+
 ---
 
 ## Project status
@@ -110,8 +122,16 @@ Full detail, including the decisions that deviate from the original brief and wh
 | --- | --- | --- |
 | **M1** | Toolchain, schema, auth, storage, seed, test harness | **complete** |
 | **M2** | Public site, blocks, forms, WhatsApp fallback, SEO | **complete** |
-| M3 | Admin CMS, media library, draft/publish/rollback | not started |
-| M4 | CRM depth, WhatsApp Cloud API, full test suite | not started |
+| **M3** | Admin CMS, media library, draft/publish/rollback, navigation, redirects, users, audit | **complete** |
+| M4 | CRM, WhatsApp Cloud API, docs, final audit | in progress |
+
+Done in M4: the lead inbox with search and keyset pagination, the pipeline board, the CRM dashboard,
+CSV export, the Cloud API adapter, the Meta webhook, the outbox worker, the conversation panel on the
+lead card, and the three operational guides.
+
+Left in M4: contacts and projects screens, the pipeline-status editor, and the accessibility and
+performance audit. See the honest list at the end of
+[`docs/launch-checklist.md`](docs/launch-checklist.md).
 
 The project-detail template resolves and renders, but there is nothing to show
 until the owner adds a real project — the brief forbids seeded portfolio work,
