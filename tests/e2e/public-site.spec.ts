@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { spanishMobile } from './lead-phone';
+
 /**
  * End-to-end coverage for the public site.
  *
@@ -159,7 +161,7 @@ test.describe('lead capture', () => {
      * E.164 parsing still gets a real workout.
      */
     const stamp = Date.now();
-    const phone = `+34 6${String(stamp).slice(-8)}`;
+    const phone = spanishMobile(stamp);
     await page.setExtraHTTPHeaders({
       'x-forwarded-for': `10.${Math.floor(stamp / 1000) % 256}.${stamp % 256}.7`,
     });

@@ -9,6 +9,7 @@
   "scripts": {
     "auth:bootstrap": "tsx --conditions=react-server scripts/bootstrap-owner.ts",
     "build": "next build",
+    "build:standalone": "node scripts/prepare-standalone.mjs",
     "db:clean-test-projects": "tsx --conditions=react-server scripts/clean-test-projects.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --conditions=react-server src/db/migrate.ts",
@@ -22,7 +23,8 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "start": "next start",
+    "postbuild": "npm run build:standalone",
+    "start": "node .next/standalone/server.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",

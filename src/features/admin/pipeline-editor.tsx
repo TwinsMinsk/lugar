@@ -73,7 +73,12 @@ export function PipelineEditor({
         </p>
       ) : null}
 
-      <ul className="border-line divide-line bg-surface divide-y rounded-[--radius-card] border">
+      {/* Both lists carry names: without them a screen reader announces two
+          unlabelled lists, and any query for "the last item" spans both. */}
+      <ul
+        aria-label="Этапы воронки"
+        className="border-line divide-line bg-surface divide-y rounded-[--radius-card] border"
+      >
         {stages.map((stage, index) => (
           <li key={stage.id} className="p-4">
             {editingId === stage.id ? (
@@ -218,7 +223,10 @@ export function PipelineEditor({
             Этапы не удаляются: на них ссылается история закрытых сделок. Убранный этап можно
             вернуть — он встанет в конец воронки.
           </p>
-          <ul className="border-line divide-line bg-surface divide-y rounded-[--radius-card] border">
+          <ul
+            aria-label="Убранные этапы"
+            className="border-line divide-line bg-surface divide-y rounded-[--radius-card] border"
+          >
             {archived.map((stage) => (
               <li key={stage.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-ink-soft flex-1 text-[14px]">

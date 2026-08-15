@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { spanishMobile } from './lead-phone';
+
 /**
  * Contacts.
  *
@@ -13,7 +15,7 @@ test.describe('contacts', () => {
 
   const stamp = Date.now();
   const name = `E2E Клиент ${stamp}`;
-  const phone = `+34 6${String(stamp).slice(-8)}`;
+  const phone = spanishMobile(stamp);
   let contactHref: string;
 
   async function submitLead(page: Page, values: { name: string; phone: string; comment?: string }) {

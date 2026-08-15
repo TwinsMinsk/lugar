@@ -33,6 +33,23 @@ test.describe('public site accessibility', () => {
       .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
+    /**
+     * Wait for the opening animation to finish, not merely for the dialog to
+     * be visible.
+     *
+     * Mid-transition the panel is still part-transparent, so a contrast check
+     * measures a colour that exists for a few frames and never afterwards.
+     * Under a loaded machine that window is wide enough to catch — this failed
+     * once in a full parallel run and never once on its own.
+     */
+    await page.waitForFunction(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      if (!dialog) return false;
+      return dialog
+        .getAnimations({ subtree: true })
+        .every((animation) => animation.playState === 'finished');
+    });
+
     const results = await audit(page, new AxeBuilder({ page }));
     expect(axeDescribe(results), axeDescribe(results)).toBe('');
   });

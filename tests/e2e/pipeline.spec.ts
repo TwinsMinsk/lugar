@@ -1,4 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+import { spanishMobile } from './lead-phone';
 
 /**
  * The pipeline editor.
@@ -17,6 +19,9 @@ test.describe('pipeline', () => {
   const name = `E2E Этап ${stamp}`;
   const renamed = `${name} переименован`;
 
+  /** The live funnel, as opposed to the archived list below it. */
+  const active = (page: Page) => page.getByRole('list', { name: 'Этапы воронки' });
+
   test('a new stage appears at the end of the funnel and on the board', async ({ page }) => {
     await page.goto('/admin/pipeline');
     await page.getByRole('button', { name: 'Добавить этап' }).click();
@@ -29,8 +34,9 @@ test.describe('pipeline', () => {
     await expect(row).toHaveCount(1, { timeout: 15_000 });
 
     // Appended, not inserted: the new stage is last, so nobody's board silently
-    // reorders itself.
-    await expect(page.getByRole('listitem').last()).toContainText(name);
+    // reorders itself. Scoped to the active list — the archived section is a
+    // second list, and an unscoped "last item" spans both.
+    await expect(active(page).getByRole('listitem').last()).toContainText(name);
 
     // And the board it drives shows the column immediately.
     await page.goto('/admin/leads/board');
@@ -62,7 +68,9 @@ test.describe('pipeline', () => {
     // takes; there is no drag handle to fake.
     await row.getByRole('button', { name: `Поднять этап «${renamed}»` }).click();
 
-    await expect(page.getByRole('listitem').nth(-2)).toContainText(renamed, { timeout: 15_000 });
+    await expect(active(page).getByRole('listitem').nth(-2)).toContainText(renamed, {
+      timeout: 15_000,
+    });
   });
 
   test('the entry stage cannot be removed', async ({ page }) => {
@@ -96,7 +104,7 @@ test.describe('pipeline', () => {
       .click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Имя').fill(leadName);
-    await dialog.getByLabel('Телефон').fill(`+34 6${String(stamp2).slice(-8)}`);
+    await dialog.getByLabel('Телефон').fill(spanishMobile(stamp2));
     await dialog.locator('input[name="consentPersonalData"]').check();
     // Dwell guard: a submission faster than a human can type is discarded.
     await page.waitForTimeout(3000);
@@ -139,7 +147,10 @@ test.describe('pipeline', () => {
   test('the removed stage is listed as archived and can be brought back', async ({ page }) => {
     await page.goto('/admin/pipeline');
 
-    const archived = page.getByRole('listitem').filter({ hasText: renamed });
+    const archived = page
+      .getByRole('list', { name: 'Убранные этапы' })
+      .getByRole('listitem')
+      .filter({ hasText: renamed });
     await expect(archived).toHaveCount(1);
     await archived.getByRole('button', { name: 'Вернуть' }).click();
 

@@ -1,6 +1,9 @@
 import { createHmac } from 'node:crypto';
 
+import { parsePhoneNumberWithError } from 'libphonenumber-js/max';
 import { describe, expect, it } from 'vitest';
+
+import { spanishMobile } from '../e2e/lead-phone';
 
 import { verifySignature } from '@/lib/whatsapp';
 import { normalizeRecipient, orderedParameters } from '@/lib/whatsapp/cloud-api';
@@ -235,5 +238,33 @@ describe('cloud api request shaping', () => {
     // phone number where the customer's name belongs.
     const params = orderedParameters({ '2': 'Кухни', '10': 'LG-1', '1': 'Мария' });
     expect(params.map((p) => p.text)).toEqual(['Мария', 'Кухни', 'LG-1']);
+  });
+});
+
+describe('spanish mobile validation', () => {
+  /**
+   * Pins the rule the end-to-end specs depend on.
+   *
+   * The app validates with `libphonenumber-js/max`, whose metadata knows number
+   * types: +34 79… is not an assigned mobile range and is correctly refused.
+   * A spec that builds a test number from the clock behind a 7 therefore fails
+   * roughly two times in five, and reads as "lead capture is broken".
+   */
+  it('accepts every clock-derived number the specs generate', () => {
+    for (let i = 0; i < 200; i += 1) {
+      const phone = spanishMobile(1786000000000 + i * 9_999_991);
+      const parsed = parsePhoneNumberWithError(phone, { defaultCountry: 'RU', extract: false });
+      expect(parsed.isValid(), phone).toBe(true);
+    }
+  });
+
+  it('still refuses a Spanish prefix that is not assigned to mobiles', () => {
+    // The strictness is the point: a customer cannot own this number, so
+    // accepting it would only put an undialable contact in the CRM.
+    const parsed = parsePhoneNumberWithError('+34 794511610', {
+      defaultCountry: 'RU',
+      extract: false,
+    });
+    expect(parsed.isValid()).toBe(false);
   });
 });

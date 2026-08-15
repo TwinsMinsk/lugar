@@ -66,7 +66,28 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npx next start --port ${PORT}`,
+    /**
+     * The standalone server, not `next start`.
+     *
+     * Production runs `output: 'standalone'`, and that build needs `public/`
+     * and `.next/static/` copied into it — a step `next start` does not need
+     * and therefore never exercises. Testing the other server would leave the
+     * deployed one unverified, which is how a site ships with every stylesheet
+     * returning 404.
+     *
+     * Env goes through `webServer.env` rather than an inline `VAR=x` prefix,
+     * which cmd.exe does not understand.
+     *
+     * HOSTNAME is 0.0.0.0, the same value railway.json uses, and that is not
+     * incidental. Bound to a specific loopback address instead, the standalone
+     * server answers a middleware rewrite with an absolute URL pointing at
+     * `localhost` — which Next then treats as an external redirect, and `/`
+     * 307-loops until the browser gives up. Binding the wildcard keeps the
+     * rewrite relative. Tightening this to 127.0.0.1 would take the home page
+     * down in production while every test still passed.
+     */
+    command: `npm run build && node .next/standalone/server.js`,
+    env: { PORT: String(PORT), HOSTNAME: '0.0.0.0' },
     url: baseURL,
     /**
      * Never reuse a server that happens to be listening.
