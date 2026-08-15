@@ -23,6 +23,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "preflight": "tsx --conditions=react-server scripts/preflight.ts",
     "postbuild": "npm run build:standalone",
     "start": "node .next/standalone/server.js",
     "test": "vitest run",

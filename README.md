@@ -141,6 +141,18 @@ so the index ships with an honest empty state.
 
 ---
 
+## Before deploying
+
+```bash
+npm run preflight -- --production
+```
+
+Checks what a build cannot: a reachable database, migrations actually applied, and a real
+put/read/delete round trip against object storage. Exits non-zero when something would break at
+runtime; items marked ЖДЁТ are inputs the owner still owes, and the site runs without them.
+
+---
+
 ## Pending owner inputs
 
 Outstanding inputs required from the owner are tracked as `needs_review` rows in `site_settings` —
