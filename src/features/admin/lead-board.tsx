@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 import { changeLeadStatus } from '@/app/(admin)/admin/_actions/leads';
 import type { BoardColumn } from '@/data/admin/leads';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
+import { formatDayMonth } from '@/lib/format';
 
 /**
  * The pipeline board.
@@ -25,28 +26,20 @@ export type SerializedColumn = {
   cards: Array<Omit<BoardCard, 'createdAt'> & { createdAt: string }>;
 };
 
-const dayMonth = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-});
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
+  not_found: 'Заявка не найдена — возможно, её убрали.',
+  unknown_status: 'Такого этапа больше нет — обновите страницу.',
+};
 
 export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const [pending, startTransition] = useTransition();
+  const { isBusy, error, run } = useAction(ERRORS);
 
   function move(leadId: string, statusId: string, publicId: string, label: string) {
-    startTransition(async () => {
-      setError(null);
-      const result = await changeLeadStatus({ leadId, statusId });
-      if (!result.ok) {
-        setError('Не удалось перенести заявку.');
-        return;
-      }
-      setAnnouncement(`${publicId} перенесена в «${label}»`);
-      router.refresh();
+    run(() => changeLeadStatus({ leadId, statusId }), {
+      key: leadId,
+      onDone: () => setAnnouncement(`${publicId} перенесена в «${label}»`),
     });
   }
 
@@ -55,11 +48,11 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
-      {error ? (
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-          {error}
-        </p>
-      ) : null}
+      {/* Always mounted: an area inserted together with its text is not
+          announced by a screen reader. */}
+      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
 
       {/*
         Focusable because it scrolls.
@@ -115,7 +108,7 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
                     </div>
                     <div className="text-ink-faint mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                       <span className="font-mono">{card.publicId}</span>
-                      <span>{dayMonth.format(new Date(card.createdAt))}</span>
+                      <span>{formatDayMonth(new Date(card.createdAt))}</span>
                       {card.isStale ? (
                         <span
                           title="Больше пяти дней без движения"
@@ -135,7 +128,7 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
                     <select
                       id={`move-${card.id}`}
                       value={column.status.id}
-                      disabled={pending}
+                      disabled={isBusy(card.id)}
                       onChange={(event) => {
                         const target = columns.find(
                           (item) => item.status.id === event.target.value,

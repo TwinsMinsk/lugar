@@ -4,6 +4,7 @@ import { buttonClasses } from '@/components/ui/button';
 import type { LeadListRow, LeadStatusRow } from '@/data/admin/leads';
 import { LeadRemoval } from '@/features/admin/lead-removal';
 import { cn } from '@/lib/utils';
+import { formatDayMonthTime } from '@/lib/format';
 
 /**
  * The lead inbox.
@@ -21,14 +22,6 @@ export type LeadFilterValues = {
   /** 'archived' shows the archive instead of the inbox. */
   view?: string;
 };
-
-const dateFormat = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 function buildHref(values: LeadFilterValues): string {
   const params = new URLSearchParams();
@@ -239,7 +232,7 @@ export function LeadsTable({
                       {row.publicId}
                     </Link>
                     <div className="text-ink-faint text-[12px]">
-                      {dateFormat.format(row.createdAt)}
+                      {formatDayMonthTime(row.createdAt)}
                     </div>
                     {row.isDuplicateHint ? (
                       <div

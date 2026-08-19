@@ -11,6 +11,7 @@ import { LOCALES } from '@/i18n/routing';
 import { recordAudit } from '@/lib/audit';
 import { invalidatePublicPages } from '@/lib/cache-invalidation';
 import { requireCapability } from '@/lib/auth/guards';
+import { failFromZod } from './_result';
 
 /**
  * Menu editing.
@@ -84,7 +85,7 @@ export async function createNavigationItem(
 
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid_input' };
+    return failFromZod(parsed.error);
   }
   const { menu, label, target } = parsed.data;
 
@@ -134,7 +135,7 @@ export async function updateNavigationItem(
 
   const parsed = updateSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid_input' };
+    return failFromZod(parsed.error);
   }
   const { id, label, target, isVisible } = parsed.data;
 

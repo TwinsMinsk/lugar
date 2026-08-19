@@ -220,7 +220,7 @@ export async function cancelOutboxMessage(outboxId: string): Promise<WhatsAppRes
     .where(eq(whatsappOutbox.id, outboxId))
     .limit(1);
   if (!row) return { ok: false, error: 'not_found' };
-  if (row.status === 'sent') return { ok: false, error: 'already_sent' };
+  if (row.status === 'sent') return { ok: false, error: 'message_already_sent' };
   if (row.status === 'skipped') return { ok: true };
   // `claimed` means the worker is holding it right now; cancelling underneath
   // it would race the send itself.

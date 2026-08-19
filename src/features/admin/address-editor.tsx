@@ -1,22 +1,19 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
-import { updateSlug, type ActionResult } from '@/app/(admin)/admin/_actions/content';
+import { updateSlug } from '@/app/(admin)/admin/_actions/content';
 import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton } from '@/components/ui/dialog';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
-const ERRORS: Record<string, string> = {
-  slug_format: 'Адрес может содержать только строчные латинские буквы, цифры и дефис.',
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   slug_taken: 'Такой адрес уже занят другой страницей.',
-  slug_empty: 'Адрес не может быть пустым — по нему открывается главная страница.',
-  slug_is_home: 'Это главная страница: её адрес — корень сайта, и он не меняется.',
   not_found: 'Страница не найдена.',
   invalid_input: 'Проверьте адрес.',
-  unexpected: 'Не получилось. Попробуйте ещё раз.',
 };
 
 /**
@@ -41,33 +38,17 @@ export function AddressEditor({
   /** Path segment in front of the slug, e.g. 'raboty/' for a project. */
   prefix?: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(locales.map((entry) => [entry.locale, entry.slug])),
   );
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   const byLocale = new Map(locales.map((entry) => [entry.locale, entry]));
 
   function apply(locale: Locale) {
-    setMessage('');
-    setError(null);
-    startTransition(async () => {
-      let result: ActionResult;
-      try {
-        result = await updateSlug({ documentId, locale, slug: values[locale] ?? '' });
-      } catch {
-        setError(ERRORS.unexpected!);
-        return;
-      }
-      if (!result.ok) {
-        setError(ERRORS[result.error] ?? ERRORS.unexpected!);
-        return;
-      }
-      setMessage(`Адрес ${locale.toUpperCase()} изменён.`);
-      router.refresh();
+    run(() => updateSlug({ documentId, locale, slug: values[locale] ?? '' }), {
+      key: locale,
+      success: `Адрес ${locale.toUpperCase()} изменён.`,
     });
   }
 
@@ -105,7 +86,7 @@ export function AddressEditor({
                   <input
                     id={`slug-${locale}`}
                     value={value}
-                    disabled={pending || isHome}
+                    disabled={isBusy(locale) || isHome}
                     onChange={(event) =>
                       setValues((prev) => ({ ...prev, [locale]: event.target.value }))
                     }
@@ -131,13 +112,13 @@ export function AddressEditor({
                     tone="neutral"
                     variant="outline"
                     className="mb-1 text-[13px]"
-                    disabled={pending}
+                    disabled={isBusy(locale)}
                     onConfirm={() => apply(locale)}
                   />
                 ) : (
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={isBusy(locale)}
                     onClick={() => apply(locale)}
                     className={cn(buttonClasses('outline', 'sm'), 'mb-1 text-[13px]')}
                   >
@@ -151,7 +132,7 @@ export function AddressEditor({
       </div>
 
       <p role="status" className="text-ink-muted mt-3 text-[13px] empty:hidden">
-        {message}
+        {status}
       </p>
       <p role="alert" className="mt-3 text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
         {error}

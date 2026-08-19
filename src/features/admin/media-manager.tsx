@@ -16,6 +16,7 @@ import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton } from '@/components/ui/dialog';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
+import { messagesFor } from './messages';
 
 export type MediaItem = {
   id: string;
@@ -32,7 +33,8 @@ export type MediaItem = {
   usedOnPublishedPage: boolean;
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const message = messagesFor({
   alt_required: 'Опишите изображение — без alt-текста его не примут.',
   file_too_large: 'Файл больше 20 МБ.',
   unsupported_format: 'Поддерживаются JPEG, PNG, WebP, AVIF и TIFF.',
@@ -42,7 +44,7 @@ const ERRORS: Record<string, string> = {
   not_archived: 'Сначала уберите изображение.',
   not_found: 'Изображение не найдено — возможно, его уже удалили.',
   no_file: 'Файл не выбран.',
-};
+});
 
 export function MediaManager({ items, removed }: { items: MediaItem[]; removed: MediaItem[] }) {
   const [status, setStatus] = useState<string | null>(null);
@@ -124,7 +126,7 @@ function RemovedCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string
               setError(null);
               const result = await restoreMedia(item.id);
               if (!result.ok) {
-                setError(ERRORS[result.error] ?? result.error);
+                setError(message(result.error));
                 return;
               }
               onStatus('Изображение вернулось в библиотеку.');
@@ -147,7 +149,7 @@ function RemovedCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string
                 setError(null);
                 const result = await purgeMedia(item.id);
                 if (!result.ok) {
-                  setError(ERRORS[result.error] ?? result.error);
+                  setError(message(result.error));
                   return;
                 }
                 onStatus('Изображение удалено навсегда.');
@@ -188,7 +190,7 @@ function UploadForm({ onDone }: { onDone: (message: string) => void }) {
             formRef.current?.reset();
             onDone('Изображение загружено.');
           } else {
-            setError(ERRORS[result.error] ?? result.error);
+            setError(message(result.error));
           }
         });
       }}
@@ -359,7 +361,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
                   focalY: focal.y,
                 });
                 if (result.ok) onStatus('Сохранено.');
-                else setError(ERRORS[result.error] ?? result.error);
+                else setError(message(result.error));
               })
             }
             className={buttonClasses('outline', 'sm', 'text-[12px]')}
@@ -383,7 +385,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
                   setError(null);
                   const result = await replaceMedia(formData);
                   if (result.ok) onStatus('Файл заменён — блоки, где он стоит, обновятся сами.');
-                  else setError(ERRORS[result.error] ?? result.error);
+                  else setError(message(result.error));
                 });
               }}
             />
@@ -412,7 +414,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
                     const where = result.blockedBy
                       ?.map((entry) => `/${entry.slug} (${entry.locale})`)
                       .join(', ');
-                    setError((ERRORS[result.error] ?? result.error) + (where ? ` — ${where}` : ''));
+                    setError(message(result.error) + (where ? ` — ${where}` : ''));
                   }
                 })
               }

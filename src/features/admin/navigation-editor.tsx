@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   createNavigationItem,
@@ -14,6 +13,7 @@ import { buttonClasses } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/dialog';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type NavTarget = { id: string; label: string; path: string; published: boolean };
 
@@ -42,7 +42,8 @@ const MENU_HELP: Record<MenuKey, string> = {
   footer_legal: 'Политика конфиденциальности, cookie, правовая информация.',
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   ru_required: 'Русское название обязательно — оно используется как запасное.',
   http_only: 'Ссылка должна начинаться с http:// или https://',
   anchor_format: 'Якорь выглядит так: #kontakty',
@@ -110,24 +111,9 @@ function MenuSection({
   targets: NavTarget[];
   announce: (message: string) => void;
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>, onDone?: () => void) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) {
-        setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-        return;
-      }
-      onDone?.();
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <section className="border-line bg-surface rounded-[--radius-card] border p-4">
@@ -135,7 +121,7 @@ function MenuSection({
         <h2 className="font-display text-[19px]">{MENU_LABEL[menu]}</h2>
         <button
           type="button"
-          disabled={pending}
+          disabled={isBusy('create')}
           onClick={() => {
             setAdding((value) => !value);
             setEditingId(null);
@@ -147,23 +133,27 @@ function MenuSection({
       </div>
       <p className="text-ink-faint mb-3 text-[12px]">{MENU_HELP[menu]}</p>
 
-      {error ? (
-        <p role="alert" className="mb-3 text-[13px] text-[oklch(0.52_0.17_25)]">
-          {error}
-        </p>
-      ) : null}
+      {/* Both areas stay mounted: one inserted together with its text is not
+          announced by a screen reader. */}
+      <p role="alert" className="mb-3 text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
+      <p role="status" className="text-ink-muted mb-3 text-[13px] empty:hidden">
+        {status}
+      </p>
 
       {adding ? (
         <ItemForm
           targets={targets}
-          pending={pending}
+          pending={isBusy('create')}
           submitLabel="Добавить"
           onCancel={() => setAdding(false)}
           onSubmit={(label, kind, value) =>
-            run(
-              () => createNavigationItem({ menu, label, target: buildTarget(kind, value) }),
-              () => setAdding(false),
-            )
+            run(() => createNavigationItem({ menu, label, target: buildTarget(kind, value) }), {
+              key: 'create',
+              success: 'Пункт добавлен.',
+              onDone: () => setAdding(false),
+            })
           }
         />
       ) : null}
@@ -177,7 +167,7 @@ function MenuSection({
               {editingId === item.id ? (
                 <ItemForm
                   targets={targets}
-                  pending={pending}
+                  pending={isBusy(item.id)}
                   submitLabel="Сохранить"
                   initial={item}
                   onCancel={() => setEditingId(null)}
@@ -190,7 +180,11 @@ function MenuSection({
                           target: buildTarget(kind, value),
                           isVisible: item.isVisible,
                         }),
-                      () => setEditingId(null),
+                      {
+                        key: item.id,
+                        success: 'Пункт сохранён.',
+                        onDone: () => setEditingId(null),
+                      },
                     )
                   }
                 />
@@ -225,16 +219,16 @@ function MenuSection({
                   <select
                     id={`position-${item.id}`}
                     value={index + 1}
-                    disabled={pending}
+                    disabled={isBusy(item.id)}
                     onChange={(event) => {
                       const position = Number(event.target.value);
-                      run(
-                        () => moveNavigationItem({ id: item.id, position }),
-                        () =>
+                      run(() => moveNavigationItem({ id: item.id, position }), {
+                        key: item.id,
+                        onDone: () =>
                           announce(
                             `${item.label.ru ?? 'Пункт'} — позиция ${position} из ${items.length}`,
                           ),
-                      );
+                      });
                     }}
                     className="border-line-strong rounded-[--radius-btn] border px-2 py-1 text-[13px]"
                   >
@@ -247,16 +241,16 @@ function MenuSection({
 
                   <button
                     type="button"
-                    disabled={pending || index === 0}
+                    disabled={isBusy(item.id) || index === 0}
                     aria-label={`Переместить «${item.label.ru ?? ''}» выше`}
                     onClick={() =>
-                      run(
-                        () => nudgeNavigationItem(item.id, 'up'),
-                        () =>
+                      run(() => nudgeNavigationItem(item.id, 'up'), {
+                        key: item.id,
+                        onDone: () =>
                           announce(
                             `${item.label.ru ?? 'Пункт'} — позиция ${index} из ${items.length}`,
                           ),
-                      )
+                      })
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'px-2 text-[13px]')}
                   >
@@ -264,16 +258,16 @@ function MenuSection({
                   </button>
                   <button
                     type="button"
-                    disabled={pending || index === items.length - 1}
+                    disabled={isBusy(item.id) || index === items.length - 1}
                     aria-label={`Переместить «${item.label.ru ?? ''}» ниже`}
                     onClick={() =>
-                      run(
-                        () => nudgeNavigationItem(item.id, 'down'),
-                        () =>
+                      run(() => nudgeNavigationItem(item.id, 'down'), {
+                        key: item.id,
+                        onDone: () =>
                           announce(
                             `${item.label.ru ?? 'Пункт'} — позиция ${index + 2} из ${items.length}`,
                           ),
-                      )
+                      })
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'px-2 text-[13px]')}
                   >
@@ -282,15 +276,20 @@ function MenuSection({
 
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={isBusy(item.id)}
                     onClick={() =>
-                      run(() =>
-                        updateNavigationItem({
-                          id: item.id,
-                          label: item.label,
-                          target: buildTarget(targetOf(item).kind, targetOf(item).value),
-                          isVisible: !item.isVisible,
-                        }),
+                      run(
+                        () =>
+                          updateNavigationItem({
+                            id: item.id,
+                            label: item.label,
+                            target: buildTarget(targetOf(item).kind, targetOf(item).value),
+                            isVisible: !item.isVisible,
+                          }),
+                        {
+                          key: item.id,
+                          success: item.isVisible ? 'Пункт скрыт.' : 'Пункт показан.',
+                        },
                       )
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
@@ -300,7 +299,7 @@ function MenuSection({
 
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={isBusy(item.id)}
                     onClick={() => {
                       setAdding(false);
                       setEditingId(item.id);
@@ -314,8 +313,13 @@ function MenuSection({
                     label="Удалить"
                     question="Удалить пункт меню?"
                     confirmLabel="Удалить"
-                    disabled={pending}
-                    onConfirm={() => run(() => deleteNavigationItem(item.id))}
+                    disabled={isBusy(item.id)}
+                    onConfirm={() =>
+                      run(() => deleteNavigationItem(item.id), {
+                        key: item.id,
+                        success: 'Пункт удалён.',
+                      })
+                    }
                   />
                 </div>
               )}

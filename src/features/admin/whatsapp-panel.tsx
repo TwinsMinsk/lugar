@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   cancelOutboxMessage,
@@ -12,7 +11,9 @@ import {
 import { buttonClasses } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/dialog';
 import type { ApprovedTemplate } from '@/data/admin/whatsapp';
+import { formatDayMonthTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type ThreadItem = {
   id: string;
@@ -33,7 +34,8 @@ export type PendingItem = {
   attemptCount: number;
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   window_closed: 'Окно 24 часа закрылось, пока сообщение набиралось. Выберите шаблон.',
   no_consent: 'Клиент не давал согласия на переписку в WhatsApp.',
   not_configured: 'WhatsApp не подключён — доступна только ссылка для ответа с телефона.',
@@ -50,14 +52,6 @@ const PENDING_LABEL: Record<string, string> = {
   needs_review: 'требует проверки',
   dead: 'не доставлено',
 };
-
-const time = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export function WhatsAppPanel({
   leadId,
@@ -82,26 +76,11 @@ export function WhatsAppPanel({
   handoffUrl: string;
   waOptIn: boolean;
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [templateName, setTemplateName] = useState(templates[0]?.name ?? '');
-  const [busy, startTransition] = useTransition();
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   const chosen = templates.find((template) => template.name === templateName);
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>, onDone?: () => void) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) {
-        setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-        return;
-      }
-      onDone?.();
-      router.refresh();
-    });
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -121,7 +100,7 @@ export function WhatsAppPanel({
             >
               <div className="text-ink-faint mb-0.5 flex items-center gap-2 text-[11px]">
                 <span>{message.direction === 'inbound' ? 'Клиент' : 'Мы'}</span>
-                <span>{time.format(new Date(message.occurredAt))}</span>
+                <span>{formatDayMonthTime(new Date(message.occurredAt))}</span>
                 {message.status ? <span>{message.status}</span> : null}
               </div>
               <div className="text-ink whitespace-pre-wrap">
@@ -156,8 +135,13 @@ export function WhatsAppPanel({
                 <>
                   <button
                     type="button"
-                    disabled={busy}
-                    onClick={() => run(() => requeueOutboxMessage(item.id))}
+                    disabled={isBusy(item.id)}
+                    onClick={() =>
+                      run(() => requeueOutboxMessage(item.id), {
+                        key: item.id,
+                        success: 'Сообщение снова в очереди.',
+                      })
+                    }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                   >
                     Повторить
@@ -169,8 +153,13 @@ export function WhatsAppPanel({
                     label="Не отправлять"
                     question="Отменить отправку?"
                     confirmLabel="Не отправлять"
-                    disabled={busy}
-                    onConfirm={() => run(() => cancelOutboxMessage(item.id))}
+                    disabled={isBusy(item.id)}
+                    onConfirm={() =>
+                      run(() => cancelOutboxMessage(item.id), {
+                        key: item.id,
+                        success: 'Сообщение не будет отправлено.',
+                      })
+                    }
                   />
                 </>
               ) : null}
@@ -179,11 +168,14 @@ export function WhatsAppPanel({
         </ul>
       ) : null}
 
-      {error ? (
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-          {error}
-        </p>
-      ) : null}
+      {/* Both areas stay mounted: one inserted together with its text is not
+          announced by a screen reader. */}
+      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
+      <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+        {status}
+      </p>
 
       {!waOptIn ? (
         <p className="text-ink-faint text-[12px] leading-snug">
@@ -209,10 +201,11 @@ export function WhatsAppPanel({
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            run(
-              () => sendWhatsAppText({ leadId, body }),
-              () => setBody(''),
-            );
+            run(() => sendWhatsAppText({ leadId, body }), {
+              key: 'send',
+              success: 'Сообщение поставлено в очередь.',
+              onDone: () => setBody(''),
+            });
           }}
         >
           <label htmlFor="wa-body" className="text-ink-muted text-[12px] font-medium">
@@ -228,16 +221,16 @@ export function WhatsAppPanel({
           />
           {closesAt ? (
             <p className="text-ink-faint text-[11px]">
-              Свободный текст можно отправлять до {time.format(new Date(closesAt))} — 24 часа с
-              последнего сообщения клиента.
+              Свободный текст можно отправлять до {formatDayMonthTime(new Date(closesAt))} — 24 часа
+              с последнего сообщения клиента.
             </p>
           ) : null}
           <button
             type="submit"
-            disabled={busy || body.trim() === ''}
+            disabled={isBusy('send') || body.trim() === ''}
             className={buttonClasses('primary', 'sm')}
           >
-            {busy ? 'Ставим в очередь…' : 'Отправить'}
+            {isBusy('send') ? 'Ставим в очередь…' : 'Отправить'}
           </button>
         </form>
       ) : (
@@ -266,12 +259,14 @@ export function WhatsAppPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!chosen) return;
-                run(() =>
-                  sendWhatsAppTemplate({
-                    leadId,
-                    name: chosen.name,
-                    language: chosen.language,
-                  }),
+                run(
+                  () =>
+                    sendWhatsAppTemplate({
+                      leadId,
+                      name: chosen.name,
+                      language: chosen.language,
+                    }),
+                  { key: 'send', success: 'Шаблон поставлен в очередь.' },
                 );
               }}
             >
@@ -300,10 +295,10 @@ export function WhatsAppPanel({
 
               <button
                 type="submit"
-                disabled={busy || !chosen || chosen.variableCount > 0}
+                disabled={isBusy('send') || !chosen || chosen.variableCount > 0}
                 className={buttonClasses('primary', 'sm')}
               >
-                {busy ? 'Ставим в очередь…' : 'Отправить шаблон'}
+                {isBusy('send') ? 'Ставим в очередь…' : 'Отправить шаблон'}
               </button>
 
               {chosen && chosen.variableCount > 0 ? (

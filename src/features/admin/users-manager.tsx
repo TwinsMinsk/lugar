@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   changeUserRole,
@@ -12,6 +11,7 @@ import {
 import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type UserRow = {
   id: string;
@@ -41,7 +41,8 @@ const ROLE_HELP: Record<string, string> = {
   content_editor: 'Страницы, портфолио и медиа. Без доступа к заявкам.',
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   invalid_email: 'Проверьте адрес электронной почты.',
   already_a_user: 'Пользователь с таким адресом уже существует.',
   last_owner: 'Это последний владелец — сначала назначьте другого.',
@@ -58,22 +59,11 @@ export function UsersManager({
   invitations: InvitationRow[];
   currentUserId: string;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<string>('content_editor');
-  const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [emailed, setEmailed] = useState(false);
-  const [pending, startTransition] = useTransition();
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,19 +71,19 @@ export function UsersManager({
         className="border-line bg-surface flex flex-col gap-4 rounded-[--radius-card] border p-4"
         onSubmit={(event) => {
           event.preventDefault();
-          startTransition(async () => {
-            setError(null);
-            setInviteUrl(null);
-            const result = await inviteUser({ email, role: role as 'owner' });
-            if (result.ok) {
-              setInviteUrl(result.inviteUrl ?? null);
-              setEmailed(Boolean(result.emailed));
-              setEmail('');
-              router.refresh();
-            } else {
-              setError(ERRORS[result.error] ?? result.error);
-            }
-          });
+          setInviteUrl(null);
+          run(
+            async () => {
+              const result = await inviteUser({ email, role: role as 'owner' });
+              if (result.ok) {
+                setInviteUrl(result.inviteUrl ?? null);
+                setEmailed(Boolean(result.emailed));
+                setEmail('');
+              }
+              return result;
+            },
+            { key: 'invite' },
+          );
         }}
       >
         <h2 className="font-display text-[19px]">Пригласить сотрудника</h2>
@@ -137,18 +127,25 @@ export function UsersManager({
             </select>
           </div>
 
-          <button type="submit" disabled={pending} className={buttonClasses('primary', 'sm')}>
-            {pending ? 'Отправляем…' : 'Пригласить'}
+          <button
+            type="submit"
+            disabled={isBusy('invite')}
+            className={buttonClasses('primary', 'sm')}
+          >
+            {isBusy('invite') ? 'Отправляем…' : 'Пригласить'}
           </button>
         </div>
 
         <p className="text-ink-faint text-[12px]">{ROLE_HELP[role]}</p>
 
-        {error ? (
-          <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-            {error}
-          </p>
-        ) : null}
+        {/* Both areas stay mounted: one inserted together with its text is not
+            announced by a screen reader. */}
+        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+          {error}
+        </p>
+        <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+          {status}
+        </p>
 
         {inviteUrl ? (
           <div className="rounded-[--radius-card] border border-[oklch(0.86_0.05_150)] bg-[oklch(0.98_0.02_150)] p-3">
@@ -184,8 +181,13 @@ export function UsersManager({
                   label="Отозвать"
                   question="Отозвать приглашение?"
                   confirmLabel="Отозвать"
-                  disabled={pending}
-                  onConfirm={() => run(() => revokeInvitation(row.id))}
+                  disabled={isBusy(row.id)}
+                  onConfirm={() =>
+                    run(() => revokeInvitation(row.id), {
+                      key: row.id,
+                      success: 'Приглашение отозвано.',
+                    })
+                  }
                   className="ml-auto"
                 />
               </li>
@@ -211,15 +213,25 @@ export function UsersManager({
 
               <RoleControl
                 user={row}
-                pending={pending}
-                onApply={(role) => run(() => changeUserRole({ userId: row.id, role }))}
+                pending={isBusy(row.id)}
+                onApply={(newRole) =>
+                  run(() => changeUserRole({ userId: row.id, role: newRole }), {
+                    key: row.id,
+                    success: 'Роль изменена.',
+                  })
+                }
               />
 
               {row.id === currentUserId ? null : row.banned ? (
                 <button
                   type="button"
-                  disabled={pending}
-                  onClick={() => run(() => setUserBanned(row.id, false))}
+                  disabled={isBusy(row.id)}
+                  onClick={() =>
+                    run(() => setUserBanned(row.id, false), {
+                      key: row.id,
+                      success: 'Доступ восстановлен.',
+                    })
+                  }
                   className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                 >
                   Вернуть доступ
@@ -229,8 +241,13 @@ export function UsersManager({
                   label="Отключить доступ"
                   title="Отключить доступ?"
                   description={`${row.email} перестанет входить в панель. Учётная запись и всё, что этот человек сделал, сохраняются — доступ можно вернуть.`}
-                  disabled={pending}
-                  onConfirm={() => run(() => setUserBanned(row.id, true))}
+                  disabled={isBusy(row.id)}
+                  onConfirm={() =>
+                    run(() => setUserBanned(row.id, true), {
+                      key: row.id,
+                      success: 'Доступ отключён.',
+                    })
+                  }
                 />
               )}
 

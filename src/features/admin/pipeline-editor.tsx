@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   archiveStage,
@@ -14,10 +13,12 @@ import {
 import { buttonClasses } from '@/components/ui/button';
 import type { PipelineStage } from '@/data/admin/lead-statuses';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type ArchivedStage = { id: string; label: Record<string, string>; leadCount: number };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   is_entry: 'Это этап, на который попадают новые заявки. Сначала назначьте другой.',
   last_stage: 'Последний этап убрать нельзя — заявкам будет негде находиться.',
   needs_target: 'На этом этапе есть заявки. Выберите, куда их перенести.',
@@ -40,25 +41,10 @@ export function PipelineEditor({
   stages: PipelineStage[];
   archived: ArchivedStage[];
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [pending, startTransition] = useTransition();
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>, onDone?: () => void) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) {
-        setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-        return;
-      }
-      onDone?.();
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <div className="flex flex-col gap-5">
@@ -67,11 +53,14 @@ export function PipelineEditor({
         {announcement}
       </p>
 
-      {error ? (
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-          {error}
-        </p>
-      ) : null}
+      {/* Both areas stay mounted: one inserted together with its text is not
+          announced by a screen reader. */}
+      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
+      <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+        {status}
+      </p>
 
       {/* Both lists carry names: without them a screen reader announces two
           unlabelled lists, and any query for "the last item" spans both. */}
@@ -84,14 +73,15 @@ export function PipelineEditor({
             {editingId === stage.id ? (
               <StageForm
                 initial={stage}
-                pending={pending}
+                pending={isBusy(stage.id)}
                 submitLabel="Сохранить"
                 onCancel={() => setEditingId(null)}
                 onSubmit={(values) =>
-                  run(
-                    () => updateStage({ id: stage.id, ...values }),
-                    () => setEditingId(null),
-                  )
+                  run(() => updateStage({ id: stage.id, ...values }), {
+                    key: stage.id,
+                    success: 'Этап сохранён.',
+                    onDone: () => setEditingId(null),
+                  })
                 }
               />
             ) : (
@@ -123,13 +113,13 @@ export function PipelineEditor({
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    disabled={pending || index === 0}
+                    disabled={isBusy(stage.id) || index === 0}
                     aria-label={`Поднять этап «${stage.label.ru}»`}
                     onClick={() =>
-                      run(
-                        () => moveStage(stage.id, 'up'),
-                        () => setAnnouncement(`${stage.label.ru}: позиция ${index}`),
-                      )
+                      run(() => moveStage(stage.id, 'up'), {
+                        key: stage.id,
+                        onDone: () => setAnnouncement(`${stage.label.ru}: позиция ${index}`),
+                      })
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[13px] disabled:opacity-40')}
                   >
@@ -137,13 +127,13 @@ export function PipelineEditor({
                   </button>
                   <button
                     type="button"
-                    disabled={pending || index === stages.length - 1}
+                    disabled={isBusy(stage.id) || index === stages.length - 1}
                     aria-label={`Опустить этап «${stage.label.ru}»`}
                     onClick={() =>
-                      run(
-                        () => moveStage(stage.id, 'down'),
-                        () => setAnnouncement(`${stage.label.ru}: позиция ${index + 2}`),
-                      )
+                      run(() => moveStage(stage.id, 'down'), {
+                        key: stage.id,
+                        onDone: () => setAnnouncement(`${stage.label.ru}: позиция ${index + 2}`),
+                      })
                     }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[13px] disabled:opacity-40')}
                   >
@@ -154,8 +144,13 @@ export function PipelineEditor({
                 {!stage.isDefaultEntry ? (
                   <button
                     type="button"
-                    disabled={pending}
-                    onClick={() => run(() => setDefaultEntry(stage.id))}
+                    disabled={isBusy(stage.id)}
+                    onClick={() =>
+                      run(() => setDefaultEntry(stage.id), {
+                        key: stage.id,
+                        success: 'Новые заявки будут попадать сюда.',
+                      })
+                    }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                   >
                     Сделать точкой входа
@@ -164,7 +159,7 @@ export function PipelineEditor({
 
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={isBusy(stage.id)}
                   onClick={() => {
                     setEditingId(stage.id);
                     setAdding(false);
@@ -177,8 +172,13 @@ export function PipelineEditor({
                 <ArchiveControl
                   stage={stage}
                   others={stages.filter((other) => other.id !== stage.id)}
-                  pending={pending}
-                  onArchive={(moveTo) => run(() => archiveStage({ id: stage.id, moveTo }))}
+                  pending={isBusy(stage.id)}
+                  onArchive={(moveTo) =>
+                    run(() => archiveStage({ id: stage.id, moveTo }), {
+                      key: stage.id,
+                      success: 'Этап убран.',
+                    })
+                  }
                 />
               </div>
             )}
@@ -189,14 +189,15 @@ export function PipelineEditor({
       {adding ? (
         <div className="border-line bg-surface rounded-[--radius-card] border border-dashed p-4">
           <StageForm
-            pending={pending}
+            pending={isBusy('create')}
             submitLabel="Добавить этап"
             onCancel={() => setAdding(false)}
             onSubmit={(values) =>
-              run(
-                () => createStage({ label: values.label, color: values.color }),
-                () => setAdding(false),
-              )
+              run(() => createStage({ label: values.label, color: values.color }), {
+                key: 'create',
+                success: 'Этап добавлен.',
+                onDone: () => setAdding(false),
+              })
             }
           />
         </div>
@@ -204,7 +205,7 @@ export function PipelineEditor({
         <div>
           <button
             type="button"
-            disabled={pending}
+            disabled={isBusy('create')}
             onClick={() => {
               setAdding(true);
               setEditingId(null);
@@ -237,8 +238,13 @@ export function PipelineEditor({
                 </span>
                 <button
                   type="button"
-                  disabled={pending}
-                  onClick={() => run(() => restoreStage(stage.id))}
+                  disabled={isBusy(stage.id)}
+                  onClick={() =>
+                    run(() => restoreStage(stage.id), {
+                      key: stage.id,
+                      success: 'Этап вернулся в воронку.',
+                    })
+                  }
                   className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                 >
                   Вернуть

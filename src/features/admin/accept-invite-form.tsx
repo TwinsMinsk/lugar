@@ -6,15 +6,17 @@ import { useRouter } from 'next/navigation';
 import { acceptInvitation } from '@/app/(admin)/admin/_actions/users';
 import { buttonClasses } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { messagesFor } from './messages';
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const message = messagesFor({
   // One message for every token failure: expired, revoked, already used or
   // simply wrong. Distinguishing them would let someone probe for valid tokens.
   invalid_invitation: 'Приглашение недействительно или срок его действия истёк.',
   password_too_short: 'Пароль должен быть не короче 12 символов.',
   already_a_user: 'Пользователь с таким адресом уже существует — просто войдите.',
   invalid_input: 'Проверьте заполненные поля.',
-};
+});
 
 const inputClass = cn(
   'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3.5 py-3 text-[15px]',
@@ -56,7 +58,7 @@ export function AcceptInviteForm({ token }: { token: string }) {
             password: String(formData.get('password') ?? ''),
           });
           if (result.ok) setDone(true);
-          else setError(ERRORS[result.error] ?? result.error);
+          else setError(message(result.error));
         });
       }}
     >

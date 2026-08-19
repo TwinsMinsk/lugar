@@ -6,6 +6,7 @@ import { ContactEditor } from '@/features/admin/contact-editor';
 import { ContactRemoval } from '@/features/admin/contact-removal';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink } from '@/lib/routes';
+import { formatDate, formatDateTime, formatEuro } from '@/lib/format';
 
 export const metadata = { title: 'Клиент' };
 
@@ -22,22 +23,6 @@ const STAGE_LABEL: Record<string, string> = {
   installation: 'Монтаж',
   done: 'Завершён',
 };
-
-const dateTime = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-const dateOnly = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireCapability('crm.read');
@@ -61,14 +46,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           </a>
           {' · '}
           язык обращения {contact.preferredLocale.toUpperCase()}
-          {' · '}в базе с {dateOnly.format(contact.createdAt)}
+          {' · '}в базе с {formatDate(contact.createdAt)}
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         {contact.archivedAt ? (
           <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
-            Клиент убран в архив {dateOnly.format(contact.archivedAt)}
+            Клиент убран в архив {formatDate(contact.archivedAt)}
           </span>
         ) : null}
         <ContactRemoval
@@ -98,7 +83,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                       {lead.publicId}
                     </Link>
                     <span className="text-ink-faint w-[130px] text-[12px]">
-                      {dateOnly.format(lead.createdAt)}
+                      {formatDate(lead.createdAt)}
                     </span>
                     <span className="text-ink-soft min-w-[140px] flex-1 text-[13px]">
                       {lead.service ?? '—'}
@@ -132,12 +117,12 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                     </span>
                     {project.contractValueEur !== null ? (
                       <span className="text-ink-soft text-[13px]">
-                        {project.contractValueEur.toLocaleString('ru-RU')} €
+                        {formatEuro(project.contractValueEur)}
                       </span>
                     ) : null}
                     {project.dueAt ? (
                       <span className="text-ink-faint text-[12px]">
-                        срок {dateOnly.format(project.dueAt)}
+                        срок {formatDate(project.dueAt)}
                       </span>
                     ) : null}
                   </li>
@@ -173,7 +158,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             <p className="text-ink-faint mt-2 text-[12px]">
               Сообщений в истории: {contact.messageCount}
               {contact.lastInboundAt
-                ? ` · последнее от клиента ${dateTime.format(contact.lastInboundAt)}`
+                ? ` · последнее от клиента ${formatDateTime(contact.lastInboundAt)}`
                 : ' · входящих не было'}
             </p>
             {contact.leads.length > 0 ? (
@@ -215,7 +200,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                       </span>
                     </div>
                     <div className="text-ink-faint text-[12px]">
-                      {dateTime.format(consent.createdAt)} · редакция {consent.policyVersion}
+                      {formatDateTime(consent.createdAt)} · редакция {consent.policyVersion}
                     </div>
                   </li>
                 ))}

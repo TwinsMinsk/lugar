@@ -1,23 +1,15 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-
-import {
-  archiveLead,
-  deleteLead,
-  restoreLead,
-  type LeadResult,
-} from '@/app/(admin)/admin/_actions/leads';
+import { archiveLead, deleteLead, restoreLead } from '@/app/(admin)/admin/_actions/leads';
 import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
-const ERRORS: Record<string, string> = {
-  invalid_input: 'Не удалось разобрать запрос. Обновите страницу и попробуйте снова.',
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   not_found: 'Заявка не найдена — возможно, её уже убрали.',
   not_archived: 'Сначала уберите заявку в архив.',
-  unexpected: 'Не получилось. Попробуйте ещё раз.',
 };
 
 /**
@@ -37,28 +29,7 @@ export function LeadRemoval({
   archived: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState('');
-
-  function run(action: () => Promise<LeadResult>, success: string) {
-    setMessage('');
-    startTransition(async () => {
-      let result: LeadResult;
-      try {
-        result = await action();
-      } catch {
-        setMessage(ERRORS.unexpected!);
-        return;
-      }
-      if (!result.ok) {
-        setMessage(ERRORS[result.error] ?? ERRORS.unexpected!);
-        return;
-      }
-      setMessage(success);
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <span className="flex flex-wrap items-center gap-2">
@@ -66,8 +37,10 @@ export function LeadRemoval({
         <>
           <button
             type="button"
-            disabled={pending}
-            onClick={() => run(() => restoreLead(leadId), 'Заявка вернулась в работу.')}
+            disabled={isBusy()}
+            onClick={() =>
+              run(() => restoreLead(leadId), { success: 'Заявка вернулась в работу.' })
+            }
             className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
           >
             Вернуть
@@ -82,8 +55,8 @@ export function LeadRemoval({
                   история, и стирать их нельзя.
                 </>
               }
-              disabled={pending}
-              onConfirm={() => run(() => deleteLead(leadId), 'Заявка удалена.')}
+              disabled={isBusy()}
+              onConfirm={() => run(() => deleteLead(leadId), { success: 'Заявка удалена.' })}
             />
           ) : null}
         </>
@@ -92,13 +65,16 @@ export function LeadRemoval({
           label="Убрать"
           question="Убрать заявку в архив?"
           confirmLabel="Убрать"
-          disabled={pending}
-          onConfirm={() => run(() => archiveLead(leadId), 'Заявка убрана в архив.')}
+          disabled={isBusy()}
+          onConfirm={() => run(() => archiveLead(leadId), { success: 'Заявка убрана в архив.' })}
         />
       )}
 
       <span role="status" className="text-ink-muted text-[12px]">
-        {message}
+        {status}
+      </span>
+      <span role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)]">
+        {error}
       </span>
     </span>
   );

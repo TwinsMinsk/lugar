@@ -1,24 +1,20 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-
 import {
   archiveContact,
   deleteContact,
   restoreContact,
-  type ContactResult,
 } from '@/app/(admin)/admin/_actions/contacts';
 import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
-const ERRORS: Record<string, string> = {
-  invalid_input: 'Не удалось разобрать запрос. Обновите страницу и попробуйте снова.',
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   not_found: 'Клиент не найден — возможно, его уже убрали.',
   not_archived: 'Сначала уберите клиента в архив.',
   has_active_leads: 'У клиента есть заявки в работе. Уберите сначала их.',
-  unexpected: 'Не получилось. Попробуйте ещё раз.',
 };
 
 /** Removal controls for one client. Same two levels as everywhere else. */
@@ -31,28 +27,7 @@ export function ContactRemoval({
   archived: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState('');
-
-  function run(action: () => Promise<ContactResult>, success: string) {
-    setMessage('');
-    startTransition(async () => {
-      let result: ContactResult;
-      try {
-        result = await action();
-      } catch {
-        setMessage(ERRORS.unexpected!);
-        return;
-      }
-      if (!result.ok) {
-        setMessage(ERRORS[result.error] ?? ERRORS.unexpected!);
-        return;
-      }
-      setMessage(success);
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <span className="flex flex-wrap items-center justify-end gap-2">
@@ -60,8 +35,10 @@ export function ContactRemoval({
         <>
           <button
             type="button"
-            disabled={pending}
-            onClick={() => run(() => restoreContact(contactId), 'Клиент вернулся в список.')}
+            disabled={isBusy()}
+            onClick={() =>
+              run(() => restoreContact(contactId), { success: 'Клиент вернулся в список.' })
+            }
             className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
           >
             Вернуть
@@ -76,8 +53,8 @@ export function ContactRemoval({
                   человек согласился, и стирать её нельзя.
                 </>
               }
-              disabled={pending}
-              onConfirm={() => run(() => deleteContact(contactId), 'Клиент удалён.')}
+              disabled={isBusy()}
+              onConfirm={() => run(() => deleteContact(contactId), { success: 'Клиент удалён.' })}
             />
           ) : null}
         </>
@@ -86,13 +63,18 @@ export function ContactRemoval({
           label="Убрать"
           question="Убрать клиента в архив?"
           confirmLabel="Убрать"
-          disabled={pending}
-          onConfirm={() => run(() => archiveContact(contactId), 'Клиент убран в архив.')}
+          disabled={isBusy()}
+          onConfirm={() =>
+            run(() => archiveContact(contactId), { success: 'Клиент убран в архив.' })
+          }
         />
       )}
 
       <span role="status" className="text-ink-muted text-[12px]">
-        {message}
+        {status}
+      </span>
+      <span role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)]">
+        {error}
       </span>
     </span>
   );

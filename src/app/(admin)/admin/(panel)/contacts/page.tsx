@@ -5,6 +5,7 @@ import { listContacts } from '@/data/admin/contacts';
 import { ContactRemoval } from '@/features/admin/contact-removal';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { cn } from '@/lib/utils';
+import { formatShortDate } from '@/lib/format';
 
 export const metadata = { title: 'Клиенты' };
 
@@ -15,13 +16,6 @@ const SOURCE_LABEL: Record<string, string> = {
   import: 'импорт',
   phone_call: 'звонок',
 };
-
-const dateFormat = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
-});
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -153,7 +147,7 @@ export default async function ContactsPage({ searchParams }: PageProps) {
                   </td>
                   <td className="text-ink-soft px-4 py-3 align-top">{row.leadCount}</td>
                   <td className="text-ink-soft px-4 py-3 align-top text-[13px]">
-                    {row.lastLeadAt ? dateFormat.format(new Date(row.lastLeadAt)) : '—'}
+                    {row.lastLeadAt ? formatShortDate(row.lastLeadAt) : '—'}
                   </td>
                   <td className="text-ink-faint px-4 py-3 align-top text-[12px]">
                     {SOURCE_LABEL[row.source] ?? row.source}

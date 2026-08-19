@@ -14,6 +14,12 @@ import { requireCapability } from '@/lib/auth/guards';
 import { MAX_UPLOAD_BYTES, processUpload, RECIPE } from '@/lib/media/process';
 import { storage } from '@/lib/storage';
 
+/** See the two catch blocks below. */
+function uploadFailureCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  return /^[a-z0-9_]+$/.test(message) ? message : 'processing_failed';
+}
+
 export type MediaActionResult =
   | { ok: true; assetId?: string }
   | { ok: false; error: string; blockedBy?: Array<{ locale: string; slug: string }> };
@@ -55,7 +61,10 @@ export async function uploadMedia(formData: FormData): Promise<MediaActionResult
   try {
     processed = await processUpload(Buffer.from(await file.arrayBuffer()));
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'processing_failed' };
+    // processUpload throws codes deliberately (`file_too_large`,
+    // `unsupported_format`, `unreadable_image`); anything else is a bug, and
+    // its English text must not be what the owner reads.
+    return { ok: false, error: uploadFailureCode(error) };
   }
 
   const [existing] = await db
@@ -250,7 +259,10 @@ export async function replaceMedia(formData: FormData): Promise<MediaActionResul
   try {
     processed = await processUpload(Buffer.from(await file.arrayBuffer()));
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'processing_failed' };
+    // processUpload throws codes deliberately (`file_too_large`,
+    // `unsupported_format`, `unreadable_image`); anything else is a bug, and
+    // its English text must not be what the owner reads.
+    return { ok: false, error: uploadFailureCode(error) };
   }
 
   const [current] = await db

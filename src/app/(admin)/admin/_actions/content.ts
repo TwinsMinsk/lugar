@@ -64,6 +64,12 @@ async function syncMediaUsage(
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+/** See the catch blocks in publishDocument and rollbackDocument. */
+function failureCode(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : '';
+  return /^[a-z0-9_]+$/.test(message) ? message : fallback;
+}
+
 const saveDraftSchema = z.object({
   documentId: z.uuid(),
   blocks: z.unknown(),
@@ -226,7 +232,10 @@ export async function publishDocument(input: z.input<typeof publishSchema>): Pro
       );
     });
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'publish_failed' };
+    // The transaction throws codes deliberately — see `not_found` above.
+    // Anything else is the database talking, and its English must not be what
+    // the owner reads; the stack is still in the server log.
+    return { ok: false, error: failureCode(error, 'publish_failed') };
   }
 
   await invalidateDocument(documentId);
@@ -298,7 +307,7 @@ export async function rollbackDocument(
       );
     });
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'rollback_failed' };
+    return { ok: false, error: failureCode(error, 'rollback_failed') };
   }
 
   await invalidateDocument(documentId);

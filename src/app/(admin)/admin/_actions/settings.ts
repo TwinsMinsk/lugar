@@ -10,6 +10,7 @@ import { siteSettings } from '@/db/schema';
 import { recordAudit } from '@/lib/audit';
 import { invalidatePublicPages } from '@/lib/cache-invalidation';
 import { requireCapability } from '@/lib/auth/guards';
+import { codeFromZod } from './_result';
 
 export type SettingsResult = { ok: true } | { ok: false; errors: Record<string, string> };
 
@@ -77,7 +78,7 @@ export async function updateSettings(input: z.input<typeof inputSchema>): Promis
 
     const parsed = definition.schema.safeParse(raw);
     if (!parsed.success) {
-      errors[key] = parsed.error.issues[0]?.message ?? 'invalid';
+      errors[key] = codeFromZod(parsed.error, 'invalid');
       continue;
     }
 

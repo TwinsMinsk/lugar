@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 
 import {
   publishDocument,
@@ -13,8 +13,10 @@ import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { BLOCK_REGISTRY } from '@/content/blocks/registry';
 import type { AnyBlock } from '@/content/blocks/union';
 import { LOCALES, type Locale } from '@/i18n/routing';
+import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { collectLocalizedFields, setAtPath } from './localized-fields';
+import { useAction } from './use-action';
 
 export type RevisionOption = {
   id: string;
@@ -51,10 +53,9 @@ export function BlockEditor({
   const [blocks, setBlocks] = useState<AnyBlock[]>(initialBlocks);
   const [locale, setLocale] = useState<Locale>('ru');
   const [dirty, setDirty] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [expanded, setExpanded] = useState<string | null>(initialBlocks[0]?.id ?? null);
-  const [pending, startTransition] = useTransition();
+  const { busy: pending, isBusy, error, status, run } = useAction();
 
   function update(next: AnyBlock[], message?: string) {
     setBlocks(next);
@@ -101,15 +102,6 @@ export function BlockEditor({
 
     next[index] = { ...block, data: setAtPath(block.data, path, nextLeaf) } as AnyBlock;
     update(next);
-  }
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>, success: string) {
-    startTransition(async () => {
-      setStatus(null);
-      const result = await action();
-      setStatus(result.ok ? success : `Ошибка: ${result.error ?? 'неизвестно'}`);
-      if (result.ok) setDirty(false);
-    });
   }
 
   const inputClass = cn(
@@ -269,7 +261,13 @@ export function BlockEditor({
         <button
           type="button"
           disabled={pending || !dirty}
-          onClick={() => run(() => saveDraft({ documentId, blocks }), 'Черновик сохранён')}
+          onClick={() =>
+            run(() => saveDraft({ documentId, blocks }), {
+              key: 'save',
+              success: 'Черновик сохранён',
+              onDone: () => setDirty(false),
+            })
+          }
           className={buttonClasses('outline', 'sm')}
         >
           {pending ? 'Сохраняем…' : 'Сохранить черновик'}
@@ -292,13 +290,20 @@ export function BlockEditor({
             variant="primary"
             tone="neutral"
             className="text-[13px]"
-            disabled={pending}
+            disabled={isBusy(`publish-${code}`)}
             onConfirm={() =>
-              run(async () => {
-                const saved = await saveDraft({ documentId, blocks });
-                if (!saved.ok) return saved;
-                return publishDocument({ documentId, locales: [code] });
-              }, `Опубликовано (${code.toUpperCase()})`)
+              run(
+                async () => {
+                  const saved = await saveDraft({ documentId, blocks });
+                  if (!saved.ok) return saved;
+                  return publishDocument({ documentId, locales: [code] });
+                },
+                {
+                  key: `publish-${code}`,
+                  success: `Опубликовано (${code.toUpperCase()})`,
+                  onDone: () => setDirty(false),
+                },
+              )
             }
           />
         ))}
@@ -310,12 +315,12 @@ export function BlockEditor({
             label={`Снять с сайта ${code.toUpperCase()}`}
             question={`Снять ${code.toUpperCase()} с сайта?`}
             confirmLabel="Снять"
-            disabled={pending}
+            disabled={isBusy(`unpublish-${code}`)}
             onConfirm={() =>
-              run(
-                () => unpublishDocument({ documentId, locales: [code] }),
-                `Снято с сайта (${code.toUpperCase()})`,
-              )
+              run(() => unpublishDocument({ documentId, locales: [code] }), {
+                key: `unpublish-${code}`,
+                success: `Снято с сайта (${code.toUpperCase()})`,
+              })
             }
           />
         ))}
@@ -323,11 +328,15 @@ export function BlockEditor({
         {dirty ? (
           <span className="text-[13px] text-[oklch(0.5_0.12_85)]">Есть несохранённые правки</span>
         ) : null}
-        {status ? (
-          <span role="status" className="text-ink-muted text-[13px]">
-            {status}
-          </span>
-        ) : null}
+        {/* Both areas stay mounted: one inserted together with its text is not
+            announced by a screen reader. Publishing is also the slowest action
+            here, so it is the one that most needs to say it is working. */}
+        <span role="status" className="text-ink-muted text-[13px] empty:hidden">
+          {pending ? 'Сохраняем…' : status}
+        </span>
+        <span role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+          {error}
+        </span>
       </div>
 
       <RevisionHistory
@@ -352,7 +361,10 @@ function RevisionHistory({
   revisions: RevisionOption[];
   publishedLocales: Locale[];
   pending: boolean;
-  onRun: (action: () => Promise<{ ok: boolean; error?: string }>, success: string) => void;
+  onRun: (
+    action: () => Promise<{ ok: boolean; error?: string }>,
+    options: { key?: string; success?: string },
+  ) => void;
 }) {
   const restorable = revisions.filter((revision) => !revision.isDraft);
   if (restorable.length === 0) return null;
@@ -365,11 +377,7 @@ function RevisionHistory({
           <li key={revision.id} className="flex flex-wrap items-center gap-3 py-2.5">
             <span className="text-ink text-[14px]">Версия {revision.revisionNumber}</span>
             <span className="text-ink-faint text-[12px]">
-              {new Date(revision.createdAt).toLocaleString('ru-RU', {
-                timeZone: 'Europe/Madrid',
-                dateStyle: 'short',
-                timeStyle: 'short',
-              })}
+              {formatDateTime(revision.createdAt)}
               {revision.authorName ? ` · ${revision.authorName}` : ''}
             </span>
             {revision.liveFor.length > 0 ? (
@@ -396,7 +404,10 @@ function RevisionHistory({
                           revisionId: revision.id,
                           locales: [code],
                         }),
-                      `Версия ${revision.revisionNumber} восстановлена (${code.toUpperCase()})`,
+                      {
+                        key: `${revision.id}-${code}`,
+                        success: `Версия ${revision.revisionNumber} восстановлена (${code.toUpperCase()})`,
+                      },
                     )
                   }
                 />

@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   addLeadNote,
@@ -15,7 +14,9 @@ import {
 import { buttonClasses } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/dialog';
 import type { LeadStatusRow } from '@/data/admin/leads';
+import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type LeadTaskRow = {
   id: string;
@@ -25,7 +26,8 @@ export type LeadTaskRow = {
   assigneeEmail: string | null;
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   not_found: 'Заявка не найдена — возможно, её удалили.',
   unknown_status: 'Такого статуса больше нет.',
   invalid_input: 'Проверьте заполненные поля.',
@@ -51,36 +53,24 @@ export function LeadActions({
   assignees: Array<{ id: string; email: string; name: string }>;
   tasks: LeadTaskRow[];
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDue, setTaskDue] = useState('');
-  const [pending, startTransition] = useTransition();
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>, onDone?: () => void) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) {
-        setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-        return;
-      }
-      onDone?.();
-      router.refresh();
-    });
-  }
+  const { busy: pending, isBusy, error, status, run } = useAction(ERRORS);
 
   const open = tasks.filter((task) => task.completedAt === null);
   const done = tasks.filter((task) => task.completedAt !== null);
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-          {error}
-        </p>
-      ) : null}
+      {/* Both areas stay mounted: one inserted together with its text is not
+          announced by a screen reader. */}
+      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
+      <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+        {status}
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -95,7 +85,9 @@ export function LeadActions({
             value={statusId}
             disabled={pending}
             onChange={(event) =>
-              run(() => changeLeadStatus({ leadId, statusId: event.target.value }))
+              run(() => changeLeadStatus({ leadId, statusId: event.target.value }), {
+                success: 'Статус изменён.',
+              })
             }
             className={inputClass}
           >
@@ -118,7 +110,11 @@ export function LeadActions({
             id="lead-assignee"
             value={assignedToId ?? ''}
             disabled={pending}
-            onChange={(event) => run(() => assignLead({ leadId, assigneeId: event.target.value }))}
+            onChange={(event) =>
+              run(() => assignLead({ leadId, assigneeId: event.target.value }), {
+                success: 'Ответственный назначен.',
+              })
+            }
             className={inputClass}
           >
             <option value="">Не назначен</option>
@@ -135,10 +131,11 @@ export function LeadActions({
         className="border-line rounded-[--radius-card] border border-dashed p-3"
         onSubmit={(event) => {
           event.preventDefault();
-          run(
-            () => addLeadNote({ leadId, body: note }),
-            () => setNote(''),
-          );
+          run(() => addLeadNote({ leadId, body: note }), {
+            key: 'note',
+            success: 'Заметка добавлена.',
+            onDone: () => setNote(''),
+          });
         }}
       >
         <label htmlFor="lead-note" className="text-ink-muted mb-1 block text-[12px] font-medium">
@@ -180,9 +177,7 @@ export function LeadActions({
                   {task.title}
                 </span>
                 {task.dueAt ? (
-                  <span className="text-ink-faint text-[12px]">
-                    до {new Date(task.dueAt).toLocaleDateString('ru-RU')}
-                  </span>
+                  <span className="text-ink-faint text-[12px]">до {formatDate(task.dueAt)}</span>
                 ) : null}
                 {task.assigneeEmail ? (
                   <span className="text-ink-faint text-[12px]">{task.assigneeEmail}</span>
@@ -193,8 +188,13 @@ export function LeadActions({
                   // which is what someone who ticked the wrong row wanted.
                   <button
                     type="button"
-                    disabled={pending}
-                    onClick={() => run(() => reopenLeadTask(task.id))}
+                    disabled={isBusy(task.id)}
+                    onClick={() =>
+                      run(() => reopenLeadTask(task.id), {
+                        key: task.id,
+                        success: 'Задача вернулась в работу.',
+                      })
+                    }
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                   >
                     Вернуть в работу
@@ -203,8 +203,13 @@ export function LeadActions({
                   <>
                     <button
                       type="button"
-                      disabled={pending}
-                      onClick={() => run(() => completeLeadTask(task.id))}
+                      disabled={isBusy(task.id)}
+                      onClick={() =>
+                        run(() => completeLeadTask(task.id), {
+                          key: task.id,
+                          success: 'Задача отмечена выполненной.',
+                        })
+                      }
                       className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                     >
                       Выполнено
@@ -213,8 +218,13 @@ export function LeadActions({
                       label="Удалить"
                       question="Удалить задачу?"
                       confirmLabel="Удалить"
-                      disabled={pending}
-                      onConfirm={() => run(() => deleteLeadTask(task.id))}
+                      disabled={isBusy(task.id)}
+                      onConfirm={() =>
+                        run(() => deleteLeadTask(task.id), {
+                          key: task.id,
+                          success: 'Задача удалена.',
+                        })
+                      }
                     />
                   </>
                 )}
@@ -227,13 +237,14 @@ export function LeadActions({
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            run(
-              () => createLeadTask({ leadId, title: taskTitle, dueOn: taskDue }),
-              () => {
+            run(() => createLeadTask({ leadId, title: taskTitle, dueOn: taskDue }), {
+              key: 'task',
+              success: 'Задача создана.',
+              onDone: () => {
                 setTaskTitle('');
                 setTaskDue('');
               },
-            );
+            });
           }}
         >
           <div className="min-w-[200px] flex-1">

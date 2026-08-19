@@ -13,6 +13,7 @@ import { LeadRemoval } from '@/features/admin/lead-removal';
 import { WhatsAppPanel } from '@/features/admin/whatsapp-panel';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink, whatsappLink } from '@/lib/routes';
+import { formatDateTime } from '@/lib/format';
 
 export const metadata = { title: 'Заявка' };
 
@@ -31,15 +32,6 @@ const ACTIVITY_LABEL: Record<string, string> = {
   call: 'Звонок',
   exported: 'Выгружено',
 };
-
-const dateTime = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === '') return null;
@@ -102,7 +94,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <span className="text-ink-faint ml-3 font-mono text-[18px]">{lead.publicId}</span>
         </h1>
         <p className="text-ink-faint mt-1 text-[13px]">
-          Поступила {dateTime.format(lead.createdAt)} · язык обращения {lead.locale.toUpperCase()}
+          Поступила {formatDateTime(lead.createdAt)} · язык обращения {lead.locale.toUpperCase()}
         </p>
       </div>
 
@@ -112,7 +104,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <div className="flex flex-wrap items-center gap-3">
         {lead.archivedAt ? (
           <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
-            Заявка убрана в архив {dateTime.format(lead.archivedAt)}
+            Заявка убрана в архив {formatDateTime(lead.archivedAt)}
           </span>
         ) : null}
         <LeadRemoval leadId={lead.id} archived={lead.archivedAt !== null} canDelete={canDelete} />
@@ -169,7 +161,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                     dateTime={activity.occurredAt.toISOString()}
                     className="text-ink-faint w-[130px] flex-none font-mono text-[12px]"
                   >
-                    {dateTime.format(activity.occurredAt)}
+                    {formatDateTime(activity.occurredAt)}
                   </time>
                   <div className="min-w-[200px] flex-1">
                     <div className="text-ink text-[13px]">

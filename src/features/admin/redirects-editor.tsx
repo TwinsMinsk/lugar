@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import {
   createRedirect,
@@ -11,6 +10,7 @@ import {
 import { buttonClasses } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
 export type RedirectRow = {
   id: string;
@@ -24,14 +24,13 @@ export type RedirectRow = {
   resolvesTo: string | null;
 };
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   path_absolute: 'Путь должен начинаться со слэша: /staraya-stranica',
   path_external: 'Только адреса этого сайта, без домена и без «//».',
   path_characters: 'В пути есть недопустимые символы.',
   loop: 'Так получилось бы кольцо: конечный адрес ведёт обратно на исходный.',
   not_found: 'Правило не найдено — возможно, его уже удалили.',
-  save_failed: 'Не удалось сохранить.',
-  invalid_input: 'Проверьте заполненные поля.',
 };
 
 const inputClass = cn(
@@ -40,22 +39,11 @@ const inputClass = cn(
 );
 
 export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
-  const router = useRouter();
   const [fromPath, setFromPath] = useState('');
   const [toPath, setToPath] = useState('');
   const [permanent, setPermanent] = useState(true);
   const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function run(action: () => Promise<{ ok: boolean; error?: string }>) {
-    startTransition(async () => {
-      setError(null);
-      const result = await action();
-      if (!result.ok) setError(ERRORS[result.error ?? ''] ?? result.error ?? 'Ошибка');
-      router.refresh();
-    });
-  }
+  const { isBusy, error, status, run } = useAction(ERRORS);
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,17 +51,14 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
         className="border-line bg-surface flex flex-col gap-4 rounded-[--radius-card] border p-4"
         onSubmit={(event) => {
           event.preventDefault();
-          startTransition(async () => {
-            setError(null);
-            const result = await createRedirect({ fromPath, toPath, permanent, note });
-            if (result.ok) {
+          run(() => createRedirect({ fromPath, toPath, permanent, note }), {
+            key: 'create',
+            success: 'Правило добавлено.',
+            onDone: () => {
               setFromPath('');
               setToPath('');
               setNote('');
-              router.refresh();
-            } else {
-              setError(ERRORS[result.error] ?? result.error);
-            }
+            },
           });
         }}
       >
@@ -141,8 +126,12 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
             Постоянное (301)
           </label>
 
-          <button type="submit" disabled={pending} className={buttonClasses('primary', 'sm')}>
-            {pending ? 'Сохраняем…' : 'Добавить'}
+          <button
+            type="submit"
+            disabled={isBusy('create')}
+            className={buttonClasses('primary', 'sm')}
+          >
+            {isBusy('create') ? 'Сохраняем…' : 'Добавить'}
           </button>
         </div>
 
@@ -152,11 +141,14 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
           и /en.
         </p>
 
-        {error ? (
-          <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
-            {error}
-          </p>
-        ) : null}
+        {/* Both areas stay mounted: one inserted together with its text is not
+            announced by a screen reader. */}
+        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+          {error}
+        </p>
+        <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+          {status}
+        </p>
       </form>
 
       <section className="border-line bg-surface rounded-[--radius-card] border p-4">
@@ -203,8 +195,13 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
 
                 <button
                   type="button"
-                  disabled={pending}
-                  onClick={() => run(() => setRedirectActive(row.id, !row.isActive))}
+                  disabled={isBusy(row.id)}
+                  onClick={() =>
+                    run(() => setRedirectActive(row.id, !row.isActive), {
+                      key: row.id,
+                      success: row.isActive ? 'Правило выключено.' : 'Правило включено.',
+                    })
+                  }
                   className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                 >
                   {row.isActive ? 'Выключить' : 'Включить'}
@@ -214,8 +211,13 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
                   label="Удалить"
                   question="Удалить правило?"
                   confirmLabel="Удалить"
-                  disabled={pending}
-                  onConfirm={() => run(() => deleteRedirect(row.id))}
+                  disabled={isBusy(row.id)}
+                  onConfirm={() =>
+                    run(() => deleteRedirect(row.id), {
+                      key: row.id,
+                      success: 'Правило удалено.',
+                    })
+                  }
                 />
               </li>
             ))}

@@ -1,25 +1,21 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-
 import {
   archiveDocument,
   purgeDocument,
   restoreDocument,
-  type RemovalResult,
 } from '@/app/(admin)/admin/_actions/removal';
 import { buttonClasses } from '@/components/ui/button';
 import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
 
-const ERRORS: Record<string, string> = {
-  invalid_input: 'Не удалось разобрать запрос. Обновите страницу и попробуйте снова.',
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
   not_found: 'Запись не найдена — возможно, её уже убрали.',
   system_document: 'Это одна из постоянных страниц сайта: её можно только снять с сайта.',
   not_archived: 'Сначала уберите запись в архив.',
   was_published: 'Запись была на сайте, поэтому её история сохраняется. Она остаётся в архиве.',
-  unexpected: 'Не получилось. Попробуйте ещё раз.',
 };
 
 // Full sentences per kind rather than a noun slotted into one template: the
@@ -64,32 +60,8 @@ export function DocumentRemoval({
   archived: boolean;
   everPublished: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState('');
+  const { isBusy, error, status, run } = useAction(ERRORS);
   const wording = WORDING[kind];
-
-  function run(action: () => Promise<RemovalResult>, success: string) {
-    setMessage('');
-    startTransition(async () => {
-      let result: RemovalResult;
-      try {
-        result = await action();
-      } catch {
-        setMessage(ERRORS.unexpected!);
-        return;
-      }
-      if (!result.ok) {
-        // Without the refresh the list keeps whatever state the failed action
-        // was supposed to change, so the message is the only thing the owner
-        // has to go on — it must not be wiped by a re-render.
-        setMessage(ERRORS[result.error] ?? ERRORS.unexpected!);
-        return;
-      }
-      setMessage(success);
-      router.refresh();
-    });
-  }
 
   return (
     <span className="flex flex-wrap items-center justify-end gap-2">
@@ -99,8 +71,8 @@ export function DocumentRemoval({
         <>
           <button
             type="button"
-            disabled={pending}
-            onClick={() => run(() => restoreDocument(documentId), wording.restored)}
+            disabled={isBusy()}
+            onClick={() => run(() => restoreDocument(documentId), { success: wording.restored })}
             className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
           >
             Вернуть
@@ -115,8 +87,8 @@ export function DocumentRemoval({
               description={
                 <>{wording.purgeBody} Адрес освободится, и его можно будет занять заново.</>
               }
-              disabled={pending}
-              onConfirm={() => run(() => purgeDocument(documentId), wording.purged)}
+              disabled={isBusy()}
+              onConfirm={() => run(() => purgeDocument(documentId), { success: wording.purged })}
             />
           )}
         </>
@@ -125,15 +97,18 @@ export function DocumentRemoval({
           label="Убрать"
           question={`Убрать ${wording.accusative} из списка?`}
           confirmLabel="Убрать"
-          disabled={pending}
-          onConfirm={() => run(() => archiveDocument(documentId), wording.archived)}
+          disabled={isBusy()}
+          onConfirm={() => run(() => archiveDocument(documentId), { success: wording.archived })}
         />
       )}
 
       {/* Always mounted: an area inserted together with its text is not
           announced by screen readers. */}
       <span role="status" className="text-ink-muted text-[12px]">
-        {message}
+        {status}
+      </span>
+      <span role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)]">
+        {error}
       </span>
     </span>
   );

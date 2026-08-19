@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { AuditEntry } from '@/data/admin/audit';
 import { buttonClasses } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/format';
 
 /**
  * The audit trail, rendered.
@@ -78,15 +79,6 @@ function buildHref(values: AuditFilterValues): string {
 }
 
 /** Operational dates are read in Madrid, whatever the server's clock says. */
-const formatter = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Europe/Madrid',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
 /**
  * A compact one-line summary of a recorded value.
  *
@@ -230,7 +222,7 @@ export function AuditLog({
                     dateTime={entry.occurredAt.toISOString()}
                     className="text-ink-faint w-[130px] flex-none font-mono text-[12px]"
                   >
-                    {formatter.format(entry.occurredAt)}
+                    {formatDateTime(entry.occurredAt)}
                   </time>
 
                   <div className="min-w-[260px] flex-1">

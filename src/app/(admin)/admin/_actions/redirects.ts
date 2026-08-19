@@ -10,6 +10,7 @@ import { db } from '@/db/client';
 import { redirects } from '@/db/schema';
 import { recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
+import { failFromZod } from './_result';
 import { redirectPathSchema, wouldLoop, type RedirectMap } from '@/lib/redirects';
 
 /**
@@ -61,7 +62,7 @@ export async function createRedirect(input: z.input<typeof createSchema>): Promi
 
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid_input' };
+    return failFromZod(parsed.error);
   }
   const { fromPath, toPath, permanent, note } = parsed.data;
 

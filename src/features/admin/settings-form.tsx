@@ -9,15 +9,17 @@ import type { SettingField } from '@/content/settings-registry';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 import { MediaPicker, type PickableAsset } from './media-picker';
+import { messagesFor } from './messages';
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const message = messagesFor({
   e164_format: 'Формат: + и от 7 до 15 цифр, без пробелов.',
   digits_only: 'Только цифры, без плюса и пробелов.',
   http_only: 'Ссылка должна начинаться с http:// или https://',
   ru_required: 'Русский вариант обязателен — он используется как запасной.',
   unknown_setting: 'Неизвестная настройка.',
   invalid_input: 'Проверьте заполненные поля.',
-};
+});
 
 type Values = Record<string, unknown>;
 
@@ -215,7 +217,7 @@ function Field({
 
       {error ? (
         <p role="alert" className="mt-1 text-[12px] text-[oklch(0.52_0.17_25)]">
-          {ERRORS[error] ?? error}
+          {message(error)}
         </p>
       ) : null}
     </div>

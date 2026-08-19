@@ -12,14 +12,16 @@ import { buttonClasses } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { MediaPicker, type PickableAsset } from './media-picker';
+import { messagesFor } from './messages';
 
-const ERRORS: Record<string, string> = {
+/** Only what this screen says better than the shared vocabulary. */
+const message = messagesFor({
   slug_format: 'Адрес может содержать только строчные латинские буквы, цифры и дефис.',
   slug_taken: 'Такой адрес уже занят другим проектом.',
   slug_taken_archived:
     'Такой адрес занят убранным проектом. Верните его из списка «Убранные проекты» или удалите насовсем — либо возьмите другой адрес.',
   invalid_input: 'Проверьте заполненные поля.',
-};
+});
 
 const inputClass = cn(
   'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3 py-2 text-[14px]',
@@ -108,7 +110,7 @@ export function CreateProjectForm({
             // would swallow and report as a failure that never happened.
             router.push(`/admin/portfolio/${result.documentId}`);
           } else if (!result.ok) {
-            setError(ERRORS[result.error] ?? result.error);
+            setError(message(result.error));
           }
         });
       }}
