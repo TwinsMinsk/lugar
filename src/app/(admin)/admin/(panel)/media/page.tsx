@@ -11,10 +11,13 @@ export default async function AdminMediaPage({
 }) {
   const { filter } = await searchParams;
   const onlyPlaceholders = filter === 'placeholder';
-  const assets = await listMedia({ onlyPlaceholders });
+  const [assets, removedAssets] = await Promise.all([
+    listMedia({ onlyPlaceholders }),
+    listMedia({ deleted: true }),
+  ]);
 
   const base = publicEnv.mediaBaseUrl.replace(/\/$/, '');
-  const items: MediaItem[] = assets.map((asset) => ({
+  const toItem = (asset: (typeof assets)[number]): MediaItem => ({
     id: asset.id,
     // Content-addressed keys already change when the file does; see mediaUrl().
     url: base ? `${base}/${asset.storageKey}` : `/api/media/${asset.storageKey}`,
@@ -28,7 +31,10 @@ export default async function AdminMediaPage({
     isPlaceholder: asset.isPlaceholder,
     usageCount: asset.usageCount,
     usedOnPublishedPage: asset.usedOnPublishedPage,
-  }));
+  });
+
+  const items = assets.map(toItem);
+  const removed = removedAssets.map(toItem);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +54,7 @@ export default async function AdminMediaPage({
         </p>
       ) : null}
 
-      <MediaManager items={items} />
+      <MediaManager items={items} removed={removed} />
     </div>
   );
 }

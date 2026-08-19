@@ -16,10 +16,27 @@ const PASSWORD = process.env.E2E_ADMIN_PASSWORD;
 
 async function createProject(page: Page, slug: string, title = 'Тестовый проект') {
   await page.goto('/admin/portfolio');
-  await page.getByLabel('Название').fill(title);
-  await page.getByLabel('Адрес страницы').fill(slug);
+  const titleField = page.getByLabel('Название');
+  const slugField = page.getByLabel('Адрес страницы');
+
+  /**
+   * The address derives from the title in the browser, so waiting for that
+   * derivation is how this waits for hydration.
+   *
+   * It matters: a value typed before React attaches is discarded when it does,
+   * and the submit then runs as a native form GET that reloads the page and
+   * creates nothing. Under a full parallel run this screen hydrates slowly
+   * enough for that to happen, and the failure looks exactly like a broken
+   * create action.
+   */
+  await expect(async () => {
+    await titleField.fill(title);
+    await expect(slugField).not.toHaveValue('', { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+
+  await slugField.fill(slug);
   await page.getByRole('button', { name: 'Создать проект' }).click();
-  await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   return page.url().split('/').pop()!;
 }
 
@@ -72,8 +89,13 @@ test.describe('removal', () => {
     await archive(page, slug);
 
     await page.goto('/admin/portfolio');
-    await page.getByLabel('Название').fill('Второй');
-    await page.getByLabel('Адрес страницы').fill(slug);
+    const titleField = page.getByLabel('Название');
+    const slugField = page.getByLabel('Адрес страницы');
+    await expect(async () => {
+      await titleField.fill('Второй');
+      await expect(slugField).not.toHaveValue('', { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await slugField.fill(slug);
     await page.getByRole('button', { name: 'Создать проект' }).click();
 
     // Naming the archive is the whole point: a bare "address is taken" would

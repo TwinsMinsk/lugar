@@ -9,6 +9,7 @@ import {
   listApprovedTemplates,
 } from '@/data/admin/whatsapp';
 import { LeadActions } from '@/features/admin/lead-actions';
+import { LeadRemoval } from '@/features/admin/lead-removal';
 import { WhatsAppPanel } from '@/features/admin/whatsapp-panel';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink, whatsappLink } from '@/lib/routes';
@@ -57,11 +58,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const lead = await getLead(id);
   if (!lead) notFound();
 
-  const [statuses, assignees, canSendWhatsApp, canRequeue] = await Promise.all([
+  const [statuses, assignees, canSendWhatsApp, canRequeue, canDelete] = await Promise.all([
     listLeadStatuses(),
     listAssignees(),
     can('whatsapp.send'),
     can('whatsapp.requeue'),
+    can('crm.delete'),
   ]);
 
   const [thread, pending, windowState, templates] = await Promise.all([
@@ -102,6 +104,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <p className="text-ink-faint mt-1 text-[13px]">
           Поступила {dateTime.format(lead.createdAt)} · язык обращения {lead.locale.toUpperCase()}
         </p>
+      </div>
+
+      {/* The archive is a mode of the list, so an archived lead is still opened
+          at its own address — say so here, or the page looks identical to a
+          live one and the manager works on something nobody will see. */}
+      <div className="flex flex-wrap items-center gap-3">
+        {lead.archivedAt ? (
+          <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
+            Заявка убрана в архив {dateTime.format(lead.archivedAt)}
+          </span>
+        ) : null}
+        <LeadRemoval leadId={lead.id} archived={lead.archivedAt !== null} canDelete={canDelete} />
       </div>
 
       {lead.duplicateOf ? (

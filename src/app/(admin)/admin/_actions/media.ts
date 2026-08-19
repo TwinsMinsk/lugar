@@ -12,6 +12,7 @@ import { LOCALES } from '@/i18n/routing';
 import { recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { MAX_UPLOAD_BYTES, processUpload, RECIPE } from '@/lib/media/process';
+import { storage } from '@/lib/storage';
 
 export type MediaActionResult =
   | { ok: true; assetId?: string }
@@ -318,4 +319,107 @@ export async function replaceMedia(formData: FormData): Promise<MediaActionResul
   }
 
   return { ok: true, assetId };
+}
+
+/**
+ * Undo a removal.
+ *
+ * The bytes were never touched, so this is only the flag going back.
+ */
+export async function restoreMedia(assetId: string): Promise<MediaActionResult> {
+  const { user } = await requireCapability('media.delete');
+  if (!z.uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_input' };
+
+  const context = await requestContext();
+
+  await db.transaction(async (tx) => {
+    await tx.update(mediaAssets).set({ deletedAt: null }).where(eq(mediaAssets.id, assetId));
+
+    await recordAudit(
+      {
+        actorUserId: user.id,
+        action: 'media.restored',
+        entityType: 'media_asset',
+        entityId: assetId,
+        ...context,
+      },
+      tx,
+    );
+  });
+
+  updateTag(tags.media(assetId));
+  return { ok: true };
+}
+
+/**
+ * Erase an image and its bytes.
+ *
+ * Refused unless nothing has ever referenced it — not "nothing published"
+ * (which is `deleteMedia`'s rule) but nothing at all, in any revision, draft or
+ * historic. A photograph that some old revision points at is what makes a
+ * rollback render, and a rollback to a page full of missing images is worse
+ * than a library with one extra row in it.
+ *
+ * Storage is emptied after the row, and a failure there is not fatal: an
+ * orphaned object costs pennies, whereas a transaction rolled back because the
+ * bucket hiccuped would leave the owner unable to remove anything.
+ */
+export async function purgeMedia(assetId: string): Promise<MediaActionResult> {
+  const { user } = await requireCapability('media.delete');
+  if (!z.uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_input' };
+
+  const [asset] = await db
+    .select({
+      id: mediaAssets.id,
+      storageKey: mediaAssets.storageKey,
+      deletedAt: mediaAssets.deletedAt,
+    })
+    .from(mediaAssets)
+    .where(eq(mediaAssets.id, assetId))
+    .limit(1);
+  if (!asset) return { ok: false, error: 'not_found' };
+  if (!asset.deletedAt) return { ok: false, error: 'not_archived' };
+
+  const usage = await db
+    .select({ revisionId: mediaUsage.revisionId })
+    .from(mediaUsage)
+    .where(eq(mediaUsage.assetId, assetId))
+    .limit(1);
+  if (usage.length > 0) return { ok: false, error: 'still_referenced' };
+
+  // Read before the row goes: derivatives cascade from the asset, so after the
+  // delete there is nothing left to learn their storage keys from.
+  const derivatives = await db
+    .select({ storageKey: mediaDerivatives.storageKey })
+    .from(mediaDerivatives)
+    .where(eq(mediaDerivatives.assetId, assetId));
+
+  const context = await requestContext();
+
+  await db.transaction(async (tx) => {
+    await tx.delete(mediaAssets).where(eq(mediaAssets.id, assetId));
+
+    await recordAudit(
+      {
+        actorUserId: user.id,
+        action: 'media.purged',
+        entityType: 'media_asset',
+        entityId: assetId,
+        before: { storageKey: asset.storageKey },
+        ...context,
+      },
+      tx,
+    );
+  });
+
+  for (const key of [asset.storageKey, ...derivatives.map((row) => row.storageKey)]) {
+    try {
+      await storage().delete(key);
+    } catch {
+      // Deliberately swallowed — see above.
+    }
+  }
+
+  updateTag(tags.media(assetId));
+  return { ok: true };
 }

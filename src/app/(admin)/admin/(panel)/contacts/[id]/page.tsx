@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 
 import { getContact } from '@/data/admin/contacts';
 import { ContactEditor } from '@/features/admin/contact-editor';
-import { requireCapability } from '@/lib/auth/guards';
+import { ContactRemoval } from '@/features/admin/contact-removal';
+import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink } from '@/lib/routes';
 
 export const metadata = { title: 'Клиент' };
@@ -42,7 +43,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   await requireCapability('crm.read');
 
   const { id } = await params;
-  const contact = await getContact(id);
+  const [contact, canDelete] = await Promise.all([getContact(id), can('crm.delete')]);
   if (!contact) notFound();
 
   return (
@@ -62,6 +63,19 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           язык обращения {contact.preferredLocale.toUpperCase()}
           {' · '}в базе с {dateOnly.format(contact.createdAt)}
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {contact.archivedAt ? (
+          <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
+            Клиент убран в архив {dateOnly.format(contact.archivedAt)}
+          </span>
+        ) : null}
+        <ContactRemoval
+          contactId={contact.id}
+          archived={contact.archivedAt !== null}
+          canDelete={canDelete}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">

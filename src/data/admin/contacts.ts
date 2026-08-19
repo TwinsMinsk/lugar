@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -51,11 +51,16 @@ function decodeCursor(raw: string): { lastSeenAt: Date; id: string } | null {
   return { lastSeenAt, id };
 }
 
-export async function listContacts(filter: { q?: string; cursor?: string; limit?: number } = {}) {
+export async function listContacts(
+  filter: { q?: string; cursor?: string; limit?: number; archived?: boolean } = {},
+) {
   await requireCapability('crm.read');
 
   const limit = Math.min(Math.max(filter.limit ?? 50, 1), MAX_LIMIT);
-  const conditions: SQL[] = [isNull(contacts.deletedAt)];
+  const conditions: SQL[] = [
+    isNull(contacts.deletedAt),
+    filter.archived ? isNotNull(contacts.archivedAt) : isNull(contacts.archivedAt),
+  ];
 
   const term = filter.q?.trim();
   if (term) {
@@ -92,11 +97,11 @@ export async function listContacts(filter: { q?: string; cursor?: string; limit?
       // table and silently counts nothing.
       leadCount: sql<number>`(
         select count(*)::int from leads l
-         where l.contact_id = contacts.id and l.deleted_at is null
+         where l.contact_id = contacts.id and l.deleted_at is null and l.archived_at is null
       )`,
       lastLeadAt: sql<Date | null>`(
         select max(l.created_at) from leads l
-         where l.contact_id = contacts.id and l.deleted_at is null
+         where l.contact_id = contacts.id and l.deleted_at is null and l.archived_at is null
       )`,
     })
     .from(contacts)
@@ -126,6 +131,8 @@ export type ContactDetail = {
   lastInboundAt: Date | null;
   notes: string | null;
   createdAt: Date;
+  /** Set when the client is out of the working list. The card stays reachable. */
+  archivedAt: Date | null;
   leads: Array<{
     id: string;
     publicId: string;
@@ -226,6 +233,7 @@ export async function getContact(contactId: string): Promise<ContactDetail | nul
     lastInboundAt: contact.lastInboundAt,
     notes: contact.notes,
     createdAt: contact.createdAt,
+    archivedAt: contact.archivedAt,
     leads: leadRows.map((row) => ({
       ...row,
       statusLabel: (row.statusLabel ?? {}) as Record<string, string>,

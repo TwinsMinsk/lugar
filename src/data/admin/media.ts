@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { documentLocales, mediaAssets, mediaUsage } from '@/db/schema';
@@ -37,6 +37,8 @@ export type AdminMediaAsset = {
 
 export async function listMedia(options?: {
   onlyPlaceholders?: boolean;
+  /** The removed images, for the archive section rather than the library. */
+  deleted?: boolean;
 }): Promise<AdminMediaAsset[]> {
   await requireCapability('media.read');
 
@@ -66,9 +68,10 @@ export async function listMedia(options?: {
     })
     .from(mediaAssets)
     .where(
-      options?.onlyPlaceholders
-        ? and(isNull(mediaAssets.deletedAt), eq(mediaAssets.isPlaceholder, true))
-        : isNull(mediaAssets.deletedAt),
+      and(
+        options?.deleted ? isNotNull(mediaAssets.deletedAt) : isNull(mediaAssets.deletedAt),
+        options?.onlyPlaceholders ? eq(mediaAssets.isPlaceholder, true) : undefined,
+      ),
     )
     .orderBy(desc(mediaAssets.createdAt));
 

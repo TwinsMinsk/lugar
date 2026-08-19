@@ -2,13 +2,18 @@
 
 import { useRef, useState, useTransition } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import {
   deleteMedia,
+  purgeMedia,
   replaceMedia,
+  restoreMedia,
   updateMediaMeta,
   uploadMedia,
 } from '@/app/(admin)/admin/_actions/media';
 import { buttonClasses } from '@/components/ui/button';
+import { ConfirmButton } from '@/components/ui/dialog';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 
@@ -33,27 +38,30 @@ const ERRORS: Record<string, string> = {
   unsupported_format: 'Поддерживаются JPEG, PNG, WebP, AVIF и TIFF.',
   unreadable_image: 'Не удалось прочитать изображение.',
   in_use_on_published_page: 'Изображение стоит на опубликованной странице.',
-  still_referenced: 'Изображение ещё используется в черновике.',
+  still_referenced: 'Изображение ещё используется в черновике или в истории версий.',
+  not_archived: 'Сначала уберите изображение.',
+  not_found: 'Изображение не найдено — возможно, его уже удалили.',
   no_file: 'Файл не выбран.',
 };
 
-export function MediaManager({ items }: { items: MediaItem[] }) {
+export function MediaManager({ items, removed }: { items: MediaItem[]; removed: MediaItem[] }) {
   const [status, setStatus] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-6">
       <UploadForm onDone={setStatus} />
 
-      {status ? (
-        <p role="status" className="text-ink-muted text-[13px]">
-          {status}
-        </p>
-      ) : null}
+      {/* Always mounted: an area inserted together with its text is not
+          announced by screen readers. */}
+      <p role="status" className="text-ink-muted text-[13px] empty:hidden">
+        {status}
+      </p>
 
       {items.length === 0 ? (
         <p className="text-ink-soft text-[14px]">Пока ничего не загружено.</p>
       ) : (
         <ul
+          aria-label="Фотографии"
           className="grid gap-4"
           style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}
         >
@@ -62,7 +70,102 @@ export function MediaManager({ items }: { items: MediaItem[] }) {
           ))}
         </ul>
       )}
+
+      {removed.length > 0 ? (
+        <section>
+          <h2 className="font-display mb-2 text-[19px]">Убранные изображения</h2>
+          <p className="text-ink-faint mb-3 max-w-[70ch] text-[13px]">
+            Файл никуда не делся — убранное изображение можно вернуть. Насовсем стираются только те,
+            на которые не ссылается ни одна версия страницы: иначе откат к старой версии показал бы
+            пустые рамки.
+          </p>
+          <ul
+            aria-label="Убранные изображения"
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}
+          >
+            {removed.map((item) => (
+              <RemovedCard key={item.id} item={item} onStatus={setStatus} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * One removed image.
+ *
+ * Deliberately not the full card: nothing here is editable, so showing the
+ * whole editing apparatus for a thing that is out of the library would only
+ * invite work that goes nowhere.
+ */
+function RemovedCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <li className="border-line bg-surface flex flex-col gap-3 rounded-[--radius-card] border border-dashed p-3">
+      <div className="bg-slot relative aspect-[4/3] overflow-hidden rounded-[--radius-btn] opacity-60">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.url} alt="" className="h-full w-full object-cover" />
+      </div>
+
+      <p className="text-ink-soft text-[13px]">{item.alt.ru ?? 'Без описания'}</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const result = await restoreMedia(item.id);
+              if (!result.ok) {
+                setError(ERRORS[result.error] ?? result.error);
+                return;
+              }
+              onStatus('Изображение вернулось в библиотеку.');
+              router.refresh();
+            })
+          }
+          className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
+        >
+          Вернуть
+        </button>
+
+        {item.usageCount === 0 ? (
+          <ConfirmButton
+            label="Удалить навсегда"
+            title="Удалить навсегда?"
+            description="Файл будет стёрт из хранилища. Отменить это нельзя."
+            disabled={pending}
+            onConfirm={() =>
+              startTransition(async () => {
+                setError(null);
+                const result = await purgeMedia(item.id);
+                if (!result.ok) {
+                  setError(ERRORS[result.error] ?? result.error);
+                  return;
+                }
+                onStatus('Изображение удалено навсегда.');
+                router.refresh();
+              })
+            }
+          />
+        ) : (
+          <span className="text-ink-faint text-[12px]">
+            используется в истории версий — остаётся здесь
+          </span>
+        )}
+      </div>
+
+      <p role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        {error}
+      </p>
+    </li>
   );
 }
 
@@ -286,31 +389,35 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
             />
           </label>
 
-          <button
-            type="button"
-            disabled={pending || item.usedOnPublishedPage}
-            title={
-              item.usedOnPublishedPage
-                ? 'Нельзя удалить: изображение стоит на опубликованной странице'
-                : undefined
-            }
-            onClick={() =>
-              startTransition(async () => {
-                setError(null);
-                const result = await deleteMedia(item.id);
-                if (result.ok) onStatus('Удалено.');
-                else {
-                  const where = result.blockedBy
-                    ?.map((entry) => `/${entry.slug} (${entry.locale})`)
-                    .join(', ');
-                  setError((ERRORS[result.error] ?? result.error) + (where ? ` — ${where}` : ''));
-                }
-              })
-            }
-            className={buttonClasses('ghost', 'sm', 'text-[12px] disabled:opacity-30')}
-          >
-            Удалить
-          </button>
+          {item.usedOnPublishedPage ? (
+            <span className="text-ink-faint text-[12px]">
+              стоит на опубликованной странице — убрать нельзя
+            </span>
+          ) : (
+            <ConfirmButton
+              label="Убрать"
+              title="Убрать изображение?"
+              description={
+                item.usageCount > 0
+                  ? 'Изображение используется в черновиках или в истории версий. Оно уйдёт из библиотеки, но файл останется — вернуть можно в любой момент.'
+                  : 'Изображение уйдёт из библиотеки. Файл останется, вернуть можно в любой момент.'
+              }
+              disabled={pending}
+              onConfirm={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const result = await deleteMedia(item.id);
+                  if (result.ok) onStatus('Изображение убрано.');
+                  else {
+                    const where = result.blockedBy
+                      ?.map((entry) => `/${entry.slug} (${entry.locale})`)
+                      .join(', ');
+                    setError((ERRORS[result.error] ?? result.error) + (where ? ` — ${where}` : ''));
+                  }
+                })
+              }
+            />
+          )}
         </div>
       </div>
     </li>

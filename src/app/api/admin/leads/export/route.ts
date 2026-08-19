@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   const statusId = request.nextUrl.searchParams.get('status');
   const assignedToId = request.nextUrl.searchParams.get('assignee');
 
-  const conditions: SQL[] = [isNull(leads.deletedAt)];
+  const conditions: SQL[] = [isNull(leads.deletedAt), isNull(leads.archivedAt)];
   if (statusId) conditions.push(eq(leads.statusId, statusId));
   if (assignedToId === 'none') conditions.push(isNull(leads.assignedToId));
   else if (assignedToId) conditions.push(eq(leads.assignedToId, assignedToId));

@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { buttonClasses } from '@/components/ui/button';
 import type { LeadListRow, LeadStatusRow } from '@/data/admin/leads';
+import { LeadRemoval } from '@/features/admin/lead-removal';
 import { cn } from '@/lib/utils';
 
 /**
@@ -17,6 +18,8 @@ export type LeadFilterValues = {
   assignee?: string;
   q?: string;
   cursor?: string;
+  /** 'archived' shows the archive instead of the inbox. */
+  view?: string;
 };
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', {
@@ -33,6 +36,7 @@ function buildHref(values: LeadFilterValues): string {
   if (values.assignee) params.set('assignee', values.assignee);
   if (values.q) params.set('q', values.q);
   if (values.cursor) params.set('cursor', values.cursor);
+  if (values.view) params.set('view', values.view);
   const query = params.toString();
   return query ? `/admin/leads?${query}` : '/admin/leads';
 }
@@ -45,6 +49,8 @@ export function LeadsTable({
   assignees,
   filters,
   canExport,
+  canDelete,
+  archivedCount,
 }: {
   rows: LeadListRow[];
   nextCursor: string | null;
@@ -53,7 +59,10 @@ export function LeadsTable({
   assignees: Array<{ id: string; email: string; name: string }>;
   filters: LeadFilterValues;
   canExport: boolean;
+  canDelete: boolean;
+  archivedCount: number;
 }) {
+  const archived = filters.view === 'archived';
   const exportParams = new URLSearchParams();
   if (filters.status) exportParams.set('status', filters.status);
   if (filters.assignee) exportParams.set('assignee', filters.assignee);
@@ -97,6 +106,35 @@ export function LeadsTable({
         ))}
       </nav>
 
+      {/* A mode in the URL rather than a second table: the inbox is paginated
+          by keyset, and two paginations on one screen is where rows go missing. */}
+      <nav aria-label="Что показывать" className="flex flex-wrap gap-2">
+        <Link
+          href={buildHref({ ...filters, view: undefined, cursor: undefined })}
+          aria-current={archived ? undefined : 'true'}
+          className={cn(
+            'rounded-[--radius-btn] border px-2.5 py-1 text-[13px] transition-colors',
+            archived
+              ? 'border-line text-ink-muted hover:border-line-strong'
+              : 'border-accent text-accent',
+          )}
+        >
+          В работе
+        </Link>
+        <Link
+          href={buildHref({ ...filters, view: 'archived', cursor: undefined })}
+          aria-current={archived ? 'true' : undefined}
+          className={cn(
+            'rounded-[--radius-btn] border px-2.5 py-1 text-[13px] transition-colors',
+            archived
+              ? 'border-accent text-accent'
+              : 'border-line text-ink-muted hover:border-line-strong',
+          )}
+        >
+          Убранные<span className="text-ink-faint ml-1.5">{archivedCount}</span>
+        </Link>
+      </nav>
+
       <form
         method="get"
         action="/admin/leads"
@@ -104,6 +142,7 @@ export function LeadsTable({
       >
         {/* Keeps the chip selection when the text filter is submitted. */}
         {filters.status ? <input type="hidden" name="status" value={filters.status} /> : null}
+        {archived ? <input type="hidden" name="view" value="archived" /> : null}
 
         <div className="min-w-[240px] flex-1">
           <label htmlFor="lead-q" className="text-ink-muted mb-1 block text-[12px] font-medium">
@@ -167,12 +206,17 @@ export function LeadsTable({
       <div className="border-line bg-surface overflow-x-auto rounded-[--radius-card] border">
         {rows.length === 0 ? (
           <p className="text-ink-faint p-4 text-[13px]">
-            {filters.q || filters.status || filters.assignee
-              ? 'По этим условиям заявок нет.'
-              : 'Заявок пока нет. Они появятся здесь сразу после отправки формы на сайте.'}
+            {archived
+              ? 'В архиве пусто.'
+              : filters.q || filters.status || filters.assignee
+                ? 'По этим условиям заявок нет.'
+                : 'Заявок пока нет. Они появятся здесь сразу после отправки формы на сайте.'}
           </p>
         ) : (
-          <table className="w-full min-w-[860px] text-left text-[14px]">
+          <table className="w-full min-w-[980px] text-left text-[14px]">
+            <caption className="sr-only">
+              {archived ? 'Убранные заявки' : 'Заявки в работе'}
+            </caption>
             <thead className="border-line text-ink-faint border-b text-[12px] tracking-wide uppercase">
               <tr>
                 <th className="px-4 py-3 font-medium">Заявка</th>
@@ -181,6 +225,7 @@ export function LeadsTable({
                 <th className="px-4 py-3 font-medium">Статус</th>
                 <th className="px-4 py-3 font-medium">Ответственный</th>
                 <th className="px-4 py-3 font-medium">Источник</th>
+                <th className="px-4 py-3 text-right font-medium">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-line divide-y">
@@ -241,6 +286,10 @@ export function LeadsTable({
                   <td className="text-ink-faint px-4 py-3 align-top text-[12px]">
                     {row.utmSource ?? 'прямой заход'}
                     <div className="uppercase">{row.locale}</div>
+                  </td>
+
+                  <td className="px-4 py-3 text-right align-top">
+                    <LeadRemoval leadId={row.id} archived={archived} canDelete={canDelete} />
                   </td>
                 </tr>
               ))}

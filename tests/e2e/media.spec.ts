@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /**
  * Media library.
@@ -41,6 +41,9 @@ async function makeJpeg(width: number, height: number, seed = Date.now()): Promi
   return path;
 }
 
+const library = (page: Page) => page.getByRole('list', { name: 'Фотографии' });
+const archive = (page: Page) => page.getByRole('list', { name: 'Убранные изображения' });
+
 test.describe('media library', () => {
   // These specs upload to and delete from the *same* library, so a count
   // assertion in one races an upload in another. Serial execution is a
@@ -63,7 +66,7 @@ test.describe('media library', () => {
   test('uploads an image, derives sizes and shows it as unused', async ({ page }) => {
     await page.goto('/admin/media');
 
-    const before = await page.getByRole('listitem').count();
+    const before = await library(page).getByRole('listitem').count();
 
     await page.locator('input[name="file"]').setInputFiles(await makeJpeg(1600, 1000));
     await page.locator('input[name="altRu"]').fill('Тестовая кухня с островом');
@@ -72,17 +75,36 @@ test.describe('media library', () => {
     await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
     await page.reload();
 
-    await expect(page.getByRole('listitem')).toHaveCount(before + 1);
+    await expect(library(page).getByRole('listitem')).toHaveCount(before + 1);
 
     // A freshly uploaded asset is referenced by nothing, so it must be
     // deletable — that is what makes the in-use guard meaningful.
-    const fresh = page.getByRole('listitem').filter({ hasText: 'не используется' }).first();
+    const fresh = library(page)
+      .getByRole('listitem')
+      .filter({ hasText: 'не используется' })
+      .first();
     await expect(fresh).toBeVisible();
 
     // Remove it again: this spec writes to the real library, and leaving a
     // pile of fixtures behind would make every later count assertion drift.
-    await fresh.getByRole('button', { name: 'Удалить' }).click();
-    await expect(page.getByText('Удалено.')).toBeVisible({ timeout: 15_000 });
+    // Both levels, so the fixture leaves nothing at all behind — and so the
+    // permanent removal is exercised on something nothing references.
+    await fresh.getByRole('button', { name: 'Убрать' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Убрать изображение?' });
+    await expect(confirm.getByRole('button', { name: 'Отмена' })).toBeFocused();
+    await confirm.getByRole('button', { name: 'Убрать' }).click();
+    await expect(page.getByText('Изображение убрано.')).toBeVisible({ timeout: 15_000 });
+
+    const removed = archive(page)
+      .getByRole('listitem')
+      .filter({ hasText: 'Тестовая кухня с островом' })
+      .first();
+    await removed.getByRole('button', { name: 'Удалить навсегда' }).click();
+    await page
+      .getByRole('dialog', { name: 'Удалить навсегда?' })
+      .getByRole('button', { name: 'Удалить навсегда' })
+      .click();
+    await expect(page.getByText('Изображение удалено навсегда.')).toBeVisible({ timeout: 15_000 });
   });
 
   test('deduplicates identical bytes instead of creating a second asset', async ({ page }) => {
@@ -96,7 +118,7 @@ test.describe('media library', () => {
     await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
 
     await page.reload();
-    const afterFirst = await page.getByRole('listitem').count();
+    const afterFirst = await library(page).getByRole('listitem').count();
 
     // The same bytes again: the checksum is the natural key, so this must
     // return the existing asset rather than duplicate the file and its
@@ -107,17 +129,18 @@ test.describe('media library', () => {
     await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
 
     await page.reload();
-    await expect(page.getByRole('listitem')).toHaveCount(afterFirst);
+    await expect(library(page).getByRole('listitem')).toHaveCount(afterFirst);
   });
 
   test('will not delete an image that a published page still shows', async ({ page }) => {
     await page.goto('/admin/media?filter=placeholder');
 
-    // Seeded placeholders sit on published pages, so their delete control must
-    // be unavailable and say why.
-    const blocked = page.getByRole('button', { name: 'Удалить' }).first();
-    await expect(blocked).toBeDisabled();
-    await expect(blocked).toHaveAttribute('title', /опубликованной странице/);
+    // Seeded placeholders sit on published pages. The reason takes the place of
+    // the control rather than sitting behind a disabled button: a greyed-out
+    // button that never explains itself just gets clicked repeatedly.
+    const card = library(page).getByRole('listitem').first();
+    await expect(card).toContainText('стоит на опубликованной странице');
+    await expect(card.getByRole('button', { name: 'Убрать' })).toHaveCount(0);
   });
 
   test('a focal point survives a save and is applied to the preview', async ({ page }) => {

@@ -4,11 +4,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
+  cancelOutboxMessage,
   requeueOutboxMessage,
   sendWhatsAppTemplate,
   sendWhatsAppText,
 } from '@/app/(admin)/admin/_actions/whatsapp';
 import { buttonClasses } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/dialog';
 import type { ApprovedTemplate } from '@/data/admin/whatsapp';
 import { cn } from '@/lib/utils';
 
@@ -151,14 +153,26 @@ export function WhatsAppPanel({
                 <span className="text-ink-faint w-full">{item.lastErrorMessage}</span>
               ) : null}
               {canRequeue && (item.status === 'dead' || item.status === 'blocked_window') ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => run(() => requeueOutboxMessage(item.id))}
-                  className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
-                >
-                  Повторить
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => requeueOutboxMessage(item.id))}
+                    className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
+                  >
+                    Повторить
+                  </button>
+                  {/* The other half of the decision. Until now the only way out
+                      of this state was to retry a message that should not go —
+                      the customer was already called, or the alert is stale. */}
+                  <InlineConfirm
+                    label="Не отправлять"
+                    question="Отменить отправку?"
+                    confirmLabel="Не отправлять"
+                    disabled={busy}
+                    onConfirm={() => run(() => cancelOutboxMessage(item.id))}
+                  />
+                </>
               ) : null}
             </li>
           ))}

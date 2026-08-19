@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -52,6 +52,15 @@ export type LeadFilter = {
   q?: string;
   cursor?: string;
   limit?: number;
+  /**
+   * Show the archive instead of the inbox.
+   *
+   * A mode rather than a second list: leads are paginated by keyset, and a
+   * second section on the same screen would need its own cursor and its own
+   * "load more" — two paginations sharing one URL is where the reader starts
+   * losing rows.
+   */
+  archived?: boolean;
 };
 
 export type LeadPage = { rows: LeadListRow[]; nextCursor: string | null };
@@ -108,7 +117,10 @@ export async function listLeads(filter: LeadFilter = {}): Promise<LeadPage> {
 
   const limit = Math.min(Math.max(filter.limit ?? 50, 1), MAX_LIMIT);
 
-  const conditions: SQL[] = [isNull(leads.deletedAt)];
+  const conditions: SQL[] = [
+    isNull(leads.deletedAt),
+    filter.archived ? isNotNull(leads.archivedAt) : isNull(leads.archivedAt),
+  ];
   if (filter.statusId) conditions.push(eq(leads.statusId, filter.statusId));
   if (filter.assignedToId === 'none') {
     conditions.push(isNull(leads.assignedToId));
@@ -186,10 +198,22 @@ export async function countLeadsByStatus(): Promise<Record<string, number>> {
   const rows = await db
     .select({ statusId: leads.statusId, count: sql<number>`count(*)::int` })
     .from(leads)
-    .where(isNull(leads.deletedAt))
+    .where(and(isNull(leads.deletedAt), isNull(leads.archivedAt)))
     .groupBy(leads.statusId);
 
   return Object.fromEntries(rows.map((row) => [row.statusId, row.count]));
+}
+
+/** How many leads are in the archive, for the link that leads to it. */
+export async function countArchivedLeads(): Promise<number> {
+  await requireCapability('crm.read');
+
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(leads)
+    .where(and(isNull(leads.deletedAt), isNotNull(leads.archivedAt)));
+
+  return row?.count ?? 0;
 }
 
 export type LeadStatusRow = {
@@ -243,6 +267,8 @@ export type LeadDetail = {
   id: string;
   publicId: string;
   createdAt: Date;
+  /** Set when the lead is out of the inbox. The detail page stays reachable. */
+  archivedAt: Date | null;
   statusId: string;
   assignedToId: string | null;
   locale: Locale;
@@ -356,6 +382,7 @@ export async function getLead(leadId: string): Promise<LeadDetail | null> {
     id: lead.id,
     publicId: lead.publicId,
     createdAt: lead.createdAt,
+    archivedAt: lead.archivedAt,
     statusId: lead.statusId,
     assignedToId: lead.assignedToId,
     locale: lead.locale as Locale,
@@ -440,7 +467,7 @@ export async function getLeadBoard(assignedToId?: string): Promise<BoardColumn[]
 
   const statuses = await listLeadStatuses();
 
-  const conditions: SQL[] = [isNull(leads.deletedAt)];
+  const conditions: SQL[] = [isNull(leads.deletedAt), isNull(leads.archivedAt)];
   if (assignedToId === 'none') conditions.push(isNull(leads.assignedToId));
   else if (assignedToId) conditions.push(eq(leads.assignedToId, assignedToId));
 
@@ -527,7 +554,7 @@ export async function getCrmSummary(userId: string): Promise<CrmSummary> {
     })
     .from(leads)
     .innerJoin(leadStatuses, eq(leadStatuses.id, leads.statusId))
-    .where(isNull(leads.deletedAt));
+    .where(and(isNull(leads.deletedAt), isNull(leads.archivedAt)));
 
   const [tasks] = await db
     .select({
@@ -535,7 +562,11 @@ export async function getCrmSummary(userId: string): Promise<CrmSummary> {
       overdue: sql<number>`count(*) filter (where ${leadTasks.dueAt} is not null and ${leadTasks.dueAt} < now())::int`,
     })
     .from(leadTasks)
-    .where(isNull(leadTasks.completedAt));
+    // Joined to leads rather than counted alone: a callback attached to an
+    // archived enquiry must stop appearing as work outstanding, or the archive
+    // never actually quietens anything.
+    .innerJoin(leads, eq(leads.id, leadTasks.leadId))
+    .where(and(isNull(leadTasks.completedAt), isNull(leads.deletedAt), isNull(leads.archivedAt)));
 
   return {
     newToday: counts?.newToday ?? 0,

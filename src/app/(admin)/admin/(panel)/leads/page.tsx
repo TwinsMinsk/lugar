@@ -1,4 +1,10 @@
-import { countLeadsByStatus, listAssignees, listLeadStatuses, listLeads } from '@/data/admin/leads';
+import {
+  countArchivedLeads,
+  countLeadsByStatus,
+  listAssignees,
+  listLeadStatuses,
+  listLeads,
+} from '@/data/admin/leads';
 import { LeadsTable } from '@/features/admin/leads-table';
 import { can, requireCapability } from '@/lib/auth/guards';
 
@@ -22,20 +28,25 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
     assignee: first(params.assignee),
     q: first(params.q),
     cursor: first(params.cursor),
+    view: first(params.view),
   };
 
-  const [page, statuses, counts, assignees, canExport] = await Promise.all([
-    listLeads({
-      statusId: filters.status,
-      assignedToId: filters.assignee,
-      q: filters.q,
-      cursor: filters.cursor,
-    }),
-    listLeadStatuses(),
-    countLeadsByStatus(),
-    listAssignees(),
-    can('crm.export'),
-  ]);
+  const [page, statuses, counts, assignees, canExport, canDelete, archivedCount] =
+    await Promise.all([
+      listLeads({
+        statusId: filters.status,
+        assignedToId: filters.assignee,
+        q: filters.q,
+        cursor: filters.cursor,
+        archived: filters.view === 'archived',
+      }),
+      listLeadStatuses(),
+      countLeadsByStatus(),
+      listAssignees(),
+      can('crm.export'),
+      can('crm.delete'),
+      countArchivedLeads(),
+    ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,6 +66,8 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
         assignees={assignees}
         filters={filters}
         canExport={canExport}
+        canDelete={canDelete}
+        archivedCount={archivedCount}
       />
     </div>
   );

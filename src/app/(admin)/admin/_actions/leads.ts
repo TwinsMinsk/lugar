@@ -255,11 +255,14 @@ export async function deleteLead(leadId: string): Promise<LeadResult> {
   if (!z.uuid().safeParse(leadId).success) return { ok: false, error: 'invalid_input' };
 
   const [lead] = await db
-    .select({ id: leads.id, publicId: leads.publicId })
+    .select({ id: leads.id, publicId: leads.publicId, archivedAt: leads.archivedAt })
     .from(leads)
-    .where(eq(leads.id, leadId))
+    .where(and(eq(leads.id, leadId), isNull(leads.deletedAt)))
     .limit(1);
   if (!lead) return { ok: false, error: 'not_found' };
+  // Only from the archive, so this is always the second decision rather than
+  // one misplaced click in the inbox.
+  if (!lead.archivedAt) return { ok: false, error: 'not_archived' };
 
   const context = await requestContext();
 
@@ -279,6 +282,140 @@ export async function deleteLead(leadId: string): Promise<LeadResult> {
       },
       tx,
     );
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Level 1 — out of the inbox.
+ *
+ * `crm.write`, not `crm.delete`: putting a finished enquiry aside is ordinary
+ * daily work for a manager, whereas erasing one is not. The row keeps its
+ * timeline, its contact and its consent records — an archived lead is still a
+ * previous conversation with a real person, which is why duplicate detection
+ * deliberately still sees it.
+ */
+export async function archiveLead(leadId: string): Promise<LeadResult> {
+  const { user: actor } = await requireCapability('crm.write');
+  if (!z.uuid().safeParse(leadId).success) return { ok: false, error: 'invalid_input' };
+
+  const [lead] = await db
+    .select({ id: leads.id, archivedAt: leads.archivedAt })
+    .from(leads)
+    .where(and(eq(leads.id, leadId), isNull(leads.deletedAt)))
+    .limit(1);
+  if (!lead) return { ok: false, error: 'not_found' };
+  if (lead.archivedAt) return { ok: true };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(leads)
+      .set({ archivedAt: sql`now()` })
+      .where(eq(leads.id, leadId));
+    await tx.insert(leadActivities).values({
+      leadId,
+      kind: 'note',
+      actorType: 'user',
+      actorUserId: actor.id,
+      body: 'Заявка убрана в архив.',
+    });
+  });
+
+  return { ok: true };
+}
+
+/** Undo level 1. The lead returns to whatever stage it was on. */
+export async function restoreLead(leadId: string): Promise<LeadResult> {
+  const { user: actor } = await requireCapability('crm.write');
+  if (!z.uuid().safeParse(leadId).success) return { ok: false, error: 'invalid_input' };
+
+  const [lead] = await db
+    .select({ id: leads.id, archivedAt: leads.archivedAt })
+    .from(leads)
+    .where(and(eq(leads.id, leadId), isNull(leads.deletedAt)))
+    .limit(1);
+  if (!lead) return { ok: false, error: 'not_found' };
+  if (!lead.archivedAt) return { ok: true };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(leads)
+      .set({ archivedAt: null, lastActivityAt: sql`now()` })
+      .where(eq(leads.id, leadId));
+    await tx.insert(leadActivities).values({
+      leadId,
+      kind: 'note',
+      actorType: 'user',
+      actorUserId: actor.id,
+      body: 'Заявка возвращена из архива.',
+    });
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Reopen a task that was ticked off by mistake.
+ *
+ * The counterpart to deleting an open one: a completed task is a record that
+ * something happened, so it is never destroyed — it goes back on the list
+ * instead, which is what the person actually wanted.
+ */
+export async function reopenLeadTask(taskId: string): Promise<LeadResult> {
+  const { user: actor } = await requireCapability('crm.write');
+  if (!z.uuid().safeParse(taskId).success) return { ok: false, error: 'invalid_input' };
+
+  const [task] = await db.select().from(leadTasks).where(eq(leadTasks.id, taskId)).limit(1);
+  if (!task) return { ok: false, error: 'not_found' };
+  if (!task.completedAt) return { ok: true };
+
+  await db.transaction(async (tx) => {
+    await tx.update(leadTasks).set({ completedAt: null }).where(eq(leadTasks.id, taskId));
+    if (task.leadId) {
+      await tx.insert(leadActivities).values({
+        leadId: task.leadId,
+        kind: 'note',
+        actorType: 'user',
+        actorUserId: actor.id,
+        body: `Задача возвращена в работу: ${task.title}`,
+      });
+      await tx
+        .update(leads)
+        .set({ lastActivityAt: sql`now()` })
+        .where(eq(leads.id, task.leadId));
+    }
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Delete a task that was never done.
+ *
+ * A real DELETE, and only while `completed_at is null`. An open task is a
+ * reminder someone set and can unset; a completed one is a statement that the
+ * call was made, and that belongs to the timeline.
+ */
+export async function deleteLeadTask(taskId: string): Promise<LeadResult> {
+  const { user: actor } = await requireCapability('crm.write');
+  if (!z.uuid().safeParse(taskId).success) return { ok: false, error: 'invalid_input' };
+
+  const [task] = await db.select().from(leadTasks).where(eq(leadTasks.id, taskId)).limit(1);
+  if (!task) return { ok: false, error: 'not_found' };
+  if (task.completedAt) return { ok: false, error: 'task_completed' };
+
+  await db.transaction(async (tx) => {
+    await tx.delete(leadTasks).where(eq(leadTasks.id, taskId));
+    if (task.leadId) {
+      await tx.insert(leadActivities).values({
+        leadId: task.leadId,
+        kind: 'note',
+        actorType: 'user',
+        actorUserId: actor.id,
+        body: `Задача удалена: ${task.title}`,
+      });
+    }
   });
 
   return { ok: true };

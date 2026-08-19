@@ -8,9 +8,12 @@ import {
   assignLead,
   changeLeadStatus,
   completeLeadTask,
+  deleteLeadTask,
+  reopenLeadTask,
   createLeadTask,
 } from '@/app/(admin)/admin/_actions/leads';
 import { buttonClasses } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/dialog';
 import type { LeadStatusRow } from '@/data/admin/leads';
 import { cn } from '@/lib/utils';
 
@@ -184,15 +187,36 @@ export function LeadActions({
                 {task.assigneeEmail ? (
                   <span className="text-ink-faint text-[12px]">{task.assigneeEmail}</span>
                 ) : null}
-                {task.completedAt ? null : (
+                {task.completedAt ? (
+                  // A completed task is a statement that the call was made, so
+                  // it is never deleted — it goes back on the list instead,
+                  // which is what someone who ticked the wrong row wanted.
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => run(() => completeLeadTask(task.id))}
+                    onClick={() => run(() => reopenLeadTask(task.id))}
                     className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                   >
-                    Выполнено
+                    Вернуть в работу
                   </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => run(() => completeLeadTask(task.id))}
+                      className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
+                    >
+                      Выполнено
+                    </button>
+                    <InlineConfirm
+                      label="Удалить"
+                      question="Удалить задачу?"
+                      confirmLabel="Удалить"
+                      disabled={pending}
+                      onConfirm={() => run(() => deleteLeadTask(task.id))}
+                    />
+                  </>
                 )}
               </li>
             ))}

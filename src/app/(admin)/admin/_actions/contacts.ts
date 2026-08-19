@@ -4,7 +4,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db } from '@/db/client';
-import { contacts } from '@/db/schema';
+import { contacts, leads } from '@/db/schema';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -49,5 +49,79 @@ export async function updateContact(input: z.input<typeof updateSchema>): Promis
     .returning({ id: contacts.id });
 
   if (updated.length === 0) return { ok: false, error: 'not_found' };
+  return { ok: true };
+}
+
+/**
+ * Level 1 — out of the client list.
+ *
+ * Nothing about the person's history changes: their leads, their timeline and
+ * their consent records stay exactly where they were. This is a working list
+ * getting shorter, not a record being erased.
+ */
+export async function archiveContact(contactId: string): Promise<ContactResult> {
+  await requireCapability('crm.write');
+  if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
+
+  const updated = await db
+    .update(contacts)
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)))
+    .returning({ id: contacts.id });
+
+  if (updated.length === 0) return { ok: false, error: 'not_found' };
+  return { ok: true };
+}
+
+/** Undo level 1. */
+export async function restoreContact(contactId: string): Promise<ContactResult> {
+  await requireCapability('crm.write');
+  if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
+
+  const updated = await db
+    .update(contacts)
+    .set({ archivedAt: null, updatedAt: sql`now()` })
+    .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)))
+    .returning({ id: contacts.id });
+
+  if (updated.length === 0) return { ok: false, error: 'not_found' };
+  return { ok: true };
+}
+
+/**
+ * Level 2 — out of the CRM entirely.
+ *
+ * Still a soft delete, and this one is not squeamishness: `consent_records`
+ * cascades from `contacts`, so a real DELETE would destroy the evidence that
+ * the person agreed to be contacted — the one record that exists specifically
+ * to be produced later, and the one the GDPR request would ask for.
+ *
+ * Refused while the person still has enquiries in the working lists. Deleting
+ * the client under a live lead would leave that lead pointing at a name nobody
+ * can open, so the enquiries are archived first, deliberately.
+ */
+export async function deleteContact(contactId: string): Promise<ContactResult> {
+  await requireCapability('crm.delete');
+  if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
+
+  const [contact] = await db
+    .select({ id: contacts.id, archivedAt: contacts.archivedAt })
+    .from(contacts)
+    .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)))
+    .limit(1);
+  if (!contact) return { ok: false, error: 'not_found' };
+  if (!contact.archivedAt) return { ok: false, error: 'not_archived' };
+
+  const [live] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(leads)
+    .where(and(eq(leads.contactId, contactId), isNull(leads.deletedAt), isNull(leads.archivedAt)));
+  if ((live?.count ?? 0) > 0) return { ok: false, error: 'has_active_leads' };
+
+  await db
+    .update(contacts)
+    .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(eq(contacts.id, contactId));
+
   return { ok: true };
 }

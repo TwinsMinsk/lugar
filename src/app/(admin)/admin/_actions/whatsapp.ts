@@ -196,3 +196,37 @@ export async function requeueOutboxMessage(outboxId: string): Promise<WhatsAppRe
 
   return { ok: true };
 }
+
+/**
+ * Take a message out of the queue without sending it.
+ *
+ * The counterpart to requeue, for the case the owner has instead: a message
+ * sitting in `blocked_window` or `dead` that should simply not go — the
+ * customer was already called, or the alert is stale. Today the only way out of
+ * that state is to retry it.
+ *
+ * `skipped`, never a DELETE. A message that was queued is part of what the
+ * business did about an enquiry, and the row is the proof of what was and was
+ * not sent to a customer. `sent` is refused outright for the same reason: it is
+ * already in someone's phone, and nothing here can take it back.
+ */
+export async function cancelOutboxMessage(outboxId: string): Promise<WhatsAppResult> {
+  await requireCapability('whatsapp.requeue');
+  if (!z.uuid().safeParse(outboxId).success) return { ok: false, error: 'invalid_input' };
+
+  const [row] = await db
+    .select({ id: whatsappOutbox.id, status: whatsappOutbox.status })
+    .from(whatsappOutbox)
+    .where(eq(whatsappOutbox.id, outboxId))
+    .limit(1);
+  if (!row) return { ok: false, error: 'not_found' };
+  if (row.status === 'sent') return { ok: false, error: 'already_sent' };
+  if (row.status === 'skipped') return { ok: true };
+  // `claimed` means the worker is holding it right now; cancelling underneath
+  // it would race the send itself.
+  if (row.status === 'claimed') return { ok: false, error: 'in_flight' };
+
+  await db.update(whatsappOutbox).set({ status: 'skipped' }).where(eq(whatsappOutbox.id, outboxId));
+
+  return { ok: true };
+}
