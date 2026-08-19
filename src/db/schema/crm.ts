@@ -213,14 +213,20 @@ export const leads = pgTable(
       name: 'leads_possible_duplicate_fk',
     }).onDelete('set null'),
     // (1) board/list: status + assignee filter, keyset pagination by date.
+    // Both of these carry `archived_at is null` to match the reads and to match
+    // leads_assignee_activity_idx below, which already did. An archived lead is
+    // out of the inbox, the board and every count.
     index('leads_board_idx')
       .on(t.statusId, t.assignedToId, t.createdAt.desc(), t.id.desc())
-      .where(sql`deleted_at is null`),
+      .where(sql`deleted_at is null and archived_at is null`),
     // Unfiltered "all leads, newest first" — Postgres cannot skip leading
     // index columns, so this needs its own index.
     index('leads_created_idx')
       .on(t.createdAt.desc())
-      .where(sql`deleted_at is null`),
+      .where(sql`deleted_at is null and archived_at is null`),
+    index('leads_archived_idx')
+      .on(t.archivedAt.desc())
+      .where(sql`archived_at is not null and deleted_at is null`),
     index('leads_assignee_activity_idx')
       .on(t.assignedToId, t.lastActivityAt.desc())
       .where(sql`deleted_at is null and archived_at is null`),

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { anyBlockSchema, type AnyBlock } from '@/content/blocks/union';
 import { db } from '@/db/client';
@@ -24,6 +24,9 @@ export type AdminDocumentSummary = {
   template: string;
   isSystem: boolean;
   seedKey: string | null;
+  archivedAt: Date | null;
+  /** False once any locale has ever been published — level 2 is then refused. */
+  everPublished: boolean;
   locales: Array<{
     locale: Locale;
     slug: string;
@@ -34,7 +37,17 @@ export type AdminDocumentSummary = {
   }>;
 };
 
-export async function listDocuments(kind: 'page' | 'project'): Promise<AdminDocumentSummary[]> {
+/**
+ * Documents of one kind for the panel.
+ *
+ * `archived` selects what was removed from the working list rather than what is
+ * in it — the archive section on the same screen, not a separate view of the
+ * same rows. A record is in exactly one of the two.
+ */
+export async function listDocuments(
+  kind: 'page' | 'project',
+  options: { archived?: boolean } = {},
+): Promise<AdminDocumentSummary[]> {
   await requireCapability('content.read');
 
   const rows = await db
@@ -51,10 +64,16 @@ export async function listDocuments(kind: 'page' | 'project'): Promise<AdminDocu
       status: documentLocales.status,
       publishedAt: documentLocales.publishedAt,
       publishedRevisionId: documentLocales.publishedRevisionId,
+      archivedAt: documents.archivedAt,
     })
     .from(documents)
     .leftJoin(documentLocales, eq(documentLocales.documentId, documents.id))
-    .where(eq(documents.kind, kind))
+    .where(
+      and(
+        eq(documents.kind, kind),
+        options.archived ? isNotNull(documents.archivedAt) : isNull(documents.archivedAt),
+      ),
+    )
     .orderBy(asc(documents.sortOrder), asc(documents.createdAt));
 
   const byId = new Map<string, AdminDocumentSummary>();
@@ -65,6 +84,8 @@ export async function listDocuments(kind: 'page' | 'project'): Promise<AdminDocu
       template: row.template,
       isSystem: row.isSystem,
       seedKey: row.seedKey,
+      archivedAt: row.archivedAt,
+      everPublished: false,
       locales: [],
     };
     if (row.locale) {
@@ -77,6 +98,12 @@ export async function listDocuments(kind: 'page' | 'project'): Promise<AdminDocu
         hasUnpublishedChanges:
           row.publishedRevisionId !== null && row.publishedRevisionId !== row.draftRevisionId,
       });
+      // Unpublishing leaves both columns in place (content.ts:362 only moves
+      // `status`), so either one still answers "was this ever on the site?"
+      // long after it was taken off.
+      if (row.publishedRevisionId !== null || row.publishedAt !== null) {
+        entry.everPublished = true;
+      }
     }
     byId.set(row.id, entry);
   }

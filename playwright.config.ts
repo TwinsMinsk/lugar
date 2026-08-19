@@ -24,6 +24,7 @@ const ADMIN_SPECS = [
   /pipeline\.spec\.ts/,
   /portfolio\.spec\.ts/,
   /redirects\.spec\.ts/,
+  /removal\.spec\.ts/,
   /settings\.spec\.ts/,
   /users\.spec\.ts/,
 ];

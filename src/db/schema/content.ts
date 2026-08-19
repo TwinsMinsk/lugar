@@ -49,13 +49,34 @@ export const documents = pgTable(
     isSystem: boolean('is_system').notNull().default(false),
     draftRevisionId: uuid('draft_revision_id'),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * Out of the working lists, still on disk.
+     *
+     * Distinct from `document_locales.status`, which is *publication* and is
+     * per-locale. This is *existence in the panel* and is per-record: a project
+     * taken off the site is still something the studio is working on, whereas an
+     * archived one is not. Conflating them is what left a test project visible
+     * forever with no way to remove it.
+     *
+     * Only `archived_at`, not the `softDelete` pair: permanent removal here is a
+     * real row DELETE, so a `deleted_at` would be a fourth state nothing reads.
+     * `lead_statuses` (crm.ts) carries a bare `archivedAt` for the same reason.
+     */
+    archivedAt: ts('archived_at'),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('documents_seed_key_uq')
       .on(t.seedKey)
       .where(sql`seed_key is not null`),
-    index('documents_kind_idx').on(t.kind, t.sortOrder),
+    // Partial: every list in the panel and every public resolve now carries
+    // `archived_at is null`, so the index that serves them should too.
+    index('documents_live_idx')
+      .on(t.kind, t.sortOrder)
+      .where(sql`archived_at is null`),
+    index('documents_archived_idx')
+      .on(t.archivedAt.desc())
+      .where(sql`archived_at is not null`),
   ],
 );
 

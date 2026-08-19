@@ -34,6 +34,14 @@ export const CAPABILITIES = {
   'media.read': ['owner', 'manager', 'content_editor'],
   'media.write': ['owner', 'content_editor'],
   'media.delete': ['owner'],
+  /**
+   * Removing a document from the panel, and erasing an unpublished one.
+   *
+   * Owner-only alongside `media.delete` and `crm.delete` rather than following
+   * `content.write`: an editor writing the site is a different decision from an
+   * editor deciding a page should stop existing.
+   */
+  'content.delete': ['owner'],
   'navigation.write': ['owner', 'content_editor'],
   'seo.write': ['owner', 'content_editor'],
 

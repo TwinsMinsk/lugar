@@ -7,10 +7,11 @@ import { z } from 'zod';
 
 import { collectMediaUsage } from '@/content/blocks/media-usage';
 import { blocksSchema, type AnyBlock } from '@/content/blocks/union';
+import { invalidateDocument } from '@/data/cache-invalidation';
 import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { documentLocales, documentRevisions, documents, mediaUsage, redirects } from '@/db/schema';
-import { LOCALES, type Locale } from '@/i18n/routing';
+import { LOCALES } from '@/i18n/routing';
 import { recordAudit, summarizeBlocks } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
@@ -57,28 +58,6 @@ async function syncMediaUsage(
       })),
     )
     .onConflictDoNothing();
-}
-
-/** Invalidate every cache entry a published document participates in. */
-async function invalidateDocument(documentId: string) {
-  const localeRows = await db
-    .select({
-      locale: documentLocales.locale,
-      slug: documentLocales.slug,
-      kind: documentLocales.kind,
-    })
-    .from(documentLocales)
-    .where(eq(documentLocales.documentId, documentId));
-
-  for (const row of localeRows) {
-    const locale = row.locale as Locale;
-    // updateTag, not revalidateTag: the owner must see their change on the very
-    // next request, not after a stale-while-revalidate round.
-    updateTag(tags.path(row.kind, locale, row.slug));
-    updateTag(tags.document(documentId, locale));
-    updateTag(tags.projectsIndex(locale));
-    updateTag(tags.navigation(locale));
-  }
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };

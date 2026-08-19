@@ -1,0 +1,138 @@
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * Removal, in two levels.
+ *
+ * This exists because the owner could not delete a test project: the panel
+ * offered "снять с сайта", which changes publication only, and the row stayed
+ * in the list forever with its address permanently taken.
+ *
+ * The rules being asserted here are the ones that make the second level safe to
+ * offer at all — it appears only inside the archive, and never for a record
+ * that has been on the site.
+ */
+const EMAIL = process.env.E2E_ADMIN_EMAIL;
+const PASSWORD = process.env.E2E_ADMIN_PASSWORD;
+
+async function createProject(page: Page, slug: string, title = 'Тестовый проект') {
+  await page.goto('/admin/portfolio');
+  await page.getByLabel('Название').fill(title);
+  await page.getByLabel('Адрес страницы').fill(slug);
+  await page.getByRole('button', { name: 'Создать проект' }).click();
+  await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
+  return page.url().split('/').pop()!;
+}
+
+// Exact: "Убранные проекты" contains "Проекты", and the default substring
+// match would make the live table locator resolve to both.
+const liveTable = (page: Page) => page.getByRole('table', { name: 'Проекты', exact: true });
+const archiveTable = (page: Page) => page.getByRole('table', { name: 'Убранные проекты' });
+
+/** Takes the project out of the working list, through the inline confirmation. */
+async function archive(page: Page, slug: string) {
+  await page.goto('/admin/portfolio');
+  const row = liveTable(page).getByRole('row').filter({ hasText: slug });
+  await row.getByRole('button', { name: 'Убрать' }).click();
+  // The trigger is replaced by the question and its own confirm button, so the
+  // name is the same and the row scope is what disambiguates.
+  await row.getByRole('button', { name: 'Убрать' }).click();
+  await expect(archiveTable(page).getByRole('row').filter({ hasText: slug })).toHaveCount(1, {
+    timeout: 15_000,
+  });
+}
+
+test.describe('removal', () => {
+  test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
+
+  // They all read the same two lists on the same screen.
+  test.describe.configure({ mode: 'serial' });
+
+  test('a project leaves the working list and can be brought back', async ({ page }) => {
+    const slug = `test-proekt-ubrat-${Date.now()}`;
+    await createProject(page, slug);
+
+    await archive(page, slug);
+    await expect(liveTable(page).getByRole('row').filter({ hasText: slug })).toHaveCount(0);
+
+    await archiveTable(page)
+      .getByRole('row')
+      .filter({ hasText: slug })
+      .getByRole('button', { name: 'Вернуть' })
+      .click();
+
+    await expect(liveTable(page).getByRole('row').filter({ hasText: slug })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await expect(archiveTable(page).getByRole('row').filter({ hasText: slug })).toHaveCount(0);
+  });
+
+  test('the address stays occupied while the project is only archived', async ({ page }) => {
+    const slug = `test-proekt-adres-${Date.now()}`;
+    await createProject(page, slug);
+    await archive(page, slug);
+
+    await page.goto('/admin/portfolio');
+    await page.getByLabel('Название').fill('Второй');
+    await page.getByLabel('Адрес страницы').fill(slug);
+    await page.getByRole('button', { name: 'Создать проект' }).click();
+
+    // Naming the archive is the whole point: a bare "address is taken" would
+    // send the owner searching a list that cannot contain the culprit.
+    await expect(page.locator('form').getByRole('alert')).toContainText('убранным проектом');
+  });
+
+  test('a project that was never published can be deleted for good', async ({ page }) => {
+    const slug = `test-proekt-navsegda-${Date.now()}`;
+    await createProject(page, slug);
+    await archive(page, slug);
+
+    const row = archiveTable(page).getByRole('row').filter({ hasText: slug });
+    await row.getByRole('button', { name: 'Удалить навсегда' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Удалить навсегда?' });
+    await expect(dialog).toBeVisible();
+    // Cancel takes the focus, so Enter never confirms a destructive action.
+    await expect(dialog.getByRole('button', { name: 'Отмена' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Удалить навсегда' }).click();
+
+    await expect(row).toHaveCount(0, { timeout: 15_000 });
+    await expect(liveTable(page).getByRole('row').filter({ hasText: slug })).toHaveCount(0);
+
+    // And the address is free again — which is the difference between the two
+    // levels, stated as a test rather than as a comment.
+    await createProject(page, slug, 'Переиспользованный адрес');
+  });
+
+  test('a project that has been on the site keeps its history, and its preview dies with it', async ({
+    page,
+  }) => {
+    const slug = `opublikovannyy-ubrat-${Date.now()}`;
+    const documentId = await createProject(page, slug, 'Опубликованный проект');
+
+    await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+    await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
+
+    // Preview works while it is published — otherwise the assertion after the
+    // removal would pass for the wrong reason.
+    const before = await page.goto(`/api/preview?documentId=${documentId}&locale=ru`);
+    expect(before?.status()).toBe(200);
+    await expect(page.locator('h1')).toHaveText('Опубликованный проект');
+    await page.goto('/api/preview/exit');
+
+    await archive(page, slug);
+
+    const row = archiveTable(page).getByRole('row').filter({ hasText: slug });
+    await expect(row.getByRole('button', { name: 'Удалить навсегда' })).toHaveCount(0);
+    await expect(row).toContainText('была на сайте');
+
+    // Removal is also a take-down, on the public page and on the shared preview
+    // link alike — those links get sent to people.
+    expect((await page.goto(`/raboty/${slug}`))?.status()).toBe(404);
+    expect((await page.goto(`/api/preview?documentId=${documentId}&locale=ru`))?.status()).toBe(
+      404,
+    );
+
+    await page.goto('/raboty');
+    await expect(page.locator(`a[href="/raboty/${slug}"]`)).toHaveCount(0);
+  });
+});

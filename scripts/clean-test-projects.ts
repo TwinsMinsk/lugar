@@ -44,7 +44,14 @@ async function main() {
 
   // Locales and revisions cascade from documents; media_usage cascades from
   // revisions. Deleting the document is therefore sufficient and leaves no
-  // orphans behind.
+  // orphans behind — but only after the published pointer is cleared.
+  // `document_locales.published_revision_id` restricts deletion of a revision,
+  // and the two cascades fire in an order Postgres does not promise, so a
+  // published test project would otherwise fail here at random.
+  await db
+    .update(documentLocales)
+    .set({ publishedRevisionId: null })
+    .where(inArray(documentLocales.documentId, ids));
   await db.delete(documents).where(inArray(documents.id, ids));
   console.log(`Removed ${ids.length} test project(s).`);
 }

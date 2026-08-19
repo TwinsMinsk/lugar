@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
 import { headers } from 'next/headers';
 import { z } from 'zod';
@@ -75,6 +75,24 @@ export async function createProject(input: z.input<typeof createSchema>): Promis
     return { ok: false, error: issue?.message === 'slug_format' ? 'slug_format' : 'invalid_input' };
   }
   const { title, slug, city, categorySlugs } = parsed.data;
+
+  // Checked before the insert rather than inferred from the unique-index
+  // violation below: an archived project is out of the list, so "this address
+  // is taken" would otherwise send the owner searching a list that cannot
+  // contain the culprit.
+  const [archivedHolder] = await db
+    .select({ id: documents.id })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documentLocales.kind, 'project'),
+        eq(documentLocales.slug, slug),
+        isNotNull(documents.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (archivedHolder) return { ok: false, error: 'slug_taken_archived' };
 
   const documentId = randomUUID();
   const draftRevisionId = randomUUID();

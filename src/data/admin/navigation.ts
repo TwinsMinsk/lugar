@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import type { LocalizedText } from '@/content/i18n';
 import { db } from '@/db/client';
@@ -148,7 +148,10 @@ export async function listNavigationTargets(): Promise<NavigationTarget[]> {
     })
     .from(documents)
     .leftJoin(documentLocales, eq(documentLocales.documentId, documents.id))
-    .where(eq(documentLocales.locale, 'ru'))
+    // Archived documents are out of the panel, so the menu must not be able to
+    // point at one — a hidden page behind a visible menu item is a 404 the
+    // owner cannot see the cause of.
+    .where(and(eq(documentLocales.locale, 'ru'), isNull(documents.archivedAt)))
     .orderBy(asc(documents.kind), asc(documents.sortOrder));
 
   return rows.map((row) => ({

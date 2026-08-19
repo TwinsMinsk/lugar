@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq, isNotNull, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { cacheLife, cacheTag } from 'next/cache';
 import { draftMode } from 'next/headers';
 
@@ -118,6 +118,11 @@ export async function resolvePage(locale: Locale, slug: string): Promise<Publish
         eq(documentLocales.kind, 'page'),
         eq(documentLocales.locale, locale),
         eq(documentLocales.slug, slug),
+        // An archived document is gone from the panel, so it must be gone from
+        // the site — including under preview. Without this a removed page stays
+        // reachable through its signed preview link, and those get sent to
+        // people.
+        isNull(documents.archivedAt),
         preview
           ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
           : eq(documentLocales.status, 'published'),
@@ -167,6 +172,8 @@ export async function resolveProject(locale: Locale, slug: string): Promise<Publ
         eq(documentLocales.kind, 'project'),
         eq(documentLocales.locale, locale),
         eq(documentLocales.slug, slug),
+        // See resolvePage: archived must be unreachable under preview too.
+        isNull(documents.archivedAt),
         preview
           ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
           : eq(documentLocales.status, 'published'),

@@ -15,6 +15,8 @@ import { MediaPicker, type PickableAsset } from './media-picker';
 const ERRORS: Record<string, string> = {
   slug_format: 'Адрес может содержать только строчные латинские буквы, цифры и дефис.',
   slug_taken: 'Такой адрес уже занят другим проектом.',
+  slug_taken_archived:
+    'Такой адрес занят убранным проектом. Верните его из списка «Убранные проекты» или удалите насовсем — либо возьмите другой адрес.',
   invalid_input: 'Проверьте заполненные поля.',
 };
 
