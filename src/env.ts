@@ -60,7 +60,20 @@ const serverSchema = z
      * required — see src/lib/storage for why this is explicit rather than
      * derived from NODE_ENV.
      */
-    STORAGE_DRIVER: z.enum(['local', 's3']).optional(),
+    /**
+     * Empty is treated as unset, like every other optional variable here.
+     *
+     * `.env.example` ships this key blank and a Railway variable added without
+     * a value arrives as an empty string — either would otherwise fail
+     * validation and take the app down at boot with a message about an enum,
+     * for a setting the deployer deliberately left alone.
+     */
+    STORAGE_DRIVER: z
+      .string()
+      .trim()
+      .transform((value) => (value === '' ? undefined : value))
+      .pipe(z.enum(['local', 's3']).optional())
+      .optional(),
     S3_ENDPOINT: optionalString,
     S3_REGION: optionalString.pipe(z.string().default('auto').optional()),
     S3_ACCESS_KEY_ID: optionalString,

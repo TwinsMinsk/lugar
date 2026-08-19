@@ -219,19 +219,15 @@ async function checkStorage() {
   // failure, and only a write finds them.
   const key = `preflight/${Date.now()}.txt`;
   const body = Buffer.from('preflight');
+  let written = false;
   try {
-    await driver.put(key, body, { contentType: 'text/plain', visibility: 'private' });
+    await driver.put(key, body, { contentType: 'text/plain', visibility: 'public' });
+    written = true;
     const read = await driver.get(key);
     if (!read.equals(body)) throw new Error('прочитано не то, что записано');
-    await driver.delete(key);
-    report('ok', 'Хранилище', `${driver.kind}: запись, чтение и удаление прошли`);
+    report('ok', 'Хранилище', `${driver.kind}: запись и чтение прошли`);
   } catch (error) {
     report('fail', 'Хранилище', String(error instanceof Error ? error.message : error));
-    try {
-      await driver.delete(key);
-    } catch {
-      // The object may never have been created; nothing to clean up.
-    }
   }
 
   const mediaBase = process.env.NEXT_PUBLIC_MEDIA_BASE_URL;
@@ -241,8 +237,47 @@ async function checkStorage() {
       'NEXT_PUBLIC_MEDIA_BASE_URL',
       'не задан — изображения не получат публичных адресов',
     );
-  } else {
-    report('ok', 'NEXT_PUBLIC_MEDIA_BASE_URL', mediaBase);
+  } else if (mediaBase.endsWith('/')) {
+    report('fail', 'NEXT_PUBLIC_MEDIA_BASE_URL', `${mediaBase} — уберите слэш на конце`);
+  } else if (written) {
+    /**
+     * The check the API round trip cannot make.
+     *
+     * A bucket stays private until public access is switched on, and that
+     * switch is separate from the API token. Miss it and everything looks
+     * right — uploads succeed, the media library lists them, the admin renders
+     * thumbnails through signed URLs — while every photo on the public site is
+     * a broken image. The only way to know is to fetch the object the way a
+     * visitor would.
+     */
+    try {
+      const response = await fetch(`${mediaBase}/${key}`, { redirect: 'follow' });
+      if (!response.ok) {
+        report(
+          'fail',
+          'Публичный доступ',
+          `${response.status} на ${mediaBase}/… — включите public access у бакета`,
+        );
+      } else if (!Buffer.from(await response.arrayBuffer()).equals(body)) {
+        report('fail', 'Публичный доступ', `${mediaBase} отдаёт не то содержимое`);
+      } else {
+        report('ok', 'Публичный доступ', `${mediaBase} отдаёт загруженный файл`);
+      }
+    } catch (error) {
+      report(
+        'fail',
+        'Публичный доступ',
+        `${mediaBase} недоступен: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  if (written) {
+    try {
+      await driver.delete(key);
+    } catch {
+      report('warn', 'Хранилище', `пробный файл остался в бакете: ${key}`);
+    }
   }
 }
 
