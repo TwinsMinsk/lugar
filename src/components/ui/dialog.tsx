@@ -122,6 +122,7 @@ export function ConfirmButton({
   onConfirm,
   disabled,
   variant = 'ghost',
+  tone = 'danger',
   size = 'sm',
   className,
 }: {
@@ -133,7 +134,13 @@ export function ConfirmButton({
   confirmLabel?: string;
   onConfirm: () => void;
   disabled?: boolean;
-  variant?: 'ghost' | 'outline';
+  variant?: 'ghost' | 'outline' | 'primary';
+  /**
+   * Colour of the confirming button. Not everything worth confirming is
+   * destructive: publishing is the most consequential button in the panel and
+   * painting it red would teach the owner to fear it.
+   */
+  tone?: 'danger' | 'neutral';
   size?: 'sm' | 'md';
   className?: string;
 }) {
@@ -185,9 +192,9 @@ export function ConfirmButton({
                 onConfirm();
               }}
               className={cn(
-                buttonClasses('outline', 'sm'),
-                'border-[oklch(0.52_0.17_25)] text-[oklch(0.52_0.17_25)]',
-                'hover:bg-[oklch(0.52_0.17_25)] hover:text-white',
+                buttonClasses(tone === 'danger' ? 'outline' : 'primary', 'sm'),
+                tone === 'danger' &&
+                  'border-[oklch(0.52_0.17_25)] text-[oklch(0.52_0.17_25)] hover:bg-[oklch(0.52_0.17_25)] hover:text-white',
               )}
             >
               {confirmLabel ?? label}

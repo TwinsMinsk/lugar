@@ -36,7 +36,14 @@ test.describe('users and invitations', () => {
     await page.goto('/admin/users');
 
     const ownerRow = page.getByRole('listitem').filter({ hasText: 'это вы' });
+    // Choosing a role no longer applies it: an arrow key used to demote the
+    // owner outright. The change is staged, then confirmed.
     await ownerRow.getByRole('combobox').selectOption('manager');
+    await ownerRow.getByRole('button', { name: 'Применить' }).click();
+    await page
+      .getByRole('dialog', { name: 'Сменить роль?' })
+      .getByRole('button', { name: 'Сменить роль' })
+      .click();
 
     // An installation with no owner cannot invite anyone or change any setting,
     // and would need database access to recover.

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { live, LIVE } from './live';
 import { ADMIN_STORAGE_STATE } from './storage-state';
@@ -20,6 +20,20 @@ import { ADMIN_STORAGE_STATE } from './storage-state';
  */
 const EMAIL = process.env.E2E_ADMIN_EMAIL;
 const PASSWORD = process.env.E2E_ADMIN_PASSWORD;
+
+/**
+ * Publish RU, through the confirmation.
+ *
+ * The dialog exists because publishing is the one button on that screen whose
+ * effect is outside it, and because it silently saves the draft first.
+ */
+async function publishRu(page: Page) {
+  await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+  await page
+    .getByRole('dialog', { name: 'Опубликовать RU?' })
+    .getByRole('button', { name: 'Опубликовать' })
+    .click();
+}
 
 test.describe('portfolio', () => {
   test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
@@ -49,9 +63,10 @@ test.describe('portfolio', () => {
         const link = page.getByRole('link', { name: slug });
         if ((await link.count()) === 0) continue;
         await link.first().click();
-        const takeDown = page.getByRole('button', { name: 'Снять с сайта' });
+        const takeDown = page.getByRole('button', { name: 'Снять со всех языков' });
         if (await takeDown.isEnabled().catch(() => false)) {
           await takeDown.click();
+          await page.getByRole('button', { name: 'Снять', exact: true }).click();
           await expect(page.getByText('Проект снят с сайта.')).toBeVisible({ timeout: 15_000 });
         }
       }
@@ -122,7 +137,7 @@ test.describe('portfolio', () => {
     await page.getByRole('button', { name: 'Сохранить карточку' }).click();
     await expect(page.getByText('Карточка сохранена.')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+    await publishRu(page);
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
     published.push(slug);
 
@@ -146,10 +161,63 @@ test.describe('portfolio', () => {
     await page.goBack();
     await page.goto('/admin/portfolio');
     await page.getByRole('link', { name: slug }).click();
-    await page.getByRole('button', { name: 'Снять с сайта' }).click();
+    await page.getByRole('button', { name: 'Снять со всех языков' }).click();
+    await page.getByRole('button', { name: 'Снять', exact: true }).click();
     await expect(page.getByText('Проект снят с сайта.')).toBeVisible({ timeout: 15_000 });
 
     await expect.poll(live(page, '/raboty', card), LIVE).toBe(0);
     await expect(page.getByText('В этой категории пока нет работ.')).toBeVisible();
+  });
+  test('a project that has been on the site can be removed but not erased', async ({ page }) => {
+    const slug = `opublikovannyy-ubrat-${Date.now()}`;
+
+    await page.goto('/admin/portfolio');
+    await page.getByLabel('Название').fill('Опубликованный проект');
+    await page.getByLabel('Адрес страницы').fill(slug);
+    await page.getByRole('button', { name: 'Создать проект' }).click();
+    await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
+    const documentId = page.url().split('/').pop()!;
+
+    await publishRu(page);
+    await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
+    published.push(slug);
+
+    // Preview works while it is published — otherwise the assertion after the
+    // removal below would pass for the wrong reason.
+    expect((await page.goto(`/api/preview?documentId=${documentId}&locale=ru`))?.status()).toBe(
+      200,
+    );
+    await page.goto('/api/preview/exit');
+
+    // Убрать: out of the working list, and off the site with it.
+    await page.goto('/admin/portfolio');
+    const liveTable = page.getByRole('table', { name: 'Проекты', exact: true });
+    const row = liveTable.getByRole('row').filter({ hasText: slug });
+    await row.getByRole('button', { name: 'Убрать' }).click();
+    await row.getByRole('button', { name: 'Убрать' }).click();
+
+    const archived = page
+      .getByRole('table', { name: 'Убранные проекты' })
+      .getByRole('row')
+      .filter({ hasText: slug });
+    await expect(archived).toHaveCount(1, { timeout: 15_000 });
+    // It has been on the site, so the second level is not offered at all and
+    // the reason takes its place.
+    await expect(archived.getByRole('button', { name: 'Удалить навсегда' })).toHaveCount(0);
+    await expect(archived).toContainText('была на сайте');
+
+    // The public page and the shared preview link both go with it — those
+    // links get sent to people.
+    expect((await page.goto(`/raboty/${slug}`))?.status()).toBe(404);
+    expect((await page.goto(`/api/preview?documentId=${documentId}&locale=ru`))?.status()).toBe(
+      404,
+    );
+
+    await expect
+      .poll(
+        live(page, '/raboty', () => page.locator(`a[href="/raboty/${slug}"]`).count()),
+        LIVE,
+      )
+      .toBe(0);
   });
 });

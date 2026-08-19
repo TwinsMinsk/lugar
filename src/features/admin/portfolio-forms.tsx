@@ -9,6 +9,7 @@ import {
   updateProjectMeta,
 } from '@/app/(admin)/admin/_actions/portfolio';
 import { buttonClasses } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { MediaPicker, type PickableAsset } from './media-picker';
 
@@ -351,20 +352,22 @@ export function ProjectMetaForm({
           Сохранить карточку
         </button>
 
-        <button
-          type="button"
+        {/* The editor below has a per-locale «Снять с сайта RU/ES/EN». This one
+            does all three at once, and says so — two controls whose names only
+            differ by a suffix would be read as the same button. */}
+        <InlineConfirm
+          label="Снять со всех языков"
+          question="Снять проект с сайта во всех языках?"
+          confirmLabel="Снять"
           disabled={pending}
-          onClick={() =>
+          onConfirm={() =>
             startTransition(async () => {
               const result = await archiveProject(documentId);
               setStatus(result.ok ? 'Проект снят с сайта.' : `Ошибка: ${result.error}`);
               router.refresh();
             })
           }
-          className={buttonClasses('ghost', 'sm')}
-        >
-          Снять с сайта
-        </button>
+        />
 
         {status ? (
           <span role="status" className="text-ink-muted text-[13px]">

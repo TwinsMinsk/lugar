@@ -92,6 +92,7 @@ test.describe('redirects', () => {
       const row = page.getByRole('listitem').filter({ hasText: path });
       if ((await row.count()) === 0) continue;
       await row.first().getByRole('button', { name: 'Удалить' }).click();
+      await row.first().getByRole('button', { name: 'Удалить' }).click();
       await expect(page.getByText(path)).toHaveCount(0, { timeout: 15_000 });
     }
 

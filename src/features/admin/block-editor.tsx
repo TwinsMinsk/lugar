@@ -2,8 +2,14 @@
 
 import { useState, useTransition } from 'react';
 
-import { publishDocument, rollbackDocument, saveDraft } from '@/app/(admin)/admin/_actions/content';
+import {
+  publishDocument,
+  rollbackDocument,
+  saveDraft,
+  unpublishDocument,
+} from '@/app/(admin)/admin/_actions/content';
 import { buttonClasses } from '@/components/ui/button';
+import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { BLOCK_REGISTRY } from '@/content/blocks/registry';
 import type { AnyBlock } from '@/content/blocks/union';
 import { LOCALES, type Locale } from '@/i18n/routing';
@@ -269,22 +275,49 @@ export function BlockEditor({
           {pending ? 'Сохраняем…' : 'Сохранить черновик'}
         </button>
 
+        {/* Publishing is the one button here whose effect is outside this
+            screen, and it quietly saves the draft first — so the dialog says
+            both things rather than letting the reader discover them. */}
         {LOCALES.map((code) => (
-          <button
+          <ConfirmButton
             key={code}
-            type="button"
+            label={`Опубликовать ${code.toUpperCase()}`}
+            title={`Опубликовать ${code.toUpperCase()}?`}
+            description={
+              dirty
+                ? `Черновик сначала сохранится, затем версию ${code.toUpperCase()} увидят посетители сайта.`
+                : `Текущий черновик увидят посетители сайта в версии ${code.toUpperCase()}.`
+            }
+            confirmLabel="Опубликовать"
+            variant="primary"
+            tone="neutral"
+            className="text-[13px]"
             disabled={pending}
-            onClick={() =>
+            onConfirm={() =>
               run(async () => {
                 const saved = await saveDraft({ documentId, blocks });
                 if (!saved.ok) return saved;
                 return publishDocument({ documentId, locales: [code] });
               }, `Опубликовано (${code.toUpperCase()})`)
             }
-            className={buttonClasses('primary', 'sm')}
-          >
-            Опубликовать {code.toUpperCase()}
-          </button>
+          />
+        ))}
+
+        {/* The missing verb: a page could be published and never taken down. */}
+        {publishedLocales.map((code) => (
+          <InlineConfirm
+            key={`unpublish-${code}`}
+            label={`Снять с сайта ${code.toUpperCase()}`}
+            question={`Снять ${code.toUpperCase()} с сайта?`}
+            confirmLabel="Снять"
+            disabled={pending}
+            onConfirm={() =>
+              run(
+                () => unpublishDocument({ documentId, locales: [code] }),
+                `Снято с сайта (${code.toUpperCase()})`,
+              )
+            }
+          />
         ))}
 
         {dirty ? (
@@ -346,11 +379,16 @@ function RevisionHistory({
             ) : null}
             <div className="ml-auto flex gap-1.5">
               {(publishedLocales.length > 0 ? publishedLocales : LOCALES).map((code) => (
-                <button
+                <ConfirmButton
                   key={code}
-                  type="button"
+                  label={`↩ ${code}`}
+                  title={`Вернуть версию ${revision.revisionNumber}?`}
+                  description={`Версия ${revision.revisionNumber} снова станет тем, что показывается в ${code.toUpperCase()}. Текущий черновик при этом заменяется её содержимым.`}
+                  confirmLabel="Вернуть версию"
+                  tone="neutral"
                   disabled={pending || revision.liveFor.includes(code)}
-                  onClick={() =>
+                  className="uppercase"
+                  onConfirm={() =>
                     onRun(
                       () =>
                         rollbackDocument({
@@ -361,10 +399,7 @@ function RevisionHistory({
                       `Версия ${revision.revisionNumber} восстановлена (${code.toUpperCase()})`,
                     )
                   }
-                  className="border-line-strong text-ink rounded-[--radius-btn] border px-2.5 py-1 text-[12px] uppercase disabled:opacity-30"
-                >
-                  ↩ {code}
-                </button>
+                />
               ))}
             </div>
           </li>

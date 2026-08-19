@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
+import { AddressEditor } from '@/features/admin/address-editor';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { documentPath, localePath } from '@/lib/routes';
 
@@ -65,6 +66,15 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
           не пересохраняйте страницу, иначе они будут потеряны.
         </p>
       ) : null}
+
+      <AddressEditor
+        documentId={document.id}
+        locales={document.locales.map((entry) => ({
+          locale: entry.locale,
+          slug: entry.slug,
+          status: entry.status,
+        }))}
+      />
 
       <BlockEditor
         documentId={document.id}

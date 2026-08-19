@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { t } from '@/content/i18n';
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
 import { getProjectMeta, listCategoriesForAdmin, listPickableAssets } from '@/data/admin/portfolio';
+import { AddressEditor } from '@/features/admin/address-editor';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { ProjectMetaForm } from '@/features/admin/portfolio-forms';
 
@@ -67,6 +68,16 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
           isFeatured: meta.isFeatured,
           sortOrder: meta.sortOrder,
         }}
+      />
+
+      <AddressEditor
+        documentId={document.id}
+        locales={document.locales.map((entry) => ({
+          locale: entry.locale,
+          slug: entry.slug,
+          status: entry.status,
+        }))}
+        prefix="raboty/"
       />
 
       <BlockEditor

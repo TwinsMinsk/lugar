@@ -11,6 +11,7 @@ import {
   updateNavigationItem,
 } from '@/app/(admin)/admin/_actions/navigation';
 import { buttonClasses } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/dialog';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 
@@ -309,14 +310,13 @@ function MenuSection({
                     Изменить
                   </button>
 
-                  <button
-                    type="button"
+                  <InlineConfirm
+                    label="Удалить"
+                    question="Удалить пункт меню?"
+                    confirmLabel="Удалить"
                     disabled={pending}
-                    onClick={() => run(() => deleteNavigationItem(item.id))}
-                    className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
-                  >
-                    Удалить
-                  </button>
+                    onConfirm={() => run(() => deleteNavigationItem(item.id))}
+                  />
                 </div>
               )}
             </li>

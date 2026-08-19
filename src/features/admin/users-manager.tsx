@@ -10,6 +10,7 @@ import {
   setUserBanned,
 } from '@/app/(admin)/admin/_actions/users';
 import { buttonClasses } from '@/components/ui/button';
+import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 export type UserRow = {
@@ -179,14 +180,14 @@ export function UsersManager({
                     срок истёк
                   </span>
                 ) : null}
-                <button
-                  type="button"
+                <InlineConfirm
+                  label="Отозвать"
+                  question="Отозвать приглашение?"
+                  confirmLabel="Отозвать"
                   disabled={pending}
-                  onClick={() => run(() => revokeInvitation(row.id))}
-                  className={cn(buttonClasses('ghost', 'sm'), 'ml-auto text-[12px]')}
-                >
-                  Отозвать
-                </button>
+                  onConfirm={() => run(() => revokeInvitation(row.id))}
+                  className="ml-auto"
+                />
               </li>
             ))}
           </ul>
@@ -208,39 +209,34 @@ export function UsersManager({
                 <div className="text-ink-faint text-[12px]">{row.email}</div>
               </div>
 
-              <label className="sr-only" htmlFor={`role-${row.id}`}>
-                Роль для {row.email}
-              </label>
-              <select
-                id={`role-${row.id}`}
-                value={row.role}
-                disabled={pending}
-                onChange={(event) =>
-                  run(() => changeUserRole({ userId: row.id, role: event.target.value as 'owner' }))
-                }
-                className="border-line-strong rounded-[--radius-btn] border px-2 py-1 text-[13px]"
-              >
-                {Object.keys(ROLE_LABEL).map((value) => (
-                  <option key={value} value={value}>
-                    {ROLE_LABEL[value]}
-                  </option>
-                ))}
-              </select>
+              <RoleControl
+                user={row}
+                pending={pending}
+                onApply={(role) => run(() => changeUserRole({ userId: row.id, role }))}
+              />
 
-              {row.id === currentUserId ? null : (
+              {row.id === currentUserId ? null : row.banned ? (
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => run(() => setUserBanned(row.id, !row.banned))}
+                  onClick={() => run(() => setUserBanned(row.id, false))}
                   className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
                 >
-                  {row.banned ? 'Разблокировать' : 'Заблокировать'}
+                  Вернуть доступ
                 </button>
+              ) : (
+                <ConfirmButton
+                  label="Отключить доступ"
+                  title="Отключить доступ?"
+                  description={`${row.email} перестанет входить в панель. Учётная запись и всё, что этот человек сделал, сохраняются — доступ можно вернуть.`}
+                  disabled={pending}
+                  onConfirm={() => run(() => setUserBanned(row.id, true))}
+                />
               )}
 
               {row.banned ? (
                 <span className="rounded-[--radius-btn] bg-[oklch(0.95_0.05_25)] px-1.5 py-0.5 text-[11px] text-[oklch(0.45_0.14_25)]">
-                  заблокирован
+                  доступ отключён
                 </span>
               ) : null}
             </li>
@@ -248,5 +244,59 @@ export function UsersManager({
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * Changing someone's role.
+ *
+ * A bare `<select onChange>` was worse than it looked: an arrow key demotes
+ * the owner, and wrapping *that* in a confirmation would open a dialog on
+ * every keystroke. So the select edits local state and nothing happens until
+ * "Применить" — which is also what gives the confirmation something concrete
+ * to say, rather than asking about a change the reader has already made.
+ */
+function RoleControl({
+  user,
+  pending,
+  onApply,
+}: {
+  user: { id: string; email: string; role: string };
+  pending: boolean;
+  onApply: (role: 'owner') => void;
+}) {
+  const [role, setRole] = useState(user.role);
+  const changed = role !== user.role;
+
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <label className="sr-only" htmlFor={`role-${user.id}`}>
+        Роль для {user.email}
+      </label>
+      <select
+        id={`role-${user.id}`}
+        value={role}
+        disabled={pending}
+        onChange={(event) => setRole(event.target.value)}
+        className="border-line-strong rounded-[--radius-btn] border px-2 py-1 text-[13px]"
+      >
+        {Object.keys(ROLE_LABEL).map((value) => (
+          <option key={value} value={value}>
+            {ROLE_LABEL[value]}
+          </option>
+        ))}
+      </select>
+
+      {changed ? (
+        <ConfirmButton
+          label="Применить"
+          title="Сменить роль?"
+          description={`${user.email} станет — ${ROLE_LABEL[role] ?? role}. ${ROLE_HELP[role] ?? ''}`}
+          confirmLabel="Сменить роль"
+          disabled={pending}
+          onConfirm={() => onApply(role as 'owner')}
+        />
+      ) : null}
+    </span>
   );
 }

@@ -8,12 +8,14 @@ import { z } from 'zod';
 import { collectMediaUsage } from '@/content/blocks/media-usage';
 import { blocksSchema, type AnyBlock } from '@/content/blocks/union';
 import { invalidateDocument } from '@/data/cache-invalidation';
+import { getPortfolioIndexSlug } from '@/data/public/documents';
 import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { documentLocales, documentRevisions, documents, mediaUsage, redirects } from '@/db/schema';
 import { LOCALES } from '@/i18n/routing';
 import { recordAudit, summarizeBlocks } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
+import { documentPath, localePath } from '@/lib/routes';
 
 /**
  * Content mutations.
@@ -382,14 +384,44 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
   const { documentId, locale, slug } = parsed.data;
 
   const [current] = await db
-    .select()
+    .select({
+      slug: documentLocales.slug,
+      kind: documentLocales.kind,
+      status: documentLocales.status,
+      publishedRevisionId: documentLocales.publishedRevisionId,
+    })
     .from(documentLocales)
     .where(and(eq(documentLocales.documentId, documentId), eq(documentLocales.locale, locale)))
     .limit(1);
   if (!current) return { ok: false, error: 'not_found' };
   if (current.slug === slug) return { ok: true };
 
+  /**
+   * The site root is not an address anything can be moved to or off.
+   *
+   * The pattern above accepts an empty slug, and exactly one document is
+   * supposed to hold it — the home page. Letting anything else claim it puts
+   * two documents at the same URL and the winner is whichever the resolver
+   * reaches first; letting the home page give it up leaves the site with no `/`
+   * at all. Renaming everything else, including the Spanish and English
+   * addresses of the fixed pages, is the point of this action: those get
+   * corrected by whoever proofreads them, not by a developer.
+   */
+  if (slug === '') return { ok: false, error: 'slug_empty' };
+  if (current.slug === '') return { ok: false, error: 'slug_is_home' };
+
   const context = await requestContext();
+
+  /**
+   * Projects live under the portfolio index, pages at the root.
+   *
+   * Built with the same helpers the site renders its links with, rather than by
+   * concatenating the slug here: this action had no interface until now, and
+   * the paths it assembled were page-shaped, so renaming a project would have
+   * written a redirect from an address that never existed.
+   */
+  const kind = current.kind as 'page' | 'project';
+  const indexSlug = kind === 'project' ? await getPortfolioIndexSlug(locale) : null;
 
   try {
     await db.transaction(async (tx) => {
@@ -399,15 +431,8 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
         .where(and(eq(documentLocales.documentId, documentId), eq(documentLocales.locale, locale)));
 
       if (current.status === 'published' && current.slug !== '') {
-        const from = locale === 'ru' ? `/${current.slug}` : `/${locale}/${current.slug}`;
-        const to =
-          slug === ''
-            ? locale === 'ru'
-              ? '/'
-              : `/${locale}`
-            : locale === 'ru'
-              ? `/${slug}`
-              : `/${locale}/${slug}`;
+        const from = localePath(locale, documentPath(kind, current.slug, indexSlug));
+        const to = localePath(locale, documentPath(kind, slug, indexSlug));
         // Renaming *back* to a path we previously redirected away from would
         // otherwise leave /a -> /b and /b -> /a pointing at each other. The
         // page now lives here again, so its old redirect is simply wrong.

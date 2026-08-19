@@ -36,7 +36,7 @@ const ACTION_LABEL: Record<string, string> = {
   'users.invitation_revoked': 'Приглашение отозвано',
   'users.invitation_accepted': 'Приглашение принято',
   'users.role_changed': 'Изменена роль',
-  'users.banned': 'Доступ заблокирован',
+  'users.banned': 'Доступ отключён',
   'users.unbanned': 'Доступ восстановлен',
   'lead.deleted': 'Заявка удалена',
   'crm.exported': 'Выгрузка заявок',

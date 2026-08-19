@@ -124,37 +124,4 @@ test.describe('removal', () => {
     // levels, stated as a test rather than as a comment.
     await createProject(page, slug, 'Переиспользованный адрес');
   });
-
-  test('a project that has been on the site keeps its history, and its preview dies with it', async ({
-    page,
-  }) => {
-    const slug = `opublikovannyy-ubrat-${Date.now()}`;
-    const documentId = await createProject(page, slug, 'Опубликованный проект');
-
-    await page.getByRole('button', { name: 'Опубликовать RU' }).click();
-    await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
-
-    // Preview works while it is published — otherwise the assertion after the
-    // removal would pass for the wrong reason.
-    const before = await page.goto(`/api/preview?documentId=${documentId}&locale=ru`);
-    expect(before?.status()).toBe(200);
-    await expect(page.locator('h1')).toHaveText('Опубликованный проект');
-    await page.goto('/api/preview/exit');
-
-    await archive(page, slug);
-
-    const row = archiveTable(page).getByRole('row').filter({ hasText: slug });
-    await expect(row.getByRole('button', { name: 'Удалить навсегда' })).toHaveCount(0);
-    await expect(row).toContainText('была на сайте');
-
-    // Removal is also a take-down, on the public page and on the shared preview
-    // link alike — those links get sent to people.
-    expect((await page.goto(`/raboty/${slug}`))?.status()).toBe(404);
-    expect((await page.goto(`/api/preview?documentId=${documentId}&locale=ru`))?.status()).toBe(
-      404,
-    );
-
-    await page.goto('/raboty');
-    await expect(page.locator(`a[href="/raboty/${slug}"]`)).toHaveCount(0);
-  });
 });

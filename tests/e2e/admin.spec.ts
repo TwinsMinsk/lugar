@@ -14,6 +14,20 @@ import { h1Text, live, LIVE } from './live';
 const EMAIL = process.env.E2E_ADMIN_EMAIL;
 const PASSWORD = process.env.E2E_ADMIN_PASSWORD;
 
+/**
+ * Publish RU, through the confirmation.
+ *
+ * The dialog exists because publishing is the one button on that screen whose
+ * effect is outside it, and because it silently saves the draft first.
+ */
+async function publishRu(page: Page) {
+  await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+  await page
+    .getByRole('dialog', { name: 'Опубликовать RU?' })
+    .getByRole('button', { name: 'Опубликовать' })
+    .click();
+}
+
 test.describe('admin', () => {
   test.skip(!EMAIL || !PASSWORD, 'E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD are not set');
 
@@ -40,7 +54,7 @@ test.describe('admin', () => {
       const heading = page.getByLabel('Заголовок', { exact: true }).first();
       if ((await heading.inputValue()) !== seededHeading) {
         await heading.fill(seededHeading);
-        await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+        await publishRu(page);
         await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
       }
     } finally {
@@ -91,7 +105,7 @@ test.describe('admin', () => {
     seededHeading = original;
     await heading.fill(marker);
 
-    await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+    await publishRu(page);
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
     // The change must be live on the public site.
@@ -110,6 +124,12 @@ test.describe('admin', () => {
     // Target the first *enabled* one, which is the preceding revision.
     const rollback = page.getByRole('button', { name: '↩ ru' }).and(page.locator(':enabled'));
     await rollback.first().click();
+    // Behind a confirmation: a rollback replaces the draft with the old
+    // content, which is not something the row itself shows.
+    await page
+      .getByRole('dialog', { name: /Вернуть версию/ })
+      .getByRole('button', { name: 'Вернуть версию' })
+      .click();
     await expect(page.getByText(/восстановлена \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
     await expect
@@ -125,7 +145,7 @@ test.describe('admin', () => {
     await page.goto('/admin/pages');
     await page.getByRole('link', { name: 'home' }).click();
     await page.getByLabel('Заголовок', { exact: true }).first().fill(original);
-    await page.getByRole('button', { name: 'Опубликовать RU' }).click();
+    await publishRu(page);
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 
     await expect

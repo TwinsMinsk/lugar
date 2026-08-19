@@ -9,6 +9,7 @@ import {
   setRedirectActive,
 } from '@/app/(admin)/admin/_actions/redirects';
 import { buttonClasses } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 export type RedirectRow = {
@@ -209,14 +210,13 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
                   {row.isActive ? 'Выключить' : 'Включить'}
                 </button>
 
-                <button
-                  type="button"
+                <InlineConfirm
+                  label="Удалить"
+                  question="Удалить правило?"
+                  confirmLabel="Удалить"
                   disabled={pending}
-                  onClick={() => run(() => deleteRedirect(row.id))}
-                  className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
-                >
-                  Удалить
-                </button>
+                  onConfirm={() => run(() => deleteRedirect(row.id))}
+                />
               </li>
             ))}
           </ul>

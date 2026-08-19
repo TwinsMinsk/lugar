@@ -79,6 +79,9 @@ test.describe('navigation', () => {
     // its own earlier failure, or the next run starts from dirty state.
     const stale = section.getByRole('listitem').filter({ hasText: PREFIX });
     for (let remaining = await stale.count(); remaining > 0; remaining -= 1) {
+      // Inline confirmation: the trigger is replaced by the question and its
+      // own confirm button, so the name repeats and the row scope disambiguates.
+      await stale.first().getByRole('button', { name: 'Удалить' }).click();
       await stale.first().getByRole('button', { name: 'Удалить' }).click();
       await expect(stale).toHaveCount(remaining - 1, { timeout: 15_000 });
     }
