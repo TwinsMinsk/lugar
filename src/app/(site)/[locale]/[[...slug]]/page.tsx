@@ -28,10 +28,19 @@ type PageProps = {
  * build still renders on demand rather than 404ing; it simply is not in the
  * initial static set.
  *
- * If the database is unreachable at build time the list comes back empty and
- * every route falls back to on-demand rendering, so a build never fails purely
- * because the database was not up yet.
+ * If the database is unreachable at build time this falls back to the home page
+ * of each locale rather than to nothing. Cache Components rejects an empty
+ * result outright — "all generateStaticParams functions must return at least
+ * one result" — so returning `[]` turns an unreachable database into a failed
+ * build. Railway builds cannot reach the private network the database lives on,
+ * which makes that the normal case there, not an edge one.
+ *
+ * The fallback is a real route: `/`, `/es`, `/en` exist whatever the content
+ * says, and `dynamicParams` stays true, so everything else still renders on
+ * demand.
  */
+const HOME_PARAMS = routing.locales.map((locale) => ({ locale, slug: [] as string[] }));
+
 export async function generateStaticParams() {
   try {
     const [paths, indexSlugs] = await Promise.all([
@@ -44,6 +53,9 @@ export async function generateStaticParams() {
     ]);
     const indexByLocale = new Map(indexSlugs);
 
+    // An empty database is as fatal to the build as an unreachable one.
+    if (paths.length === 0) return HOME_PARAMS;
+
     return paths.map((entry) => ({
       locale: entry.locale,
       slug:
@@ -54,7 +66,7 @@ export async function generateStaticParams() {
             : [entry.slug],
     }));
   } catch {
-    return [];
+    return HOME_PARAMS;
   }
 }
 

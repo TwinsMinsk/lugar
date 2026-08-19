@@ -40,6 +40,16 @@ const serverSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+    /**
+     * Connection used only while `next build` prerenders.
+     *
+     * Railway build containers have no route to the private network, so the
+     * address the app uses at runtime is unreachable exactly when the build
+     * needs to read published content. Set this to the provider's public
+     * connection string; leave it unset anywhere the same address works for
+     * both.
+     */
+    DATABASE_URL_BUILD: optionalString,
 
     BETTER_AUTH_SECRET: requiredInProd('BETTER_AUTH_SECRET'),
     BETTER_AUTH_URL: optionalString,

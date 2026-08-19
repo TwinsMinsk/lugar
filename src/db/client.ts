@@ -18,8 +18,27 @@ import * as schema from './schema';
  * In development Next.js hot-reloads modules on every edit, which would leak a
  * new pool per reload — so the client is cached on globalThis there.
  */
+/**
+ * Which database to talk to.
+ *
+ * Prerendering reads published content, so `next build` needs the database —
+ * and a Railway build container cannot reach the private network the database
+ * lives on. Pointing DATABASE_URL at the public proxy would fix the build and
+ * tax every runtime query with a trip out of the network and back, forever, to
+ * solve a problem that only exists for a few minutes during a build.
+ *
+ * So the build gets its own connection string when one is provided, and
+ * everything else keeps the private address. `NEXT_PHASE` is set by Next itself
+ * and is only ever `phase-production-build` while building.
+ */
+function connectionString(): string {
+  const buildUrl = env.DATABASE_URL_BUILD;
+  if (buildUrl && process.env.NEXT_PHASE === 'phase-production-build') return buildUrl;
+  return env.DATABASE_URL;
+}
+
 const createClient = () =>
-  postgres(env.DATABASE_URL, {
+  postgres(connectionString(), {
     max: 5,
     idle_timeout: 20,
     connect_timeout: 15,

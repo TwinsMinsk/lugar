@@ -58,7 +58,9 @@ export interface StorageDriver {
  * Set STORAGE_LOCAL_ROOT to an absolute path on a mounted volume when this
  * driver runs in a deploy.
  */
-const LOCAL_ROOT = resolve(env.STORAGE_LOCAL_ROOT ?? join(process.cwd(), '.storage'));
+const LOCAL_ROOT = resolve(
+  /*turbopackIgnore: true*/ env.STORAGE_LOCAL_ROOT ?? join(process.cwd(), '.storage'),
+);
 
 class LocalStorage implements StorageDriver {
   readonly kind = 'local' as const;
