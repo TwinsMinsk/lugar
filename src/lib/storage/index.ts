@@ -46,7 +46,19 @@ export interface StorageDriver {
   publicUrl(key: string): string;
 }
 
-const LOCAL_ROOT = resolve(process.cwd(), '.storage');
+/**
+ * Root of the on-disk store.
+ *
+ * `process.cwd()` is not a stable base in production: the standalone server
+ * calls `process.chdir(__dirname)`, so an unconfigured relative default lands
+ * inside `.next/standalone` — the directory the next deploy replaces wholesale.
+ * Uploads would survive exactly until the following release, which is the worst
+ * shape data loss takes: delayed, silent, and discovered by a visitor.
+ *
+ * Set STORAGE_LOCAL_ROOT to an absolute path on a mounted volume when this
+ * driver runs in a deploy.
+ */
+const LOCAL_ROOT = resolve(env.STORAGE_LOCAL_ROOT ?? join(process.cwd(), '.storage'));
 
 class LocalStorage implements StorageDriver {
   readonly kind = 'local' as const;
@@ -79,7 +91,8 @@ class LocalStorage implements StorageDriver {
   async signedPutUrl(): Promise<string> {
     // No direct-to-storage upload locally; the dev route accepts the bytes.
     throw new Error(
-      'signedPutUrl is unavailable with local storage; POST to /api/uploads instead.',
+      'signedPutUrl is unavailable with local storage. The admin uploads through ' +
+        'the uploadMedia server action, which streams the bytes itself.',
     );
   }
 

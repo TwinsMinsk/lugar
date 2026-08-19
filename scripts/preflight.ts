@@ -16,6 +16,9 @@
  */
 import './load-env';
 
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
+
 import postgres from 'postgres';
 
 import journal from '../drizzle/meta/_journal.json' with { type: 'json' };
@@ -196,13 +199,60 @@ async function checkDatabase() {
 
 // --- object storage ---------------------------------------------------------
 
-async function checkStorage() {
-  if (process.env.STORAGE_DRIVER === 'local') {
+/**
+ * On-disk storage on a mounted volume is a legitimate deploy, so the question
+ * is not "is this local?" but "will these files still be here tomorrow?".
+ *
+ * The answer hinges on one variable. Unset, the driver falls back to a path
+ * relative to the working directory — and the standalone server chdirs into its
+ * own build output, so uploads land in the directory the next release replaces.
+ */
+async function checkLocalStorage() {
+  const configured = process.env.STORAGE_LOCAL_ROOT?.trim();
+
+  if (!configured) {
     report(
       isProduction ? 'fail' : 'warn',
       'Хранилище',
-      'STORAGE_DRIVER=local — Railway стирает диск контейнера при каждом деплое',
+      'STORAGE_LOCAL_ROOT не задан — файлы окажутся внутри сборки и исчезнут при следующем деплое',
     );
+    return;
+  }
+
+  if (!isAbsolute(configured)) {
+    report(
+      'fail',
+      'Хранилище',
+      `STORAGE_LOCAL_ROOT=${configured} — нужен абсолютный путь к точке монтирования тома`,
+    );
+    return;
+  }
+
+  // Writable is the only thing worth asserting: a volume that mounts read-only,
+  // or a path that is not the volume at all, both look fine until an upload.
+  const probe = join(configured, `.preflight-${Date.now()}`);
+  try {
+    await mkdir(configured, { recursive: true });
+    await writeFile(probe, 'preflight');
+    const read = await readFile(probe, 'utf8');
+    if (read !== 'preflight') throw new Error('прочитано не то, что записано');
+    report('ok', 'Хранилище', `диск ${configured}: запись и чтение прошли`);
+  } catch (error) {
+    report('fail', 'Хранилище', `${configured}: ${error instanceof Error ? error.message : error}`);
+  } finally {
+    await unlink(probe).catch(() => {});
+  }
+
+  report(
+    'warn',
+    'Раздача изображений',
+    'при локальном диске фотографии отдаёт само приложение, без CDN — следите за скоростью после загрузки настоящих фото',
+  );
+}
+
+async function checkStorage() {
+  if (process.env.STORAGE_DRIVER === 'local') {
+    await checkLocalStorage();
     return;
   }
 

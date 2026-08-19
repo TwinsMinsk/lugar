@@ -74,6 +74,15 @@ const serverSchema = z
       .transform((value) => (value === '' ? undefined : value))
       .pipe(z.enum(['local', 's3']).optional())
       .optional(),
+    /**
+     * Where the local driver keeps files. Absolute in a deploy.
+     *
+     * Defaults to `.storage` under the working directory, which is right for
+     * development and wrong everywhere else: the standalone server chdirs into
+     * its own build output, so the default would put uploads inside the
+     * directory the next release replaces. Point this at a mounted volume.
+     */
+    STORAGE_LOCAL_ROOT: optionalString,
     S3_ENDPOINT: optionalString,
     S3_REGION: optionalString.pipe(z.string().default('auto').optional()),
     S3_ACCESS_KEY_ID: optionalString,
