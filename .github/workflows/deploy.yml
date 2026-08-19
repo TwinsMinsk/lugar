@@ -1,0 +1,82 @@
+# Deploy to Railway on every push to main.
+#
+# This exists because Railway's own GitHub integration would not connect: the
+# authorisation window closes without linking, and the CLI answers
+# "Unauthorized" when asked to attach the repo. Rather than wait for that, the
+# push is driven from here — GitHub already has the code and Railway already
+# accepts an upload, so the integration is not actually needed.
+#
+# The checks run first on purpose. Railway builds whatever it is handed, so
+# without a gate a typo reaches production and the site is down until the next
+# push. These three catch that in about a minute.
+#
+# Requires one secret: RAILWAY_TOKEN, a project token from
+# Railway → project → Settings → Tokens, added under
+# GitHub → repo → Settings → Secrets and variables → Actions.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  # Deploy the current main without pushing anything — useful when a deploy
+  # failed for a reason that had nothing to do with the code.
+  workflow_dispatch:
+
+concurrency:
+  # A second push while the first is still deploying should replace it, not
+  # race it: two `railway up` runs would fight over the same service.
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # Unit tests only. The integration suites need a Postgres to talk to and
+      # the end-to-end suite needs a built site and a browser; both belong in a
+      # slower workflow than the one gating a deploy.
+      - run: npx vitest run tests/unit
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      # A missing secret otherwise surfaces as an authentication error from the
+      # CLI, which reads like the token is wrong rather than absent.
+      - name: Check the deploy token is present
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN is not set."
+            echo "Create a project token in Railway (project → Settings → Tokens)"
+            echo "and add it as an Actions secret named RAILWAY_TOKEN."
+            exit 1
+          fi
+
+      # `railway up` uploads this checkout and Railway builds it, so the build
+      # happens where the deploy does — the same path a local `railway up`
+      # takes, and the same one that produced the running site.
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service lugar-web --ci
