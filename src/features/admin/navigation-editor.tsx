@@ -135,7 +135,7 @@ function MenuSection({
 
       {/* Both areas stay mounted: one inserted together with its text is not
           announced by a screen reader. */}
-      <p role="alert" className="mb-3 text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger mb-3 text-[13px] empty:hidden">
         {error}
       </p>
       <p role="status" className="text-ink-muted mb-3 text-[13px] empty:hidden">
@@ -206,7 +206,7 @@ function MenuSection({
                         in that locale. Saying so here is the only way the owner
                         finds out before a visitor does. */}
                     {item.hiddenIn.length > 0 ? (
-                      <div className="mt-0.5 text-[12px] text-[oklch(0.5_0.12_85)]">
+                      <div className="text-warning mt-0.5 text-[12px]">
                         Не появится в меню: {item.hiddenIn.join(', ')} — страница там не
                         опубликована.
                       </div>

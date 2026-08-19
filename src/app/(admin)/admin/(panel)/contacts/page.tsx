@@ -155,7 +155,7 @@ export default async function ContactsPage({ searchParams }: PageProps) {
                   </td>
                   <td className="px-4 py-3 align-top text-[12px]">
                     {row.waOptIn ? (
-                      <span className="text-[oklch(0.42_0.08_150)]">согласие есть</span>
+                      <span className="text-success">согласие есть</span>
                     ) : (
                       <span className="text-ink-faint">без согласия</span>
                     )}

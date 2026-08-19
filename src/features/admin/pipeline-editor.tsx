@@ -55,7 +55,7 @@ export function PipelineEditor({
 
       {/* Both areas stay mounted: one inserted together with its text is not
           announced by a screen reader. */}
-      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger text-[13px] empty:hidden">
         {error}
       </p>
       <p role="status" className="text-ink-muted text-[13px] empty:hidden">

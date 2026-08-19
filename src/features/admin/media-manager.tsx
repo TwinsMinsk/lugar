@@ -164,7 +164,7 @@ function RemovedCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string
         )}
       </div>
 
-      <p role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger text-[12px] empty:hidden">
         {error}
       </p>
     </li>
@@ -227,7 +227,7 @@ function UploadForm({ onDone }: { onDone: (message: string) => void }) {
       </button>
 
       {error ? (
-        <p role="alert" className="basis-full text-[13px] text-[oklch(0.52_0.17_25)]">
+        <p role="alert" className="text-danger basis-full text-[13px]">
           {error}
         </p>
       ) : null}
@@ -299,7 +299,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
           </span>
           <span>{Math.round(item.bytes / 1024)} КБ</span>
           {item.usedOnPublishedPage ? (
-            <span className="rounded-[--radius-btn] bg-[oklch(0.94_0.05_150)] px-1.5 py-0.5 text-[11px] text-[oklch(0.38_0.08_150)]">
+            <span className="bg-success-surface text-success-ink rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]">
               на сайте
             </span>
           ) : item.usageCount > 0 ? (
@@ -342,7 +342,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
         />
 
         {error ? (
-          <p role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)]">
+          <p role="alert" className="text-danger text-[12px]">
             {error}
           </p>
         ) : null}

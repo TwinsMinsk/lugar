@@ -229,7 +229,7 @@ export function AuditLog({
                     <div className="text-ink text-[14px]">
                       {ACTION_LABEL[entry.action] ?? entry.action}
                       {entry.result !== 'ok' ? (
-                        <span className="ml-2 rounded-[--radius-btn] bg-[oklch(0.95_0.05_25)] px-1.5 py-0.5 text-[11px] text-[oklch(0.45_0.14_25)]">
+                        <span className="bg-danger-surface text-danger-ink ml-2 rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]">
                           {entry.result}
                         </span>
                       ) : null}

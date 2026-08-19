@@ -107,7 +107,7 @@ export function DocumentRemoval({
       <span role="status" className="text-ink-muted text-[12px]">
         {status}
       </span>
-      <span role="alert" className="text-[12px] text-[oklch(0.52_0.17_25)]">
+      <span role="alert" className="text-danger text-[12px]">
         {error}
       </span>
     </span>

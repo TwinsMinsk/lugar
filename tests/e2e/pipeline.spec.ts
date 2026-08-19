@@ -122,7 +122,11 @@ test.describe('pipeline', () => {
 
     await page.goto(leadHref!);
     await page.getByLabel('Статус', { exact: true }).selectOption({ label: renamed });
-    await expect(page.getByText('Статус изменён')).toBeVisible({ timeout: 15_000 });
+    // The announcement region, not the timeline entry below it — both say the
+    // same words, and only one of them means "the click worked".
+    await expect(page.getByRole('status').filter({ hasText: 'Статус изменён' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.goto('/admin/pipeline');
     const row = page.getByRole('listitem').filter({ hasText: renamed });

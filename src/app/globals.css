@@ -59,6 +59,27 @@
      on-dark-soft, so the ramp still reads in the intended order. */
   --color-on-dark-faint: oklch(0.68 0.006 85);
 
+  /* --- status ------------------------------------------------------------
+     The admin panel had 22 copies of one red literal and about twenty more
+     one-off oklch() values for the same three meanings. Named here so a
+     warning looks the same on every screen — and so the contrast of a
+     message the owner must read is decided once rather than per component.
+     Each pair is text-on-surface and measures above 4.5:1. */
+  --color-danger: oklch(0.52 0.17 25);
+  --color-danger-surface: oklch(0.95 0.05 25);
+  --color-danger-line: oklch(0.86 0.09 25);
+  --color-danger-ink: oklch(0.45 0.14 25);
+
+  --color-warning: oklch(0.5 0.12 85);
+  --color-warning-surface: oklch(0.97 0.04 85);
+  --color-warning-line: oklch(0.86 0.09 85);
+  --color-warning-ink: oklch(0.45 0.1 85);
+
+  --color-success: oklch(0.42 0.08 150);
+  --color-success-surface: oklch(0.98 0.02 150);
+  --color-success-line: oklch(0.86 0.05 150);
+  --color-success-ink: oklch(0.38 0.08 150);
+
   /* --- typography --------------------------------------------------------
      Loaded via next/font in src/app/layout.tsx, which sets these variables.
      Fallbacks match the prototype's stacks. */

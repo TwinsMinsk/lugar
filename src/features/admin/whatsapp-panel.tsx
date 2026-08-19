@@ -95,7 +95,7 @@ export function WhatsAppPanel({
                 'rounded-[--radius-card] border p-2.5 text-[13px]',
                 message.direction === 'inbound'
                   ? 'border-line bg-surface-muted/60'
-                  : 'border-[oklch(0.88_0.05_150)] bg-[oklch(0.98_0.02_150)]',
+                  : 'bg-success-surface border-[oklch(0.88_0.05_150)]',
               )}
             >
               <div className="text-ink-faint mb-0.5 flex items-center gap-2 text-[11px]">
@@ -170,7 +170,7 @@ export function WhatsAppPanel({
 
       {/* Both areas stay mounted: one inserted together with its text is not
           announced by a screen reader. */}
-      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger text-[13px] empty:hidden">
         {error}
       </p>
       <p role="status" className="text-ink-muted text-[13px] empty:hidden">

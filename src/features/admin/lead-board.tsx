@@ -50,7 +50,7 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
       </p>
       {/* Always mounted: an area inserted together with its text is not
           announced by a screen reader. */}
-      <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger text-[13px] empty:hidden">
         {error}
       </p>
 

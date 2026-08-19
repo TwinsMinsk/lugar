@@ -134,7 +134,7 @@ export function AddressEditor({
       <p role="status" className="text-ink-muted mt-3 text-[13px] empty:hidden">
         {status}
       </p>
-      <p role="alert" className="mt-3 text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+      <p role="alert" className="text-danger mt-3 text-[13px] empty:hidden">
         {error}
       </p>
     </section>

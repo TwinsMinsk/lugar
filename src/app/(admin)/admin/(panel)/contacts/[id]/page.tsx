@@ -52,7 +52,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
       <div className="flex flex-wrap items-center gap-3">
         {contact.archivedAt ? (
-          <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
+          <span className="border-warning-line bg-warning-surface rounded-[--radius-btn] border px-2.5 py-1 text-[13px]">
             Клиент убран в архив {formatDate(contact.archivedAt)}
           </span>
         ) : null}
@@ -192,8 +192,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                       <span
                         className={
                           consent.granted
-                            ? 'ml-2 text-[11px] text-[oklch(0.42_0.08_150)]'
-                            : 'ml-2 text-[11px] text-[oklch(0.52_0.17_25)]'
+                            ? 'text-success ml-2 text-[11px]'
+                            : 'text-danger ml-2 text-[11px]'
                         }
                       >
                         {consent.granted ? 'дано' : 'отозвано'}

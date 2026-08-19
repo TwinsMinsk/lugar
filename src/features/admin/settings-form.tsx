@@ -104,7 +104,7 @@ export function SettingsForm({
           </span>
         ) : null}
         {Object.keys(errors).length > 0 ? (
-          <span role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)]">
+          <span role="alert" className="text-danger text-[13px]">
             Не сохранено: проверьте отмеченные поля.
             {/* An error keyed to something with no field on screen would
                 otherwise be invisible, and the save would appear to do nothing. */}
@@ -210,13 +210,13 @@ function Field({
       ) : null}
 
       {hostMismatch ? (
-        <p className="mt-1 text-[12px] text-[oklch(0.5_0.12_85)]">
+        <p className="text-warning mt-1 text-[12px]">
           Ссылка не содержит {definition.expectHost} — проверьте, что вставлен нужный адрес.
         </p>
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-1 text-[12px] text-[oklch(0.52_0.17_25)]">
+        <p role="alert" className="text-danger mt-1 text-[12px]">
           {message(error)}
         </p>
       ) : null}

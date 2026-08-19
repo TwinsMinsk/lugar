@@ -237,7 +237,7 @@ export function LeadsTable({
                     {row.isDuplicateHint ? (
                       <div
                         title="Похоже на повторное обращение того же человека"
-                        className="mt-1 inline-block rounded-[--radius-btn] bg-[oklch(0.95_0.05_85)] px-1.5 py-0.5 text-[11px] text-[oklch(0.45_0.10_85)]"
+                        className="bg-warning-surface text-warning-ink mt-1 inline-block rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]"
                       >
                         возможно повтор
                       </div>

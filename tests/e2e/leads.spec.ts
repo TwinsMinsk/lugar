@@ -90,7 +90,11 @@ test.describe('leads', () => {
     // Exact: the list's status filter is a nav labelled "Фильтр по статусу",
     // which a substring match also finds.
     await page.getByLabel('Статус', { exact: true }).selectOption({ label: 'Связаться' });
-    await expect(page.getByText('Статус изменён')).toBeVisible({ timeout: 15_000 });
+    // The announcement region, not the timeline entry below it — both say the
+    // same words, and only one of them means "the click worked".
+    await expect(page.getByRole('status').filter({ hasText: 'Статус изменён' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.getByLabel('Ответственный', { exact: true }).selectOption({ index: 1 });
     await expect(page.getByText('Назначен ответственный')).toBeVisible({ timeout: 15_000 });

@@ -48,7 +48,7 @@ export default async function AdminMediaPage({
       </div>
 
       {onlyPlaceholders ? (
-        <p className="rounded-[--radius-card] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.98_0.03_85)] px-4 py-3 text-[13px]">
+        <p className="border-warning-line bg-warning-surface rounded-[--radius-card] border px-4 py-3 text-[13px]">
           Показаны только заглушки. Замените файл в карточке — все блоки, где стоит это изображение,
           подхватят новое сами.
         </p>

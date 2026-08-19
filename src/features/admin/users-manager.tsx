@@ -140,7 +140,7 @@ export function UsersManager({
 
         {/* Both areas stay mounted: one inserted together with its text is not
             announced by a screen reader. */}
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        <p role="alert" className="text-danger text-[13px] empty:hidden">
           {error}
         </p>
         <p role="status" className="text-ink-muted text-[13px] empty:hidden">
@@ -148,7 +148,7 @@ export function UsersManager({
         </p>
 
         {inviteUrl ? (
-          <div className="rounded-[--radius-card] border border-[oklch(0.86_0.05_150)] bg-[oklch(0.98_0.02_150)] p-3">
+          <div className="border-success-line bg-success-surface rounded-[--radius-card] border p-3">
             <p className="text-ink-muted text-[13px]">
               {emailed
                 ? 'Письмо отправлено. Ссылка ниже — на случай, если оно не дойдёт:'
@@ -173,7 +173,7 @@ export function UsersManager({
                   {ROLE_LABEL[row.role] ?? row.role}
                 </span>
                 {row.expired ? (
-                  <span className="rounded-[--radius-btn] bg-[oklch(0.95_0.05_25)] px-1.5 py-0.5 text-[11px] text-[oklch(0.45_0.14_25)]">
+                  <span className="bg-danger-surface text-danger-ink rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]">
                     срок истёк
                   </span>
                 ) : null}
@@ -252,7 +252,7 @@ export function UsersManager({
               )}
 
               {row.banned ? (
-                <span className="rounded-[--radius-btn] bg-[oklch(0.95_0.05_25)] px-1.5 py-0.5 text-[11px] text-[oklch(0.45_0.14_25)]">
+                <span className="bg-danger-surface text-danger-ink rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]">
                   доступ отключён
                 </span>
               ) : null}

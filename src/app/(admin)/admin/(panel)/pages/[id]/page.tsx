@@ -60,7 +60,7 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
       </div>
 
       {document.invalidBlocks > 0 ? (
-        <p className="rounded-[--radius-card] border border-[oklch(0.75_0.15_25)] bg-[oklch(0.97_0.04_25)] px-4 py-3 text-[13px] text-[oklch(0.45_0.15_25)]">
+        <p className="border-danger-line bg-danger-surface text-danger-ink rounded-[--radius-card] border px-4 py-3 text-[13px]">
           {document.invalidBlocks} блок(ов) не прошли проверку и не показаны здесь. На сайте они
           тоже не отображаются. Это означает несовпадение данных со схемой — сообщите разработчику,
           не пересохраняйте страницу, иначе они будут потеряны.

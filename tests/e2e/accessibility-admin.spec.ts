@@ -34,4 +34,34 @@ test.describe('admin accessibility', () => {
       expect(axeDescribe(results), axeDescribe(results)).toBe('');
     });
   }
+  /**
+   * The confirmation dialog, which every destructive button now goes through.
+   *
+   * Asserted on the users screen because "отключить доступ" is the one
+   * confirmation that exists on a page with nothing else to clean up
+   * afterwards — the dialog is cancelled, so nothing is changed.
+   */
+  test('a confirmation names itself, traps focus and gives it back', async ({ page }) => {
+    await page.goto('/admin/users');
+
+    const trigger = page.getByRole('button', { name: 'Отключить доступ' }).first();
+    if ((await trigger.count()) === 0) test.skip(true, 'no other staff account to act on');
+
+    await trigger.click();
+
+    const dialog = page.getByRole('dialog', { name: 'Отключить доступ?' });
+    await expect(dialog).toBeVisible();
+
+    const results = await audit(page, new AxeBuilder({ page }));
+    expect(axeDescribe(results), axeDescribe(results)).toBe('');
+
+    // Cancel holds the focus, so Return never confirms by accident.
+    await expect(dialog.getByRole('button', { name: 'Отмена' })).toBeFocused();
+
+    // Escape closes it, and focus goes back to the button that opened it —
+    // otherwise a keyboard user restarts from the top of the document.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
 });

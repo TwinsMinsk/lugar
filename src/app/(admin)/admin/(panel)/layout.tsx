@@ -102,7 +102,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       </header>
 
       {pending > 0 ? (
-        <div className="border-b border-[oklch(0.86_0.09_85)] bg-[oklch(0.96_0.05_85)] px-5 py-2.5 lg:px-8">
+        <div className="border-warning-line border-b bg-[oklch(0.96_0.05_85)] px-5 py-2.5 lg:px-8">
           <p className="text-ink-muted mx-auto max-w-[1600px] text-[13px]">
             <strong className="font-medium">{pending}</strong> настроек ждут реальных значений от
             владельца (соцсети, адрес, реквизиты, логотип, аналитика).{' '}

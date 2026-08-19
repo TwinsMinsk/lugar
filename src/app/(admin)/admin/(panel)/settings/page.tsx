@@ -36,7 +36,7 @@ export default async function AdminSettingsPage() {
       </div>
 
       {pendingKeys.length > 0 ? (
-        <p className="rounded-[--radius-card] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.98_0.03_85)] px-4 py-3 text-[13px]">
+        <p className="border-warning-line bg-warning-surface rounded-[--radius-card] border px-4 py-3 text-[13px]">
           Осталось заполнить: <strong>{pendingKeys.length}</strong>. До этого сайт не показывает
           соответствующие ссылки и данные — это намеренно.
         </p>

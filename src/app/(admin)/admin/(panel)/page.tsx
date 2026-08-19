@@ -95,7 +95,7 @@ export default async function AdminDashboard() {
                       (locale.status === 'published'
                         ? locale.hasUnpublishedChanges
                           ? 'bg-[oklch(0.94_0.07_85)] text-[oklch(0.42_0.10_85)]'
-                          : 'bg-[oklch(0.94_0.05_150)] text-[oklch(0.38_0.08_150)]'
+                          : 'bg-success-surface text-success-ink'
                         : 'bg-[oklch(0.93_0.005_85)] text-[oklch(0.5_0.006_85)]')
                     }
                   >
@@ -181,7 +181,7 @@ function Stat({
 }) {
   const tones = {
     ok: 'border-line',
-    warn: 'border-[oklch(0.86_0.09_85)] bg-[oklch(0.98_0.03_85)]',
+    warn: 'border-warning-line bg-warning-surface',
     info: 'border-[oklch(0.86_0.05_240)] bg-[oklch(0.98_0.02_240)]',
   } as const;
 

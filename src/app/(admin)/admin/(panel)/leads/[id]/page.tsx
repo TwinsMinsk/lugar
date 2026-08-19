@@ -103,7 +103,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           live one and the manager works on something nobody will see. */}
       <div className="flex flex-wrap items-center gap-3">
         {lead.archivedAt ? (
-          <span className="rounded-[--radius-btn] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-2.5 py-1 text-[13px]">
+          <span className="border-warning-line bg-warning-surface rounded-[--radius-btn] border px-2.5 py-1 text-[13px]">
             Заявка убрана в архив {formatDateTime(lead.archivedAt)}
           </span>
         ) : null}
@@ -111,7 +111,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {lead.duplicateOf ? (
-        <p className="rounded-[--radius-card] border border-[oklch(0.86_0.09_85)] bg-[oklch(0.97_0.04_85)] px-3 py-2 text-[13px]">
+        <p className="border-warning-line bg-warning-surface rounded-[--radius-card] border px-3 py-2 text-[13px]">
           Похоже на повторное обращение.{' '}
           <Link
             href={`/admin/leads/${lead.duplicateOf.id}`}
@@ -229,7 +229,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 className={
                   'rounded-[--radius-btn] px-1.5 py-0.5 text-[11px] ' +
                   (windowState.open
-                    ? 'bg-[oklch(0.94_0.05_150)] text-[oklch(0.38_0.08_150)]'
+                    ? 'bg-success-surface text-success-ink'
                     : 'bg-[oklch(0.93_0.005_85)] text-[oklch(0.5_0.006_85)]')
                 }
               >

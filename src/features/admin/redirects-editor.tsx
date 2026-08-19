@@ -143,7 +143,7 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
 
         {/* Both areas stay mounted: one inserted together with its text is not
             announced by a screen reader. */}
-        <p role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        <p role="alert" className="text-danger text-[13px] empty:hidden">
           {error}
         </p>
         <p role="status" className="text-ink-muted text-[13px] empty:hidden">
@@ -178,7 +178,7 @@ export function RedirectsEditor({ rows }: { rows: RedirectRow[] }) {
                   {/* A rule can be correct on its own and still land somewhere else
                       once another rule chains onto its target. */}
                   {row.resolvesTo ? (
-                    <div className="mt-0.5 text-[12px] text-[oklch(0.5_0.12_85)]">
+                    <div className="text-warning mt-0.5 text-[12px]">
                       Фактически ведёт на <span className="font-mono">{row.resolvesTo}</span> — есть
                       цепочка правил.
                     </div>

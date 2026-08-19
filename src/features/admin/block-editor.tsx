@@ -325,16 +325,14 @@ export function BlockEditor({
           />
         ))}
 
-        {dirty ? (
-          <span className="text-[13px] text-[oklch(0.5_0.12_85)]">Есть несохранённые правки</span>
-        ) : null}
+        {dirty ? <span className="text-warning text-[13px]">Есть несохранённые правки</span> : null}
         {/* Both areas stay mounted: one inserted together with its text is not
             announced by a screen reader. Publishing is also the slowest action
             here, so it is the one that most needs to say it is working. */}
         <span role="status" className="text-ink-muted text-[13px] empty:hidden">
           {pending ? 'Сохраняем…' : status}
         </span>
-        <span role="alert" className="text-[13px] text-[oklch(0.52_0.17_25)] empty:hidden">
+        <span role="alert" className="text-danger text-[13px] empty:hidden">
           {error}
         </span>
       </div>
@@ -381,7 +379,7 @@ function RevisionHistory({
               {revision.authorName ? ` · ${revision.authorName}` : ''}
             </span>
             {revision.liveFor.length > 0 ? (
-              <span className="rounded-[--radius-btn] bg-[oklch(0.94_0.05_150)] px-2 py-0.5 text-[11px] text-[oklch(0.38_0.08_150)] uppercase">
+              <span className="bg-success-surface text-success-ink rounded-[--radius-btn] px-2 py-0.5 text-[11px] uppercase">
                 сейчас на сайте: {revision.liveFor.join(', ')}
               </span>
             ) : null}
