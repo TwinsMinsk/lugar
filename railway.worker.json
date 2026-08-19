@@ -4,6 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
+    "region": "europe-west4-drams3a",
     "startCommand": "npm run worker",
     "numReplicas": 1,
     "restartPolicyType": "ALWAYS"
