@@ -1,0 +1,46 @@
+# Checks that run on every push and pull request.
+#
+# Deliberately does not deploy. Railway is connected to this repository and
+# deploys `main` itself, so a workflow that also ran `railway up` would produce
+# two deployments per push — and with a volume attached they cannot run at the
+# same time, because Railway stops the old container before starting the new
+# one rather than letting two processes write to one disk.
+#
+# For these checks to actually gate a release rather than report after the fact,
+# turn on **Wait for CI** in Railway → service → Settings. Without it Railway
+# starts building the moment the push lands and never looks at this result.
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run format:check
+
+      # Unit tests only. The integration suites need a Postgres to talk to and
+      # the end-to-end suite needs a built site and a browser; both are worth
+      # running, but in a slower workflow than the one gating a release.
+      - run: npx vitest run tests/unit
