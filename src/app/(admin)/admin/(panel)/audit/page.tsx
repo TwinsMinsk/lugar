@@ -2,7 +2,7 @@ import { listAuditActions, listAuditActors, listAuditEntries } from '@/data/admi
 import { AuditLog } from '@/features/admin/audit-log';
 import { requireCapability } from '@/lib/auth/guards';
 
-export const metadata = { title: 'Журнал' };
+export const metadata = { title: 'Журнал изменений' };
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -39,7 +39,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-[32px] leading-tight">Журнал</h1>
+        <h1 className="font-display text-[32px] leading-tight">Журнал изменений</h1>
         <p className="text-ink-soft mt-2 max-w-[72ch] text-[14px]">
           Кто что изменил и когда. Записи создаются в той же транзакции, что и само изменение,
           поэтому здесь не может быть отметки о публикации, которая на самом деле не прошла. Записи

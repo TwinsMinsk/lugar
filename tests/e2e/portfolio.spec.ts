@@ -60,7 +60,9 @@ test.describe('portfolio', () => {
     try {
       for (const slug of published) {
         await page.goto('/admin/portfolio');
-        const link = page.getByRole('link', { name: slug });
+        // Rows are labelled by title now, so the link is found through the
+        // row that carries the address rather than by the slug itself.
+        const link = page.getByRole('row').filter({ hasText: slug }).getByRole('link').first();
         if ((await link.count()) === 0) continue;
         await link.first().click();
         const takeDown = page.getByRole('button', { name: 'Снять со всех языков' });
@@ -160,7 +162,7 @@ test.describe('portfolio', () => {
     // fixture left behind would fail it from a different worker.
     await page.goBack();
     await page.goto('/admin/portfolio');
-    await page.getByRole('link', { name: slug }).click();
+    await page.getByRole('row').filter({ hasText: slug }).getByRole('link').first().click();
     await page.getByRole('button', { name: 'Снять со всех языков' }).click();
     await page.getByRole('button', { name: 'Снять', exact: true }).click();
     await expect(page.getByText('Проект снят с сайта.')).toBeVisible({ timeout: 15_000 });

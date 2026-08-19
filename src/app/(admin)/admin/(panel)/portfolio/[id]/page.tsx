@@ -5,6 +5,7 @@ import { t } from '@/content/i18n';
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
 import { getProjectMeta, listCategoriesForAdmin, listPickableAssets } from '@/data/admin/portfolio';
 import { AddressEditor } from '@/features/admin/address-editor';
+import { SeoEditor } from '@/features/admin/seo-editor';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { ProjectMetaForm } from '@/features/admin/portfolio-forms';
 
@@ -34,7 +35,7 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/admin/portfolio" className="text-ink-faint hover:text-accent text-[13px]">
-            ← Портфолио
+            ← Наши работы
           </Link>
           <h1 className="font-display mt-2 text-[30px] leading-tight">
             /raboty/{ru?.slug ?? ''}
@@ -44,14 +45,26 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
           </h1>
         </div>
 
-        <a
-          href={`/api/preview?documentId=${document.id}&locale=ru`}
-          target="_blank"
-          rel="noopener"
-          className="text-accent text-[13px] underline underline-offset-2"
-        >
-          Посмотреть черновик ↗
-        </a>
+        {/* One link per published locale — see the pages editor for why. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-ink-faint text-[13px]">Черновик:</span>
+          {document.locales
+            .filter((entry) => entry.status === 'published')
+            .map((entry) => (
+              <a
+                key={entry.locale}
+                href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
+                target="_blank"
+                rel="noopener"
+                className="text-accent text-[13px] uppercase underline underline-offset-2"
+              >
+                {entry.locale} ↗
+              </a>
+            ))}
+          {document.locales.every((entry) => entry.status !== 'published') ? (
+            <span className="text-ink-faint text-[13px]">появится после первой публикации</span>
+          ) : null}
+        </div>
       </div>
 
       <ProjectMetaForm
@@ -69,6 +82,8 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
           sortOrder: meta.sortOrder,
         }}
       />
+
+      <SeoEditor documentId={document.id} initial={document.meta.seo ?? {}} />
 
       <AddressEditor
         documentId={document.id}

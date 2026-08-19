@@ -20,7 +20,10 @@ import { messagesFor } from './messages';
 
 export type MediaItem = {
   id: string;
+  /** The original file. Linked, not loaded — see MediaCard. */
   url: string;
+  /** Smallest generated size, which is what the grid actually shows. */
+  thumbnailUrl: string;
   width: number;
   height: number;
   bytes: number;
@@ -112,7 +115,7 @@ function RemovedCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string
     <li className="border-line bg-surface flex flex-col gap-3 rounded-[--radius-card] border border-dashed p-3">
       <div className="bg-slot relative aspect-[4/3] overflow-hidden rounded-[--radius-btn] opacity-60">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.url} alt="" className="h-full w-full object-cover" />
+        <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
       </div>
 
       <p className="text-ink-soft text-[13px]">{item.alt.ru ?? 'Без описания'}</p>
@@ -273,13 +276,16 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
             Заглушка
           </span>
         ) : (
-          /* The admin preview deliberately shows the exact original rather
-             than an optimised derivative — the point is to judge the source
-             photograph and place its focal point, which a re-encoded, resized
-             copy would misrepresent. */
+          /* The generated size, not the original.
+             The card is under 300px wide, so the original was being downloaded
+             in full and thrown away by the browser — fine for the seeded
+             placeholders, ruinous with a real shoot. Judging the source
+             photograph is still possible: «Открыть оригинал» below opens the
+             untouched file. The focal point is a relative coordinate, so it
+             lands identically on either. */
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.url}
+            src={item.thumbnailUrl}
             alt=""
             className="h-full w-full object-cover"
             style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
@@ -298,6 +304,14 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
             {item.width}×{item.height}
           </span>
           <span>{Math.round(item.bytes / 1024)} КБ</span>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener"
+            className="hover:text-accent underline underline-offset-2"
+          >
+            оригинал ↗
+          </a>
           {item.usedOnPublishedPage ? (
             <span className="bg-success-surface text-success-ink rounded-[--radius-btn] px-1.5 py-0.5 text-[11px]">
               на сайте

@@ -171,7 +171,7 @@ export function MediaPicker({
 
             {visible.length === 0 ? (
               <p className="text-ink-soft py-8 text-center text-[14px]">
-                Ничего не найдено. Загрузите изображение в разделе «Медиа».
+                Ничего не найдено. Загрузите изображение в разделе «Фотографии».
               </p>
             ) : (
               <ul

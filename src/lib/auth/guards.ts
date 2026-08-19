@@ -27,11 +27,20 @@ import { auth, type Role } from './server';
  */
 export const CAPABILITIES = {
   // CMS
-  'content.read': ['owner', 'manager', 'content_editor'],
+  /**
+   * Managers are deliberately absent.
+   *
+   * They had it, which put three CMS sections in their menu that they could
+   * open and not save in: `saveDraft` requires `content.write`, and
+   * `requireCapability` throws, so the panel answered a save with an unhandled
+   * rejection rather than a message. Three trap doors, and a role table in the
+   * owner's instructions that said otherwise. No CRM read uses this.
+   */
+  'content.read': ['owner', 'content_editor'],
   'content.write': ['owner', 'content_editor'],
   'content.publish': ['owner', 'content_editor'],
   'content.rollback': ['owner', 'content_editor'],
-  'media.read': ['owner', 'manager', 'content_editor'],
+  'media.read': ['owner', 'content_editor'],
   'media.write': ['owner', 'content_editor'],
   'media.delete': ['owner'],
   /**

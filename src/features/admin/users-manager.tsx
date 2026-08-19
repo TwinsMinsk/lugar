@@ -197,7 +197,7 @@ export function UsersManager({
       ) : null}
 
       <section className="border-line bg-surface rounded-[--radius-card] border p-4">
-        <h2 className="font-display mb-3 text-[19px]">Пользователи</h2>
+        <h2 className="font-display mb-3 text-[19px]">Сотрудники</h2>
         <ul className="divide-line divide-y">
           {users.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-3 py-3">

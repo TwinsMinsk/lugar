@@ -36,11 +36,20 @@ describe('role capability matrix', () => {
     expect(roleCan('manager', 'audit.read')).toBe(false);
   });
 
-  it('denies manager the ability to publish content', () => {
+  it('keeps a manager out of the CMS entirely', () => {
     expect(roleCan('manager', 'content.publish')).toBe(false);
     expect(roleCan('manager', 'content.write')).toBe(false);
-    // Read-only visibility into content is fine.
-    expect(roleCan('manager', 'content.read')).toBe(true);
+    /**
+     * Including reads.
+     *
+     * Read-only visibility sounded harmless and was not: it put Страницы,
+     * Наши работы and Фотографии in the manager's menu, all of which they
+     * could open and none of which they could save in — `saveDraft` throws
+     * `notFound()`, so the panel answered with an unhandled rejection rather
+     * than a message.
+     */
+    expect(roleCan('manager', 'content.read')).toBe(false);
+    expect(roleCan('manager', 'media.read')).toBe(false);
   });
 
   it('reserves destructive and recovery actions for owner alone', () => {

@@ -122,7 +122,7 @@ test.describe('users and invitations', () => {
 
     // And the navigation does not offer what they cannot reach.
     await inviteePage.goto('/admin');
-    await expect(inviteePage.getByRole('link', { name: 'Пользователи' })).toHaveCount(0);
+    await expect(inviteePage.getByRole('link', { name: 'Сотрудники' })).toHaveCount(0);
     await expect(inviteePage.getByRole('link', { name: 'Заявки' })).toHaveCount(0);
     await expect(inviteePage.getByRole('link', { name: 'Настройки' })).toHaveCount(0);
     await expect(inviteePage.getByRole('link', { name: 'Страницы' })).toBeVisible();

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
 import { AddressEditor } from '@/features/admin/address-editor';
+import { SeoEditor } from '@/features/admin/seo-editor';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { documentPath, localePath } from '@/lib/routes';
 
@@ -37,15 +38,30 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
 
         <div className="flex flex-wrap items-center gap-4">
           {/* Preview enters draft mode for this document, so the page renders
-              the unsaved-to-public draft. Requires an admin session. */}
-          <a
-            href={`/api/preview?documentId=${document.id}&locale=ru`}
-            target="_blank"
-            rel="noopener"
-            className="text-accent text-[13px] underline underline-offset-2"
-          >
-            Посмотреть черновик ↗
-          </a>
+              the unsaved-to-public draft. Requires an admin session.
+
+              One link per locale, not just Russian: Spanish is the main market
+              and a native speaker proofreading it is what stands between a
+              draft and the launch. The route always accepted any locale — only
+              this link was hardwired. Offered only where the locale has been
+              published, because that is the condition the route resolves on. */}
+          <span className="text-ink-faint text-[13px]">Черновик:</span>
+          {document.locales
+            .filter((entry) => entry.status === 'published')
+            .map((entry) => (
+              <a
+                key={entry.locale}
+                href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
+                target="_blank"
+                rel="noopener"
+                className="text-accent text-[13px] uppercase underline underline-offset-2"
+              >
+                {entry.locale} ↗
+              </a>
+            ))}
+          {document.locales.every((entry) => entry.status !== 'published') ? (
+            <span className="text-ink-faint text-[13px]">появится после первой публикации</span>
+          ) : null}
           {ru && ru.status === 'published' ? (
             <Link
               href={localePath('ru', documentPath(document.kind, ru.slug, 'raboty'))}
@@ -66,6 +82,8 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
           не пересохраняйте страницу, иначе они будут потеряны.
         </p>
       ) : null}
+
+      <SeoEditor documentId={document.id} initial={document.meta.seo ?? {}} />
 
       <AddressEditor
         documentId={document.id}

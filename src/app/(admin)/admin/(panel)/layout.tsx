@@ -28,20 +28,49 @@ type NavItem = {
   capability: Capability | null;
 };
 
-const NAV: NavItem[] = [
-  { href: '/admin', label: 'Обзор', capability: null },
-  { href: '/admin/pages', label: 'Страницы', capability: 'content.read' },
-  { href: '/admin/portfolio', label: 'Портфолио', capability: 'content.read' },
-  { href: '/admin/media', label: 'Медиа', capability: 'media.read' },
-  { href: '/admin/navigation', label: 'Меню', capability: 'navigation.write' },
-  { href: '/admin/leads', label: 'Заявки', capability: 'crm.read' },
-  { href: '/admin/leads/board', label: 'Воронка', capability: 'crm.read' },
-  { href: '/admin/contacts', label: 'Клиенты', capability: 'crm.read' },
-  { href: '/admin/pipeline', label: 'Этапы', capability: 'settings.write' },
-  { href: '/admin/redirects', label: 'Редиректы', capability: 'seo.write' },
-  { href: '/admin/settings', label: 'Настройки', capability: 'settings.write' },
-  { href: '/admin/users', label: 'Пользователи', capability: 'users.manage' },
-  { href: '/admin/audit', label: 'Журнал', capability: 'audit.read' },
+/**
+ * The menu, in three groups.
+ *
+ * Thirteen equal links in one row gave no clue which of them belong together,
+ * and the order put the CMS first — which is backwards for this studio: the
+ * site is edited a few times a month, the enquiries are read every day.
+ *
+ * Grouped in the existing top bar rather than behind dropdowns or a sidebar.
+ * Hovering to reveal a menu excludes the keyboard, and every screen being one
+ * visible click away is what the accessibility specs assert.
+ *
+ * A group whose items are all hidden by capability disappears with its heading,
+ * so a manager does not see an empty "САЙТ" label.
+ */
+const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
+  { label: null, items: [{ href: '/admin', label: 'Обзор', capability: null }] },
+  {
+    label: 'Клиенты',
+    items: [
+      { href: '/admin/leads', label: 'Заявки', capability: 'crm.read' },
+      { href: '/admin/leads/board', label: 'Воронка', capability: 'crm.read' },
+      { href: '/admin/contacts', label: 'Клиенты', capability: 'crm.read' },
+    ],
+  },
+  {
+    label: 'Сайт',
+    items: [
+      { href: '/admin/pages', label: 'Страницы', capability: 'content.read' },
+      { href: '/admin/portfolio', label: 'Наши работы', capability: 'content.read' },
+      { href: '/admin/media', label: 'Фотографии', capability: 'media.read' },
+      { href: '/admin/navigation', label: 'Меню', capability: 'navigation.write' },
+      { href: '/admin/redirects', label: 'Переадресация', capability: 'seo.write' },
+    ],
+  },
+  {
+    label: 'Управление',
+    items: [
+      { href: '/admin/settings', label: 'Настройки', capability: 'settings.write' },
+      { href: '/admin/pipeline', label: 'Этапы воронки', capability: 'settings.write' },
+      { href: '/admin/users', label: 'Сотрудники', capability: 'users.manage' },
+      { href: '/admin/audit', label: 'Журнал изменений', capability: 'audit.read' },
+    ],
+  },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -53,9 +82,13 @@ const ROLE_LABEL: Record<string, string> = {
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const { user, role } = await requireUser();
 
-  const visible: NavItem[] = [];
-  for (const item of NAV) {
-    if (item.capability === null || (await can(item.capability))) visible.push(item);
+  const groups: Array<{ label: string | null; items: NavItem[] }> = [];
+  for (const group of NAV_GROUPS) {
+    const items: NavItem[] = [];
+    for (const item of group.items) {
+      if (item.capability === null || (await can(item.capability))) items.push(item);
+    }
+    if (items.length > 0) groups.push({ label: group.label, items });
   }
 
   const settings = await getSiteSettings();
@@ -72,15 +105,29 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <Logo size="sm" />
           </Link>
 
-          <nav aria-label="Разделы админки" className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {visible.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-ink-nav hover:text-accent py-1 text-[14px] transition-colors duration-[--duration-fast]"
-              >
-                {item.label}
-              </Link>
+          <nav aria-label="Разделы админки" className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            {groups.map((group, index) => (
+              <div key={group.label ?? 'main'} className="flex flex-wrap items-center gap-x-4">
+                {index > 0 ? (
+                  <span aria-hidden className="text-line-strong select-none">
+                    │
+                  </span>
+                ) : null}
+                {group.label ? (
+                  <span className="text-ink-ghost text-[10px] tracking-[0.14em] uppercase">
+                    {group.label}
+                  </span>
+                ) : null}
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="text-ink-nav hover:text-accent py-1 text-[14px] transition-colors duration-[--duration-fast]"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
 
@@ -102,7 +149,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       </header>
 
       {pending > 0 ? (
-        <div className="border-warning-line border-b bg-[oklch(0.96_0.05_85)] px-5 py-2.5 lg:px-8">
+        <div className="border-warning-line bg-warning-surface border-b px-5 py-2.5 lg:px-8">
           <p className="text-ink-muted mx-auto max-w-[1600px] text-[13px]">
             <strong className="font-medium">{pending}</strong> настроек ждут реальных значений от
             владельца (соцсети, адрес, реквизиты, логотип, аналитика).{' '}

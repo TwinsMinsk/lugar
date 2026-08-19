@@ -15,6 +15,7 @@ import { documentLocales, documentRevisions, documents, mediaUsage, redirects } 
 import { LOCALES } from '@/i18n/routing';
 import { recordAudit, summarizeBlocks } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
+import { failFromZod } from './_result';
 import { documentPath, localePath } from '@/lib/routes';
 
 /**
@@ -484,5 +485,79 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
 
   await invalidateDocument(documentId);
   updateTag(tags.redirects());
+  return { ok: true };
+}
+
+const seoSchema = z.object({
+  documentId: z.uuid(),
+  locale: localeSchema,
+  title: z.string().trim().max(70),
+  description: z.string().trim().max(180),
+});
+
+/**
+ * The title and description Google shows.
+ *
+ * Stored on the draft revision's `meta`, not on the document, so a rollback
+ * restores the SEO text together with the copy it describes rather than leaving
+ * a headline from one version under a summary from another.
+ *
+ * Written per locale and merged rather than replaced: two people editing the
+ * Russian and the Spanish of one page must not overwrite each other, and the
+ * form only ever submits the locale it is showing.
+ */
+export async function updateSeo(input: z.input<typeof seoSchema>): Promise<ActionResult> {
+  const { user } = await requireCapability('seo.write');
+
+  const parsed = seoSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const { documentId, locale, title, description } = parsed.data;
+
+  const [document] = await db
+    .select({ draftRevisionId: documents.draftRevisionId })
+    .from(documents)
+    .where(eq(documents.id, documentId))
+    .limit(1);
+  if (!document?.draftRevisionId) return { ok: false, error: 'not_found' };
+
+  const context = await requestContext();
+
+  await db.transaction(async (tx) => {
+    const [revision] = await tx
+      .select({ meta: documentRevisions.meta })
+      .from(documentRevisions)
+      .where(eq(documentRevisions.id, document.draftRevisionId!))
+      .limit(1);
+
+    const meta = (revision?.meta ?? {}) as {
+      seo?: Record<string, { title?: string; description?: string }>;
+      title?: unknown;
+    };
+    const seo = { ...(meta.seo ?? {}) };
+    seo[locale] = {
+      ...seo[locale],
+      title: title === '' ? undefined : title,
+      description: description === '' ? undefined : description,
+    };
+
+    await tx
+      .update(documentRevisions)
+      .set({ meta: { ...meta, seo } })
+      .where(eq(documentRevisions.id, document.draftRevisionId!));
+
+    await recordAudit(
+      {
+        actorUserId: user.id,
+        action: 'content.seo_updated',
+        entityType: 'document',
+        entityId: documentId,
+        after: { locale, title, description },
+        ...context,
+      },
+      tx,
+    );
+  });
+
+  await invalidateDocument(documentId);
   return { ok: true };
 }

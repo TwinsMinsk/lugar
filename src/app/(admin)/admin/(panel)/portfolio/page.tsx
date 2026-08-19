@@ -1,13 +1,17 @@
 import Link from 'next/link';
 
 import { listDocuments, type AdminDocumentSummary } from '@/data/admin/documents';
-import { listCategoriesForAdmin } from '@/data/admin/portfolio';
+import {
+  listCategoriesForAdmin,
+  listProjectCards,
+  type AdminProjectCard,
+} from '@/data/admin/portfolio';
 import { t } from '@/content/i18n';
 import { DocumentRemoval } from '@/features/admin/document-removal';
 import { CreateProjectForm } from '@/features/admin/portfolio-forms';
 import { LOCALES } from '@/i18n/routing';
 
-export const metadata = { title: 'Портфолио' };
+export const metadata = { title: 'Наши работы' };
 
 const STATUS_LABEL: Record<string, string> = {
   published: 'на сайте',
@@ -16,10 +20,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function AdminPortfolioList() {
-  const [projects, archived, categories] = await Promise.all([
+  const [projects, archived, categories, cards] = await Promise.all([
     listDocuments('project'),
     listDocuments('project', { archived: true }),
     listCategoriesForAdmin(),
+    listProjectCards(),
   ]);
 
   const publishedCount = projects.filter((project) =>
@@ -29,7 +34,7 @@ export default async function AdminPortfolioList() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-[32px] leading-tight">Портфолио</h1>
+        <h1 className="font-display text-[32px] leading-tight">Наши работы</h1>
         <p className="text-ink-soft mt-2 max-w-[70ch] text-[14px]">
           Раздел «Наши работы» собирается из этих проектов.{' '}
           {publishedCount === 0
@@ -49,7 +54,7 @@ export default async function AdminPortfolioList() {
       {projects.length === 0 ? (
         <p className="text-ink-soft text-[14px]">Проектов пока нет.</p>
       ) : (
-        <ProjectTable projects={projects} caption="Проекты" archived={false} />
+        <ProjectTable projects={projects} cards={cards} caption="Проекты" archived={false} />
       )}
 
       {archived.length > 0 ? (
@@ -60,7 +65,7 @@ export default async function AdminPortfolioList() {
             остаётся в базе. Его можно вернуть. Насовсем удаляются только те, что никогда не были
             опубликованы.
           </p>
-          <ProjectTable projects={archived} caption="Убранные проекты" archived />
+          <ProjectTable projects={archived} cards={cards} caption="Убранные проекты" archived />
         </section>
       ) : null}
     </div>
@@ -69,10 +74,12 @@ export default async function AdminPortfolioList() {
 
 function ProjectTable({
   projects,
+  cards,
   caption,
   archived,
 }: {
   projects: AdminDocumentSummary[];
+  cards: Map<string, AdminProjectCard>;
   caption: string;
   archived: boolean;
 }) {
@@ -82,6 +89,9 @@ function ProjectTable({
         <caption className="sr-only">{caption}</caption>
         <thead className="border-line text-ink-faint border-b text-[12px] tracking-wide uppercase">
           <tr>
+            <th className="px-4 py-3 font-medium">
+              <span className="sr-only">Обложка</span>
+            </th>
             <th className="px-4 py-3 font-medium">Проект</th>
             <th className="px-4 py-3 font-medium">Адрес</th>
             {LOCALES.map((locale) => (
@@ -95,15 +105,37 @@ function ProjectTable({
         <tbody className="divide-line divide-y">
           {projects.map((project) => {
             const ru = project.locales.find((entry) => entry.locale === 'ru');
+            const card = cards.get(project.id);
             return (
               <tr key={project.id}>
+                {/* A list of работ without pictures is wrong for a furniture
+                    studio by its nature — the slug told the owner nothing about
+                    which project a row was. */}
+                <td className="py-2 pr-0 pl-4">
+                  <div className="bg-slot h-11 w-16 overflow-hidden rounded-[--radius-btn]">
+                    {card?.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={card.coverUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-ink-ghost flex h-full w-full items-center justify-center text-[10px]">
+                        нет
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/admin/portfolio/${project.id}`}
                     className="text-ink hover:text-accent font-medium"
                   >
-                    {ru?.slug ?? project.id.slice(0, 8)}
+                    {card?.title ?? ru?.slug ?? project.id.slice(0, 8)}
                   </Link>
+                  {card?.city ? (
+                    <div className="text-ink-faint text-[12px]">{card.city}</div>
+                  ) : null}
+                  {card?.isFeatured ? (
+                    <span className="text-ink-faint text-[11px]">избранный</span>
+                  ) : null}
                 </td>
                 <td className="text-ink-soft px-4 py-3 font-mono text-[13px]">
                   /raboty/{ru?.slug ?? ''}
