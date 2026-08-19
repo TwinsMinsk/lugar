@@ -170,7 +170,7 @@ test.describe('leads', () => {
     // would pass just as happily on the list page.
     await expect(page.getByRole('heading', { name: new RegExp(publicId) })).toBeVisible();
 
-    await expect(page.getByText('окно закрыто')).toBeVisible();
+    await expect(page.getByText('только шаблоны — клиент давно не писал')).toBeVisible();
 
     // Replaced, not disabled. A greyed-out textarea would invite the operator
     // to write a message that cannot legally be sent and offer no way forward.
@@ -205,7 +205,9 @@ test.describe('leads', () => {
 
     // An inbound message is what opens the 24-hour service window, so the
     // composer becomes available at the same moment.
-    await expect(page.getByText('окно 24 ч открыто')).toBeVisible();
+    // The badge names the deadline rather than the rule: "24 hour window" is
+    // Meta's vocabulary, not something a manager should have to learn.
+    await expect(page.getByText(/можно писать свободно/)).toBeVisible();
   });
 
   test('the CSV export contains the lead and neutralises spreadsheet formulas', async ({

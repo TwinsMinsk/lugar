@@ -50,7 +50,7 @@ test.describe('admin', () => {
     const page = await context.newPage();
     try {
       await page.goto('/admin/pages');
-      await page.getByRole('link', { name: 'home' }).click();
+      await page.getByRole('link', { name: 'Главная', exact: true }).click();
       const heading = page.getByLabel('Заголовок', { exact: true }).first();
       if ((await heading.inputValue()) !== seededHeading) {
         await heading.fill(seededHeading);
@@ -92,8 +92,8 @@ test.describe('admin', () => {
     // Already authenticated by the setup project.
     // Open the home page in the editor.
     await page.goto('/admin/pages');
-    await page.getByRole('link', { name: 'home' }).click();
-    await expect(page.getByRole('heading', { name: /home/i })).toBeVisible();
+    await page.getByRole('link', { name: 'Главная', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Главная', exact: false })).toBeVisible();
 
     // The hero block is expanded by default; change its heading.
     // Exact match is essential: "Надзаголовок" contains "Заголовок", so a
@@ -118,7 +118,7 @@ test.describe('admin', () => {
 
     // Roll back to the revision that preceded it.
     await page.goto('/admin/pages');
-    await page.getByRole('link', { name: 'home' }).click();
+    await page.getByRole('link', { name: 'Главная', exact: true }).click();
     // The newest revision is the one currently live, so its rollback button is
     // deliberately disabled — restoring what is already served is a no-op.
     // Target the first *enabled* one, which is the preceding revision.
@@ -143,7 +143,7 @@ test.describe('admin', () => {
     // would leave the draft holding the marker. afterAll is the safety net for
     // the paths that never reach this line.
     await page.goto('/admin/pages');
-    await page.getByRole('link', { name: 'home' }).click();
+    await page.getByRole('link', { name: 'Главная', exact: true }).click();
     await page.getByLabel('Заголовок', { exact: true }).first().fill(original);
     await publishRu(page);
     await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
@@ -160,7 +160,7 @@ test.describe('admin', () => {
     const marker = `Черновик ${Date.now()}`;
 
     await page.goto('/admin/pages');
-    await page.getByRole('link', { name: 'kontakty' }).click();
+    await page.getByRole('link', { name: 'Контакты', exact: true }).click();
 
     await page.getByLabel('Заголовок', { exact: true }).first().fill(marker);
     await page.getByRole('button', { name: 'Сохранить черновик' }).click();
@@ -179,7 +179,7 @@ test.describe('draft preview', () => {
     const marker = `Превью ${Date.now()}`;
 
     await page.goto('/admin/pages');
-    await page.getByRole('link', { name: 'dveri' }).click();
+    await page.getByRole('link', { name: 'Двери', exact: true }).click();
 
     await page.getByLabel('Заголовок', { exact: true }).first().fill(marker);
     await page.getByRole('button', { name: 'Сохранить черновик' }).click();
@@ -219,6 +219,6 @@ test.describe('draft preview', () => {
 /** Reads the document id out of the editor URL the test just visited. */
 async function documentIdFromUrl(page: Page): Promise<string> {
   await page.goto('/admin/pages');
-  const href = await page.getByRole('link', { name: 'dveri' }).getAttribute('href');
+  const href = await page.getByRole('link', { name: 'Двери', exact: true }).getAttribute('href');
   return href!.split('/').pop()!;
 }

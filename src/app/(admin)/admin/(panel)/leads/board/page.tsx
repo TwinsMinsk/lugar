@@ -42,7 +42,7 @@ export default async function LeadBoardPage({ searchParams }: PageProps) {
         {[
           { id: '', label: 'Все' },
           { id: 'none', label: 'Без ответственного' },
-          ...assignees.map((person) => ({ id: person.id, label: person.email })),
+          ...assignees.map((person) => ({ id: person.id, label: person.name || person.email })),
         ].map((option) => (
           <Link
             key={option.id || 'all'}

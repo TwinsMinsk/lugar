@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
 import { AddressEditor } from '@/features/admin/address-editor';
+import { pageLabel } from '@/features/admin/page-labels';
 import { SeoEditor } from '@/features/admin/seo-editor';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { documentPath, localePath } from '@/lib/routes';
@@ -29,7 +30,7 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
             ← Страницы
           </Link>
           <h1 className="font-display mt-2 text-[30px] leading-tight">
-            {document.template}
+            {pageLabel(document.seedKey, document.template)}
             <span className="text-ink-faint ml-3 font-sans text-[14px]">
               черновик · версия {document.draftRevisionNumber}
             </span>

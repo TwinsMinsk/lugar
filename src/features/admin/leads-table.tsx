@@ -167,7 +167,7 @@ export function LeadsTable({
             <option value="none">Без ответственного</option>
             {assignees.map((person) => (
               <option key={person.id} value={person.id}>
-                {person.email}
+                {person.name || person.email}
               </option>
             ))}
           </select>
@@ -191,7 +191,7 @@ export function LeadsTable({
             // list, so the audit log records every one.
             download
           >
-            Выгрузить CSV
+            Скачать таблицу
           </a>
         ) : null}
       </form>
@@ -271,7 +271,7 @@ export function LeadsTable({
                   </td>
 
                   <td className="text-ink-soft px-4 py-3 align-top text-[13px]">
-                    {row.assigneeEmail ?? (
+                    {row.assigneeName || row.assigneeEmail || (
                       <span className="text-[oklch(0.55_0.13_60)]">не назначен</span>
                     )}
                   </td>

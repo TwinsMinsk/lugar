@@ -119,7 +119,7 @@ export function LeadBoard({ columns }: { columns: SerializedColumn[] }) {
                       ) : null}
                     </div>
                     <div className="text-ink-faint mt-0.5 text-[11px]">
-                      {card.assigneeEmail ?? 'не назначен'}
+                      {card.assigneeName || card.assigneeEmail || 'не назначен'}
                     </div>
 
                     <label className="sr-only" htmlFor={`move-${card.id}`}>

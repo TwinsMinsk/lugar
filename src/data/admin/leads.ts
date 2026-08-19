@@ -42,6 +42,8 @@ export type LeadListRow = {
   utmSource: string | null;
   assignedToId: string | null;
   assigneeEmail: string | null;
+  /** Shown instead of the address: staff know each other by name. */
+  assigneeName: string | null;
   isDuplicateHint: boolean;
 };
 
@@ -154,6 +156,7 @@ export async function listLeads(filter: LeadFilter = {}): Promise<LeadPage> {
       utmSource: leads.utmSource,
       assignedToId: leads.assignedToId,
       assigneeEmail: user.email,
+      assigneeName: user.name,
       duplicateOf: leads.possibleDuplicateOfId,
     })
     .from(leads)
@@ -185,6 +188,7 @@ export async function listLeads(filter: LeadFilter = {}): Promise<LeadPage> {
       utmSource: row.utmSource,
       assignedToId: row.assignedToId,
       assigneeEmail: row.assigneeEmail,
+      assigneeName: row.assigneeName,
       isDuplicateHint: row.duplicateOf !== null,
     })),
     nextCursor: hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : null,
@@ -314,6 +318,7 @@ export type LeadDetail = {
     dueAt: Date | null;
     completedAt: Date | null;
     assigneeEmail: string | null;
+    assigneeName: string | null;
   }>;
   files: Array<{ id: string; originalFilename: string | null; sizeBytes: number }>;
 };
@@ -363,6 +368,7 @@ export async function getLead(leadId: string): Promise<LeadDetail | null> {
       dueAt: leadTasks.dueAt,
       completedAt: leadTasks.completedAt,
       assigneeEmail: user.email,
+      assigneeName: user.name,
     })
     .from(leadTasks)
     .leftJoin(user, eq(user.id, leadTasks.assigneeId))
@@ -428,6 +434,7 @@ export async function getLead(leadId: string): Promise<LeadDetail | null> {
       dueAt: task.dueAt,
       completedAt: task.completedAt,
       assigneeEmail: task.assigneeEmail,
+      assigneeName: task.assigneeName,
     })),
     files: fileRows,
   };
@@ -445,6 +452,7 @@ export type BoardColumn = {
     city: string | null;
     createdAt: Date;
     assigneeEmail: string | null;
+    assigneeName: string | null;
     isStale: boolean;
   }>;
 };
@@ -483,6 +491,7 @@ export async function getLeadBoard(assignedToId?: string): Promise<BoardColumn[]
       createdAt: leads.createdAt,
       lastActivityAt: leads.lastActivityAt,
       assigneeEmail: user.email,
+      assigneeName: user.name,
       terminal: leadStatuses.isTerminal,
     })
     .from(leads)
@@ -508,6 +517,7 @@ export async function getLeadBoard(assignedToId?: string): Promise<BoardColumn[]
         city: row.city,
         createdAt: row.createdAt,
         assigneeEmail: row.assigneeEmail,
+        assigneeName: row.assigneeName,
         // A closed lead going quiet is the expected outcome, not a problem.
         isStale: !row.terminal && row.lastActivityAt.getTime() < staleBefore,
       })),

@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { listDocuments, type AdminDocumentSummary } from '@/data/admin/documents';
 import { DocumentRemoval } from '@/features/admin/document-removal';
+import { pageLabel } from '@/features/admin/page-labels';
 import { LOCALES } from '@/i18n/routing';
 
 export const metadata = { title: 'Страницы' };
@@ -79,7 +80,7 @@ function PageTable({
                     href={`/admin/pages/${page.id}`}
                     className="text-ink hover:text-accent font-medium"
                   >
-                    {page.seedKey?.replace('page.', '') ?? page.template}
+                    {pageLabel(page.seedKey, page.template)}
                   </Link>
                   {page.isSystem ? (
                     <span className="text-ink-faint ml-2 text-[11px]">системная</span>

@@ -120,6 +120,7 @@ export type AdminDocumentDetail = {
   id: string;
   kind: 'page' | 'project';
   template: string;
+  seedKey: string | null;
   isSystem: boolean;
   draftRevisionId: string;
   draftRevisionNumber: number;
@@ -170,6 +171,7 @@ export async function getDocumentForEditing(
   return {
     id: document.id,
     kind: document.kind as 'page' | 'project',
+    seedKey: document.seedKey,
     template: document.template,
     isSystem: document.isSystem,
     draftRevisionId: draft.id,

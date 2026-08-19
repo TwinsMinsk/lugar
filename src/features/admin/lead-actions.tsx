@@ -24,6 +24,7 @@ export type LeadTaskRow = {
   dueAt: string | null;
   completedAt: string | null;
   assigneeEmail: string | null;
+  assigneeName: string | null;
 };
 
 /** Only what this screen says better than the shared vocabulary. */
@@ -120,7 +121,7 @@ export function LeadActions({
             <option value="">Не назначен</option>
             {assignees.map((person) => (
               <option key={person.id} value={person.id}>
-                {person.email}
+                {person.name || person.email}
               </option>
             ))}
           </select>
@@ -179,8 +180,10 @@ export function LeadActions({
                 {task.dueAt ? (
                   <span className="text-ink-faint text-[12px]">до {formatDate(task.dueAt)}</span>
                 ) : null}
-                {task.assigneeEmail ? (
-                  <span className="text-ink-faint text-[12px]">{task.assigneeEmail}</span>
+                {task.assigneeName || task.assigneeEmail ? (
+                  <span className="text-ink-faint text-[12px]">
+                    {task.assigneeName || task.assigneeEmail}
+                  </span>
                 ) : null}
                 {task.completedAt ? (
                   // A completed task is a statement that the call was made, so

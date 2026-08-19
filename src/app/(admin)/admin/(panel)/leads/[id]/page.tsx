@@ -13,7 +13,7 @@ import { LeadRemoval } from '@/features/admin/lead-removal';
 import { WhatsAppPanel } from '@/features/admin/whatsapp-panel';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink, whatsappLink } from '@/lib/routes';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatDayMonthTime } from '@/lib/format';
 
 export const metadata = { title: 'Заявка' };
 
@@ -223,6 +223,25 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </section>
 
           <section className="border-line bg-surface rounded-[--radius-card] border p-4">
+            <h2 className="font-display mb-3 text-[19px]">Работа с заявкой</h2>
+            <LeadActions
+              leadId={lead.id}
+              statusId={lead.statusId}
+              assignedToId={lead.assignedToId}
+              statuses={statuses}
+              assignees={assignees}
+              tasks={lead.tasks.map((task) => ({
+                id: task.id,
+                title: task.title,
+                dueAt: task.dueAt?.toISOString() ?? null,
+                completedAt: task.completedAt?.toISOString() ?? null,
+                assigneeEmail: task.assigneeEmail,
+                assigneeName: task.assigneeName,
+              }))}
+            />
+          </section>
+
+          <section className="border-line bg-surface rounded-[--radius-card] border p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 className="font-display text-[19px]">WhatsApp</h2>
               <span
@@ -233,7 +252,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                     : 'bg-[oklch(0.93_0.005_85)] text-[oklch(0.5_0.006_85)]')
                 }
               >
-                {windowState.open ? 'окно 24 ч открыто' : 'окно закрыто'}
+                {windowState.open && windowState.closesAt
+                  ? `можно писать свободно до ${formatDayMonthTime(windowState.closesAt)}`
+                  : windowState.open
+                    ? 'можно писать свободно'
+                    : 'только шаблоны — клиент давно не писал'}
               </span>
             </div>
             <WhatsAppPanel
@@ -256,24 +279,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 templateName: item.templateName,
                 lastErrorMessage: item.lastErrorMessage,
                 attemptCount: item.attemptCount,
-              }))}
-            />
-          </section>
-
-          <section className="border-line bg-surface rounded-[--radius-card] border p-4">
-            <h2 className="font-display mb-3 text-[19px]">Работа с заявкой</h2>
-            <LeadActions
-              leadId={lead.id}
-              statusId={lead.statusId}
-              assignedToId={lead.assignedToId}
-              statuses={statuses}
-              assignees={assignees}
-              tasks={lead.tasks.map((task) => ({
-                id: task.id,
-                title: task.title,
-                dueAt: task.dueAt?.toISOString() ?? null,
-                completedAt: task.completedAt?.toISOString() ?? null,
-                assigneeEmail: task.assigneeEmail,
               }))}
             />
           </section>
