@@ -40,12 +40,12 @@ jobs:
 
       - run: npm run format:check
 
-      # Unit tests only. The integration suites need a Postgres to talk to and
-      # the end-to-end suite needs a built site and a browser; both are worth
-      # running, but in a slower workflow than the one gating a release.
+      # Unit tests only. The integration suites run in the `build` job below,
+      # where a Postgres already exists. The end-to-end suite needs a built site
+      # and a browser, and stays out of the workflow that gates a release.
       - run: npx vitest run tests/unit
 
-  # Does the thing actually build?
+  # Everything that needs a database: the integration suites, and the build.
   #
   # It sounds redundant next to Railway, which builds anyway. It is not, because
   # of how a failed deploy behaves: nothing is paged, nothing goes down, and the
@@ -59,6 +59,17 @@ jobs:
   # needs a real database with real content — hence the service container, the
   # migration and the seed. Postgres 18 mirrors the deployed version, so the DDL
   # in a migration is exercised against the engine that will actually run it.
+  #
+  # Mirroring the version is not ceremony. The first run of this job against 18
+  # failed a schema invariant: an `ON DELETE RESTRICT` refusal reports SQLSTATE
+  # 23001 there and 23503 on 17, so a test asserting the latter was right on
+  # every developer machine and wrong about production. It had never run against
+  # the deployed version before this job existed.
+  #
+  # The integration suites live here rather than in `verify` because this is
+  # where the database already is. Thirty-eight tests covering publishing
+  # invariants, outbox behaviour and schema constraints were being skipped in CI
+  # for want of a Postgres, and they run in about eight seconds.
   #
   # What this does NOT catch, stated plainly so nobody trusts it further than it
   # goes: a schema that is behind the code. The database here is always migrated
@@ -84,6 +95,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://lugar:lugar@localhost:5432/lugar
+      # The integration suites create and drop their own database.
+      DATABASE_URL_TEST: postgresql://lugar:lugar@localhost:5432/lugar_test
+      DATABASE_ADMIN_URL: postgresql://lugar:lugar@localhost:5432/postgres
       # Placeholders, not secrets. The build phase does not require either — the
       # environment contract exempts it — but better-auth logs an error per
       # prerendered admin route without them, which buries anything real.
@@ -101,6 +115,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # First, because they take eight seconds and the build takes minutes.
+      - run: npx vitest run tests/integration
 
       - run: npm run db:migrate
 

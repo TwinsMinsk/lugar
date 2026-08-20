@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db, pgClient } from '@/db/client';
 import { documentRevisions, documents, leadStatuses, mediaAssets, mediaUsage } from '@/db/schema';
 import { migrateTestDatabase, resetTestDatabase } from '../helpers/db';
-import { captureDbError, PG } from '../helpers/errors';
+import { captureDbError, PG, RESTRICT_CODES } from '../helpers/errors';
 
 /**
  * These invariants are enforced by Postgres, not by application code, so they
@@ -98,7 +98,8 @@ describe('media usage guard', () => {
     });
 
     const error = await captureDbError(db.delete(mediaAssets).where(sql`id = ${assetId}`));
-    expect(error.code).toBe(PG.FOREIGN_KEY_VIOLATION);
+    // Either spelling of the same refusal — see RESTRICT_CODES.
+    expect(RESTRICT_CODES).toContain(error.code);
     expect(error.message).toMatch(/media_usage/);
   });
 
