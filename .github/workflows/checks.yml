@@ -6,9 +6,9 @@
 # same time, because Railway stops the old container before starting the new
 # one rather than letting two processes write to one disk.
 #
-# For these checks to actually gate a release rather than report after the fact,
-# turn on **Wait for CI** in Railway → service → Settings. Without it Railway
-# starts building the moment the push lands and never looks at this result.
+# **Wait for CI** is on in Railway → service → Settings, and verified: the build
+# there starts three to four seconds after this workflow goes green. Both jobs
+# below gate the release, because Railway waits for every action to succeed.
 name: checks
 
 on:
@@ -44,3 +44,68 @@ jobs:
       # the end-to-end suite needs a built site and a browser; both are worth
       # running, but in a slower workflow than the one gating a release.
       - run: npx vitest run tests/unit
+
+  # Does the thing actually build?
+  #
+  # It sounds redundant next to Railway, which builds anyway. It is not, because
+  # of how a failed deploy behaves: nothing is paged, nothing goes down, and the
+  # site quietly keeps serving the previous release. A push that cannot build
+  # therefore looks exactly like a push that shipped — that is how a broken
+  # release once sat unnoticed for thirteen minutes while someone waited for a
+  # change that was never going to appear. A red check on the commit says it in
+  # seconds instead.
+  #
+  # `next build` prerenders, and prerendering runs the real queries, so this
+  # needs a real database with real content — hence the service container, the
+  # migration and the seed. Postgres 18 mirrors the deployed version, so the DDL
+  # in a migration is exercised against the engine that will actually run it.
+  #
+  # What this does NOT catch, stated plainly so nobody trusts it further than it
+  # goes: a schema that is behind the code. The database here is always migrated
+  # to match the commit, so a mismatch cannot occur — that failure mode is
+  # handled by `scripts/migrate-for-build.ts`, not by this job.
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: lugar
+          POSTGRES_PASSWORD: lugar
+          POSTGRES_DB: lugar
+        options: >-
+          --health-cmd "pg_isready -U lugar -d lugar"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://lugar:lugar@localhost:5432/lugar
+      # Placeholders, not secrets. The build phase does not require either — the
+      # environment contract exempts it — but better-auth logs an error per
+      # prerendered admin route without them, which buries anything real.
+      BETTER_AUTH_SECRET: ci-placeholder-not-a-real-secret-000000
+      PREVIEW_SECRET: ci-placeholder-not-a-real-secret-000000
+      # So canonical URLs and the sitemap are built in their production shape.
+      NEXT_PUBLIC_APP_URL: https://lugar.up.railway.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run db:migrate
+
+      # Without content there is almost nothing to prerender, and the job would
+      # pass while proving very little. Seeded, it renders the real ten pages.
+      - run: npm run db:seed
+
+      - run: npm run build
