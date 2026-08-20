@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 
 import { Logo } from '@/components/layout/logo';
@@ -22,6 +23,20 @@ export type MobileNavItem = { href: string; label: string };
  *
  * The panel fades and slides a few pixels. It never starts from `scale(0)`,
  * which makes a menu feel like it is being thrown at the user.
+ *
+ * The panel is rendered through a portal into `document.body`, and that is not
+ * a stylistic preference — putting it back inside the header breaks it.
+ *
+ * The header carries `backdrop-blur-[14px]`. A `backdrop-filter` other than
+ * `none` makes an element a *containing block for fixed-position descendants*,
+ * so `fixed inset-0` on a child resolves against the 75px header instead of the
+ * viewport. The panel then paints its background across that strip only, while
+ * its links overflow below it with nothing behind them — the menu and the page
+ * legible on top of each other. It looks like a missing background; it is
+ * actually a misplaced containing block.
+ *
+ * The portal also lifts the panel out of the header's `z-[60]` stacking
+ * context, so nothing on the page can paint over it.
  */
 export function MobileMenu({ items, ctaLabel }: { items: MobileNavItem[]; ctaLabel: string }) {
   const t = useTranslations('nav');
@@ -92,55 +107,58 @@ export function MobileMenu({ items, ctaLabel }: { items: MobileNavItem[]; ctaLab
         <span aria-hidden className="bg-ink-strong block h-px w-[18px]" />
       </button>
 
-      {open ? (
-        <div
-          id={panelId}
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('mainNavigation')}
-          className={cn(
-            'bg-bg fixed inset-0 z-[70] flex flex-col px-[clamp(18px,6vw,40px)] py-[22px]',
-            'motion-safe:animate-[fade-in_180ms_ease-out]',
-          )}
-        >
-          <div className="mb-9 flex items-center justify-between">
-            <Logo />
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label={t('closeMenu')}
-              className="border-line-strong text-ink-strong flex h-[42px] w-[42px] cursor-pointer items-center justify-center rounded-[--radius-btn] border text-xl leading-none"
+      {open
+        ? createPortal(
+            <div
+              id={panelId}
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('mainNavigation')}
+              className={cn(
+                'bg-bg fixed inset-0 z-[70] flex flex-col px-[clamp(18px,6vw,40px)] py-[22px]',
+                'motion-safe:animate-[fade-in_180ms_ease-out]',
+              )}
             >
-              ×
-            </button>
-          </div>
+              <div className="mb-9 flex items-center justify-between">
+                <Logo />
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label={t('closeMenu')}
+                  className="border-line-strong text-ink-strong flex h-[42px] w-[42px] cursor-pointer items-center justify-center rounded-[--radius-btn] border text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
 
-          <nav className="flex flex-col gap-0.5" aria-label={t('mainNavigation')}>
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="border-line-soft font-display border-b py-1.5 text-[30px] leading-[1.5]"
+              <nav className="flex flex-col gap-0.5" aria-label={t('mainNavigation')}>
+                {items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className="border-line-soft font-display border-b py-1.5 text-[30px] leading-[1.5]"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openLeadDialog({ form: 'calculate', blockContext: 'mobile_menu' });
+                }}
+                className={buttonClasses('primary', 'lg', 'mt-auto w-full')}
               >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              openLeadDialog({ form: 'calculate', blockContext: 'mobile_menu' });
-            }}
-            className={buttonClasses('primary', 'lg', 'mt-auto w-full')}
-          >
-            {ctaLabel}
-          </button>
-        </div>
-      ) : null}
+                {ctaLabel}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

@@ -229,3 +229,53 @@ test.describe('accessibility basics', () => {
     }
   });
 });
+
+test.describe('mobile menu', () => {
+  test('the open panel covers the viewport instead of the header strip', async ({ page }) => {
+    await page.goto('/raboty');
+
+    const burger = page.getByRole('button', { name: 'Открыть меню' });
+    if (!(await burger.isVisible().catch(() => false))) {
+      test.skip(true, 'no burger at this viewport — desktop navigation');
+    }
+
+    await burger.click();
+    const panel = page
+      .getByRole('dialog', { name: 'Наши работы' })
+      .or(page.locator('[role="dialog"][aria-modal="true"]'));
+    await expect(panel.first()).toBeVisible();
+
+    /**
+     * The regression this guards.
+     *
+     * The panel used to live inside the header, which carries
+     * `backdrop-blur-[14px]`. A backdrop-filter makes an element a containing
+     * block for fixed-position descendants, so `fixed inset-0` resolved against
+     * the 75px header rather than the viewport: the background covered a strip
+     * at the top and every link below it rendered over the page with nothing
+     * behind it. Asserting "is visible" would not have caught it — the panel
+     * was visible, it was just the wrong size.
+     */
+    const box = await panel.first().boundingBox();
+    const viewport = page.viewportSize();
+    expect(box, 'the panel must have a box').not.toBeNull();
+    expect(
+      box!.height,
+      `panel is ${Math.round(box!.height)}px tall, viewport is ${viewport!.height}px — ` +
+        'it is being positioned against an ancestor, not the viewport',
+    ).toBeGreaterThan(viewport!.height * 0.9);
+
+    // And it must actually cover the page. Geometry is not enough here:
+    // `toBeInViewport` measures intersection, not occlusion, so a heading behind
+    // an opaque overlay still counts as in the viewport. Hit-testing is what
+    // answers "would a tap land on the menu or on the page underneath".
+    const covered = await page.evaluate(() => {
+      const h1 = document.querySelector('h1');
+      if (!h1) return 'no h1';
+      const r = h1.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return hit?.closest('[role="dialog"][aria-modal="true"]') ? 'panel' : 'page';
+    });
+    expect(covered, 'a tap over the page heading must land on the menu').toBe('panel');
+  });
+});
