@@ -6,6 +6,12 @@
  * access to the private network, and a failed migration blocks the release
  * rather than shipping a schema mismatch.
  *
+ * It is not the first migration of a deploy, though. `next build` prerenders,
+ * and prerendering queries the real database — a step earlier than this one. So
+ * `scripts/migrate-for-build.ts` runs the same migrations against the build's
+ * connection before anything is prerendered, and this becomes an idempotent
+ * no-op on any deploy whose build had a database to reach.
+ *
  * Uses its own single-connection client and closes it, so the process exits
  * cleanly instead of hanging on an open pool.
  */

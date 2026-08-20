@@ -25,6 +25,7 @@
     "lint:fix": "eslint . --fix",
     "preflight": "tsx --conditions=react-server scripts/preflight.ts",
     "postbuild": "npm run build:standalone",
+    "prebuild": "tsx --conditions=react-server scripts/migrate-for-build.ts",
     "start": "node .next/standalone/server.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
