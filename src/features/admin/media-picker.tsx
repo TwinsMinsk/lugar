@@ -29,11 +29,14 @@ export function MediaPicker({
   value,
   onChange,
   label = 'Изображение',
+  clearable = true,
 }: {
   assets: PickableAsset[];
   value: string | null;
   onChange: (assetId: string | null) => void;
   label?: string;
+  /** Some slots are required by their schema — emptying those cannot be saved. */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -123,7 +126,7 @@ export function MediaPicker({
         >
           {selected ? 'Заменить' : 'Выбрать'}
         </button>
-        {selected ? (
+        {selected && clearable ? (
           <button
             type="button"
             onClick={() => onChange(null)}

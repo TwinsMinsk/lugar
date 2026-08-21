@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
+import { listPickableAssets } from '@/data/admin/portfolio';
 import { AddressEditor } from '@/features/admin/address-editor';
 import { pageLabel } from '@/features/admin/page-labels';
 import { SeoEditor } from '@/features/admin/seo-editor';
@@ -16,7 +17,7 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
   const document = await getDocumentForEditing(id);
   if (!document) notFound();
 
-  const revisions = await listRevisions(id);
+  const [revisions, assets] = await Promise.all([listRevisions(id), listPickableAssets()]);
   const ru = document.locales.find((entry) => entry.locale === 'ru');
   const publishedLocales = document.locales
     .filter((entry) => entry.status === 'published')
@@ -99,6 +100,7 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
         documentId={document.id}
         initialBlocks={document.blocks}
         publishedLocales={publishedLocales}
+        assets={assets}
         revisions={revisions.map((revision) => ({
           id: revision.id,
           revisionNumber: revision.revisionNumber,

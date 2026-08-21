@@ -43,13 +43,22 @@ export type Cta = z.infer<typeof cta>;
  * The focal point lives on the asset by default; `focalOverride` lets a single
  * block re-crop the same photograph without duplicating it or mutating the
  * original. Nothing here is destructive.
+ *
+ * The `media` marker is what the block editor looks for when it builds an image
+ * picker for a block it has never seen. Marking the schema rather than sniffing
+ * the value's shape matters for the empty case: an unset optional slot has no
+ * value to recognise, and those are exactly the slots the owner needs to fill.
  */
-export const mediaRef = z.object({
-  assetId: z.uuid(),
-  focalOverride: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
-  altOverride: localizedTextOptional(180).optional(),
-  captionOverride: localizedTextOptional(180).optional(),
-});
+export const mediaRef = z
+  .object({
+    assetId: z.uuid(),
+    focalOverride: z
+      .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
+      .optional(),
+    altOverride: localizedTextOptional(180).optional(),
+    captionOverride: localizedTextOptional(180).optional(),
+  })
+  .meta({ media: true });
 
 export type MediaRef = z.infer<typeof mediaRef>;
 

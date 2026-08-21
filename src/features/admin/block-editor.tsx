@@ -16,6 +16,8 @@ import { LOCALES, type Locale } from '@/i18n/routing';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { collectLocalizedFields, setAtPath } from './localized-fields';
+import { collectMediaSlots } from './media-fields';
+import { MediaPicker, type PickableAsset } from './media-picker';
 import { useAction } from './use-action';
 
 export type RevisionOption = {
@@ -44,11 +46,13 @@ export function BlockEditor({
   initialBlocks,
   revisions,
   publishedLocales,
+  assets,
 }: {
   documentId: string;
   initialBlocks: AnyBlock[];
   revisions: RevisionOption[];
   publishedLocales: Locale[];
+  assets: PickableAsset[];
 }) {
   const [blocks, setBlocks] = useState<AnyBlock[]>(initialBlocks);
   const [locale, setLocale] = useState<Locale>('ru');
@@ -104,6 +108,16 @@ export function BlockEditor({
     update(next);
   }
 
+  function editMedia(index: number, path: string, assetId: string | null) {
+    const next = [...blocks];
+    const block = next[index]!;
+    // Only the reference is replaced. Any per-block crop or alt override on the
+    // slot belongs to the old picture, so it goes with it.
+    const value = assetId ? { assetId } : undefined;
+    next[index] = { ...block, data: setAtPath(block.data, path, value) } as AnyBlock;
+    update(next, assetId ? 'Изображение выбрано' : 'Изображение убрано');
+  }
+
   const inputClass = cn(
     'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3 py-2 text-[14px]',
     'focus:border-accent outline-none transition-colors duration-[--duration-fast]',
@@ -146,6 +160,7 @@ export function BlockEditor({
         {blocks.map((block, index) => {
           const definition = BLOCK_REGISTRY[block.type];
           const fields = collectLocalizedFields(block.data);
+          const mediaSlots = collectMediaSlots(definition.schema, block.data);
           const isOpen = expanded === block.id;
 
           return (
@@ -216,39 +231,52 @@ export function BlockEditor({
               {isOpen ? (
                 <div className="border-line flex flex-col gap-3 border-t px-4 py-4">
                   <p className="text-ink-faint text-[12px]">{definition.description.ru}</p>
-                  {fields.length === 0 ? (
+                  {fields.length === 0 && mediaSlots.length === 0 ? (
                     <p className="text-ink-soft text-[13px]">
-                      В этом блоке нет редактируемого текста.
+                      В этом блоке нет редактируемых полей.
                     </p>
                   ) : (
-                    fields.map((field) => (
-                      <div key={field.path}>
-                        <label
-                          htmlFor={`${block.id}-${field.path}`}
-                          className="text-ink-muted mb-1 block text-[12px] font-medium"
-                        >
-                          {field.label}
-                        </label>
-                        {field.multiline ? (
-                          <textarea
-                            id={`${block.id}-${field.path}`}
-                            rows={3}
-                            value={field.values[locale] ?? ''}
-                            placeholder={locale === 'ru' ? '' : (field.values.ru ?? '')}
-                            onChange={(event) => editField(index, field.path, event.target.value)}
-                            className={cn(inputClass, 'resize-y')}
-                          />
-                        ) : (
-                          <input
-                            id={`${block.id}-${field.path}`}
-                            value={field.values[locale] ?? ''}
-                            placeholder={locale === 'ru' ? '' : (field.values.ru ?? '')}
-                            onChange={(event) => editField(index, field.path, event.target.value)}
-                            className={inputClass}
-                          />
-                        )}
-                      </div>
-                    ))
+                    <>
+                      {fields.map((field) => (
+                        <div key={field.path}>
+                          <label
+                            htmlFor={`${block.id}-${field.path}`}
+                            className="text-ink-muted mb-1 block text-[12px] font-medium"
+                          >
+                            {field.label}
+                          </label>
+                          {field.multiline ? (
+                            <textarea
+                              id={`${block.id}-${field.path}`}
+                              rows={3}
+                              value={field.values[locale] ?? ''}
+                              placeholder={locale === 'ru' ? '' : (field.values.ru ?? '')}
+                              onChange={(event) => editField(index, field.path, event.target.value)}
+                              className={cn(inputClass, 'resize-y')}
+                            />
+                          ) : (
+                            <input
+                              id={`${block.id}-${field.path}`}
+                              value={field.values[locale] ?? ''}
+                              placeholder={locale === 'ru' ? '' : (field.values.ru ?? '')}
+                              onChange={(event) => editField(index, field.path, event.target.value)}
+                              className={inputClass}
+                            />
+                          )}
+                        </div>
+                      ))}
+
+                      {mediaSlots.map((slot) => (
+                        <MediaPicker
+                          key={slot.path}
+                          assets={assets}
+                          value={slot.assetId}
+                          label={slot.label}
+                          clearable={slot.optional}
+                          onChange={(assetId) => editMedia(index, slot.path, assetId)}
+                        />
+                      ))}
+                    </>
                   )}
                 </div>
               ) : null}

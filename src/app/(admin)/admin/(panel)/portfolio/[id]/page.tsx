@@ -96,6 +96,7 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
       />
 
       <BlockEditor
+        assets={assets}
         documentId={document.id}
         initialBlocks={document.blocks}
         publishedLocales={publishedLocales}
