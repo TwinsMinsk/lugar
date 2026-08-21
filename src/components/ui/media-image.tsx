@@ -70,6 +70,16 @@ export type MediaImageProps = {
   imageClassName?: string;
   /** Decorative images take an empty alt so screen readers skip them. */
   decorative?: boolean;
+  /**
+   * How the picture meets its frame.
+   *
+   * `cover` fills and crops, which is what photography wants. `contain` fits the
+   * whole thing in — for artwork that cannot lose an edge without becoming
+   * wrong, a brand logo above all. A contained frame also drops the slot
+   * colour, so the logo sits on whatever the card is rather than on a grey
+   * rectangle inside it.
+   */
+  fit?: 'cover' | 'contain';
 };
 
 /**
@@ -92,16 +102,22 @@ export function MediaImage({
   className,
   imageClassName,
   decorative = false,
+  fit = 'cover',
 }: MediaImageProps) {
   const focal = reference?.focalOverride ?? (asset ? { x: asset.focalX, y: asset.focalY } : null);
-  const objectPosition = focal ? `${focal.x * 100}% ${focal.y * 100}%` : '50% 50%';
+  // A focal point answers "what must survive the crop", so it means nothing
+  // when nothing is being cropped.
+  const objectPosition =
+    fit === 'contain' ? '50% 50%' : focal ? `${focal.x * 100}% ${focal.y * 100}%` : '50% 50%';
 
   const altText = decorative
     ? ''
     : (t(reference?.altOverride, locale) ?? (asset ? t(asset.alt, locale) : '') ?? '');
 
   return (
-    <div className={cn('bg-slot relative overflow-hidden', aspect, className)}>
+    <div
+      className={cn('relative overflow-hidden', fit === 'cover' && 'bg-slot', aspect, className)}
+    >
       {!asset ? (
         <PlaceholderFrame label="Изображение не выбрано" />
       ) : asset.isPlaceholder ? (
@@ -117,7 +133,7 @@ export function MediaImage({
           quality={82}
           placeholder={asset.lqip ? 'blur' : 'empty'}
           blurDataURL={asset.lqip ?? undefined}
-          style={{ objectFit: 'cover', objectPosition }}
+          style={{ objectFit: fit, objectPosition }}
           className={imageClassName}
         />
       )}

@@ -576,20 +576,24 @@ function MaterialsBlock({
                   className="bg-surface border-line-soft flex flex-col items-center gap-3.5 rounded-[--radius-card] border px-4 py-5.5"
                 >
                   {asset ? (
-                    <div className="relative h-11 w-full">
-                      <MediaImage
-                        asset={asset}
-                        reference={brand.logo}
-                        locale={ctx.locale}
-                        aspect="h-11 w-full"
-                        sizes="140px"
-                        decorative
-                      />
-                    </div>
+                    // `contain`, and never `cover`: a logo that has lost its
+                    // edges is not the logo any more. The frame is taller than
+                    // the text treatment it replaces because a wordmark sits
+                    // inside its own whitespace, so a contained one draws
+                    // smaller than the box that holds it.
+                    <MediaImage
+                      asset={asset}
+                      reference={brand.logo}
+                      locale={ctx.locale}
+                      aspect="h-16 w-full"
+                      fit="contain"
+                      sizes="180px"
+                      decorative
+                    />
                   ) : (
                     // No logo file supplied (or no permission to use one) —
                     // a text treatment rather than a scraped trademark.
-                    <span className="font-display flex h-11 items-center text-[19px] tracking-[0.12em]">
+                    <span className="font-display flex h-16 items-center text-[19px] tracking-[0.12em]">
                       {brand.name}
                     </span>
                   )}

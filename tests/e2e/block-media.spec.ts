@@ -70,12 +70,44 @@ async function openMaterialsBlock(page: Page) {
   await page.getByRole('button', { name: 'Материалы и качество', exact: true }).click();
 }
 
-/** How many pictures the materials section shows to a visitor. */
-async function liveLogoCount(page: Page): Promise<number> {
-  const section = page
+function materialsSection(page: Page) {
+  return page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: /Материалы, которые служат/ }) });
-  return section.locator('img').count();
+}
+
+/** How many pictures the materials section shows to a visitor. */
+async function liveLogoCount(page: Page): Promise<number> {
+  return materialsSection(page).locator('img').count();
+}
+
+/**
+ * Whether a brand logo is shown whole.
+ *
+ * `cover` fills its frame by cutting off whatever does not fit, which is right
+ * for photography and wrong for a logo — a cropped wordmark is a different mark.
+ * Reading the used `object-fit` catches the switch; comparing the painted box
+ * against the natural one catches a frame too short to hold it, which crops just
+ * as effectively without changing a single style.
+ */
+async function logoFit(page: Page) {
+  return materialsSection(page)
+    .locator('img')
+    .first()
+    .evaluate((img) => {
+      const el = img as HTMLImageElement;
+      const box = el.getBoundingClientRect();
+      const scale = Math.min(
+        box.width / (el.naturalWidth || 1),
+        box.height / (el.naturalHeight || 1),
+      );
+      return {
+        objectFit: getComputedStyle(el).objectFit,
+        // How tall the picture actually paints once fitted, against its frame.
+        paintedHeight: Math.round((el.naturalHeight || 0) * scale),
+        frameHeight: Math.round(box.height),
+      };
+    });
 }
 
 const ABOUT = '/o-kompanii';
@@ -127,6 +159,14 @@ test.describe('block media', () => {
         LIVE,
       )
       .toBeGreaterThan(0);
+
+    // Shown whole, not filled and trimmed.
+    const fit = await logoFit(page);
+    expect(fit.objectFit, 'a logo must never be cropped to fill its frame').toBe('contain');
+    expect(
+      fit.paintedHeight,
+      `the logo paints ${fit.paintedHeight}px inside a ${fit.frameHeight}px frame`,
+    ).toBeLessThanOrEqual(fit.frameHeight);
   });
 
   test('an owner can put a logo on a brand that had none', async ({ page }) => {
