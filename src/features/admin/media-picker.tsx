@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { uploadMedia } from '@/app/(admin)/admin/_actions/media';
 import { buttonClasses } from '@/components/ui/button';
+import { FileDropField } from './file-drop';
 import { cn } from '@/lib/utils';
 import { messagesFor } from './messages';
 
@@ -68,18 +69,8 @@ function InlineUpload({ onUploaded }: { onUploaded: (assetId: string, file: File
         });
       }}
     >
-      <div className="flex-1 basis-[200px]">
-        <label htmlFor="picker-file" className="text-ink-muted mb-1 block text-[12px] font-medium">
-          Загрузить с компьютера
-        </label>
-        <input
-          id="picker-file"
-          name="file"
-          type="file"
-          required
-          accept="image/jpeg,image/png,image/webp,image/avif,image/tiff"
-          className="text-[13px]"
-        />
+      <div className="flex-1 basis-[240px]">
+        <FileDropField id="picker-file" label="Загрузить с компьютера" />
       </div>
 
       <div className="flex-1 basis-[220px]">

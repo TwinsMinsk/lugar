@@ -106,12 +106,20 @@ test.describe('media library', () => {
   });
 
   test('deduplicates identical bytes instead of creating a second asset', async ({ page }) => {
-    // Same seed both times: identical bytes are the point of this test.
-    const fixture = await makeJpeg(1200, 800, 424242);
+    // One file, uploaded twice: identical bytes are the point of this test.
+    // Everything is stamped per run — the bytes so the asset is genuinely new,
+    // the descriptions so they name only this run's asset. Anything fixed here
+    // is shared with every previous run: dedupe hands back the existing asset
+    // without touching its description, so a fixed name would have the
+    // assertions reading whatever some earlier run left behind.
+    const stamp = Date.now();
+    const fixture = await makeJpeg(1200, 800, stamp);
+    const first = `Дубликат — первая загрузка ${stamp}`;
+    const second = `Дубликат — вторая загрузка ${stamp}`;
 
     await page.goto('/admin/media');
     await page.locator('input[name="file"]').setInputFiles(fixture);
-    await page.locator('input[name="altRu"]').fill('Дубликат — первая загрузка');
+    await page.locator('input[name="altRu"]').fill(first);
     await page.getByRole('button', { name: 'Загрузить' }).click();
     await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
 
@@ -119,22 +127,40 @@ test.describe('media library', () => {
     // return the existing asset rather than duplicate the file and its
     // derivatives.
     await page.locator('input[name="file"]').setInputFiles(fixture);
-    await page.locator('input[name="altRu"]').fill('Дубликат — вторая загрузка');
+    await page.locator('input[name="altRu"]').fill(second);
     await page.getByRole('button', { name: 'Загрузить' }).click();
     await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
 
     await page.reload();
-    // Asserted on the bytes rather than on the library's total: the second
-    // upload kept the first one's description, which is what "the same asset
-    // came back" looks like from here. A count of everything would instead be
-    // measuring the rest of the suite.
+    // Asserted on this run's asset rather than on the library's total: the
+    // second upload kept the first one's description, which is what "the same
+    // asset came back" looks like from here. A count of everything would
+    // instead be measuring the rest of the suite.
     const items = library(page).getByRole('listitem');
-    await expect(
-      items.filter({ has: page.locator('input[value="Дубликат — первая загрузка"]') }),
-    ).toHaveCount(1);
-    await expect(
-      items.filter({ has: page.locator('input[value="Дубликат — вторая загрузка"]') }),
-    ).toHaveCount(0);
+    const kept = items.filter({ has: page.locator(`input[value="${first}"]`) });
+    await expect(kept).toHaveCount(1);
+    await expect(items.filter({ has: page.locator(`input[value="${second}"]`) })).toHaveCount(0);
+
+    // Taken out again, both levels: a per-run fixture that is never removed is
+    // just a slow leak into the library every later run has to read past.
+    await kept.getByRole('button', { name: 'Убрать' }).click();
+    await page
+      .getByRole('dialog', { name: 'Убрать изображение?' })
+      .getByRole('button', { name: 'Убрать' })
+      .click();
+    await expect(page.getByText('Изображение убрано.')).toBeVisible({ timeout: 15_000 });
+
+    await archive(page)
+      .getByRole('listitem')
+      .filter({ hasText: first })
+      .first()
+      .getByRole('button', { name: 'Удалить навсегда' })
+      .click();
+    await page
+      .getByRole('dialog', { name: 'Удалить навсегда?' })
+      .getByRole('button', { name: 'Удалить навсегда' })
+      .click();
+    await expect(page.getByText('Изображение удалено навсегда.')).toBeVisible({ timeout: 15_000 });
   });
 
   test('will not delete an image that a published page still shows', async ({ page }) => {
