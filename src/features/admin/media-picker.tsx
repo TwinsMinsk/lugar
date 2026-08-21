@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
+import { uploadMedia } from '@/app/(admin)/admin/_actions/media';
 import { buttonClasses } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { messagesFor } from './messages';
+
+const message = messagesFor({
+  no_file: 'Выберите файл на компьютере.',
+});
 
 export type PickableAsset = {
   id: string;
@@ -23,7 +30,82 @@ export type PickableAsset = {
  * which reads as a bug rather than as work in progress.
  *
  * A modal, so it traps focus and returns it; the trigger stays a real button.
+ *
+ * The library is not the only way in: a picture can be uploaded straight from
+ * the computer here and is chosen the moment it lands. Sending the owner to the
+ * media screen and back to fill one slot is the kind of detour that gets a slot
+ * left empty instead.
  */
+/**
+ * Upload from the computer, without leaving the slot being filled.
+ *
+ * Description is asked for here rather than "later": the upload is rejected
+ * without it, and a library where alt text is optional ends up with none.
+ */
+function InlineUpload({ onUploaded }: { onUploaded: (assetId: string, file: File) => void }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [pendingUpload, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <form
+      ref={formRef}
+      className="border-line bg-surface mb-4 flex flex-wrap items-end gap-3 rounded-[--radius-card] border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        const file = formData.get('file');
+        startTransition(async () => {
+          setError(null);
+          const result = await uploadMedia(formData);
+          if (result.ok && result.assetId) {
+            form.reset();
+            onUploaded(result.assetId, file instanceof File ? file : new File([], ''));
+          } else {
+            setError(message(result.ok ? 'unexpected' : result.error));
+          }
+        });
+      }}
+    >
+      <div className="flex-1 basis-[200px]">
+        <label htmlFor="picker-file" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          Загрузить с компьютера
+        </label>
+        <input
+          id="picker-file"
+          name="file"
+          type="file"
+          required
+          accept="image/jpeg,image/png,image/webp,image/avif,image/tiff"
+          className="text-[13px]"
+        />
+      </div>
+
+      <div className="flex-1 basis-[220px]">
+        <label htmlFor="picker-alt" className="text-ink-muted mb-1 block text-[12px] font-medium">
+          Описание (alt, по-русски)
+        </label>
+        <input
+          id="picker-alt"
+          name="altRu"
+          required
+          placeholder="Логотип EGGER"
+          className="border-line-strong bg-surface focus:border-accent w-full rounded-[--radius-btn] border px-3 py-2 text-[14px] outline-none"
+        />
+      </div>
+
+      <button type="submit" disabled={pendingUpload} className={buttonClasses('primary', 'sm')}>
+        {pendingUpload ? 'Загружаем…' : 'Загрузить и выбрать'}
+      </button>
+
+      <p role="alert" className="text-danger basis-full text-[12px] empty:hidden">
+        {error}
+      </p>
+    </form>
+  );
+}
+
 export function MediaPicker({
   assets,
   value,
@@ -41,8 +123,26 @@ export function MediaPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
-  const selected = assets.find((asset) => asset.id === value) ?? null;
+  /**
+   * A picture uploaded from this control, held until the server props catch up.
+   *
+   * `router.refresh()` is what puts the new asset into `assets`, and that is a
+   * round trip. Without this the thumbnail would read "не выбрано" for a moment
+   * right after a successful upload — the one moment the owner is watching it.
+   */
+  const [pending, setPending] = useState<PickableAsset | null>(null);
+
+  useEffect(() => {
+    // The preview is an object URL; letting it leak would hold the file open.
+    return () => {
+      if (pending) URL.revokeObjectURL(pending.url);
+    };
+  }, [pending]);
+
+  const selected =
+    assets.find((asset) => asset.id === value) ?? (pending?.id === value ? pending : null);
 
   useEffect(() => {
     if (!open) return;
@@ -171,6 +271,24 @@ export function MediaPicker({
                 ×
               </button>
             </div>
+
+            <InlineUpload
+              onUploaded={(assetId, file) => {
+                // Selected immediately, with a local preview standing in until
+                // the refreshed server props carry the real one.
+                setPending({
+                  id: assetId,
+                  url: URL.createObjectURL(file),
+                  alt: '',
+                  isPlaceholder: false,
+                  width: 0,
+                  height: 0,
+                });
+                onChange(assetId);
+                router.refresh();
+                setOpen(false);
+              }}
+            />
 
             {visible.length === 0 ? (
               <p className="text-ink-soft py-8 text-center text-[14px]">

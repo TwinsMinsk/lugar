@@ -134,8 +134,12 @@ test.describe('portfolio', () => {
 
     // Give it a cover so the index card is not an empty frame.
     await page.getByRole('button', { name: 'Выбрать' }).first().click();
-    await page.getByRole('dialog', { name: 'Выбор изображения' }).waitFor();
-    await page.getByRole('dialog').getByRole('button').nth(1).click();
+    const chooser = page.getByRole('dialog', { name: 'Выбор изображения' });
+    await chooser.waitFor();
+    // The first tile, addressed as a tile. Picking the dialog's nth button
+    // instead ties this to the dialog's layout: the chooser also offers an
+    // upload form, and its controls come before the tiles.
+    await chooser.getByRole('listitem').first().getByRole('button').click();
     await page.getByRole('button', { name: 'Сохранить карточку' }).click();
     await expect(page.getByText('Карточка сохранена.')).toBeVisible({ timeout: 15_000 });
 

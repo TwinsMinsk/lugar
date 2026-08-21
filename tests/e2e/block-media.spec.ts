@@ -54,10 +54,18 @@ async function publishRu(page: Page) {
   await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
 }
 
-/** Opens the home page in the editor and expands the materials block. */
+/**
+ * Opens the "О компании" page in the editor and expands its materials block.
+ *
+ * Deliberately not the home page. This spec publishes, and so does admin.spec —
+ * against the same site, from a different worker. Two specs editing one document
+ * in parallel makes each one's assertion depend on the other's timing, and the
+ * failure reads as a broken feature rather than as a fixture that shares state.
+ * The about page carries the same block and nothing else publishes it.
+ */
 async function openMaterialsBlock(page: Page) {
   await page.goto('/admin/pages');
-  await page.getByRole('link', { name: 'Главная', exact: true }).click();
+  await page.getByRole('link', { name: 'О компании', exact: true }).click();
   // Exact: the move buttons carry the block's name in their aria-label too.
   await page.getByRole('button', { name: 'Материалы и качество', exact: true }).click();
 }
@@ -69,6 +77,8 @@ async function liveLogoCount(page: Page): Promise<number> {
     .filter({ has: page.getByRole('heading', { name: /Материалы, которые служат/ }) });
   return section.locator('img').count();
 }
+
+const ABOUT = '/o-kompanii';
 
 test.describe('block media', () => {
   test.describe.configure({ mode: 'serial' });
@@ -90,6 +100,33 @@ test.describe('block media', () => {
     } finally {
       await page.close();
     }
+  });
+
+  test('a picture can be uploaded from the computer without leaving the slot', async ({ page }) => {
+    // The detour this removes: the library was the only way in, so filling one
+    // slot meant leaving for the media screen and coming back.
+    const seed = Date.now() + 1;
+    const alt = `Логотип из окна выбора ${seed}`;
+
+    await openMaterialsBlock(page);
+    await page.getByRole('button', { name: 'Выбрать' }).first().click();
+
+    const chooser = page.getByRole('dialog', { name: 'Выбор изображения' });
+    await chooser.locator('input[name="file"]').setInputFiles(await makeJpeg(seed));
+    await chooser.getByLabel(/Описание/).fill(alt);
+    await chooser.getByRole('button', { name: 'Загрузить и выбрать' }).click();
+
+    // Chosen the moment it lands: the dialog closes and the slot is filled.
+    await expect(chooser).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Заменить' }).first()).toBeVisible();
+
+    await publishRu(page);
+    await expect
+      .poll(
+        live(page, ABOUT, () => liveLogoCount(page)),
+        LIVE,
+      )
+      .toBeGreaterThan(0);
   });
 
   test('an owner can put a logo on a brand that had none', async ({ page }) => {
@@ -127,7 +164,7 @@ test.describe('block media', () => {
     // 4. What a visitor actually gets.
     await expect
       .poll(
-        live(page, '/', () => liveLogoCount(page)),
+        live(page, ABOUT, () => liveLogoCount(page)),
         LIVE,
       )
       .toBeGreaterThan(0);
