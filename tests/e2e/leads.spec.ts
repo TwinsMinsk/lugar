@@ -157,8 +157,22 @@ test.describe('leads', () => {
     await page.goto('/admin/leads?assignee=none');
     // Minus the header row; an empty list renders a message instead of a table.
     const rows = Math.max((await page.getByRole('row').count()) - 1, 0);
+    // The list is one page deep (`listLeads` defaults to 50 with a cursor), and
+    // says so with this link. Comparing a total against a page that has been
+    // cut off is how this test used to fail the moment the suite's own leads
+    // outgrew a page — for a reason that has nothing to do with the dashboard.
+    const truncated = await page.getByRole('link', { name: 'Более ранние' }).isVisible();
 
     const after = await unassignedCount();
+
+    if (truncated) {
+      // Only the weaker statement is available, but it is still the one worth
+      // making: a counter that disagrees with a full page in front of it is
+      // structurally wrong, not a moment stale.
+      expect(rows).toBeGreaterThan(0);
+      expect(Math.min(before, after)).toBeGreaterThanOrEqual(rows);
+      return;
+    }
 
     expect(rows).toBeGreaterThanOrEqual(Math.min(before, after));
     expect(rows).toBeLessThanOrEqual(Math.max(before, after));
