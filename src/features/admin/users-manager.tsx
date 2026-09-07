@@ -7,9 +7,10 @@ import {
   inviteUser,
   revokeInvitation,
   setUserBanned,
+  setUserPassword,
 } from '@/app/(admin)/admin/_actions/users';
 import { buttonClasses } from '@/components/ui/button';
-import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
+import { ConfirmButton, InlineConfirm, Modal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useAction } from './use-action';
 
@@ -222,6 +223,20 @@ export function UsersManager({
                 }
               />
 
+              {row.id === currentUserId ? null : (
+                <SetPasswordControl
+                  user={row}
+                  pending={isBusy(row.id)}
+                  onApply={(password) =>
+                    run(() => setUserPassword({ userId: row.id, password }), {
+                      key: row.id,
+                      success:
+                        'Пароль задан. Передайте его лично — здесь он больше не показывается.',
+                    })
+                  }
+                />
+              )}
+
               {row.id === currentUserId ? null : row.banned ? (
                 <button
                   type="button"
@@ -315,5 +330,107 @@ function RoleControl({
         />
       ) : null}
     </span>
+  );
+}
+
+/**
+ * Giving someone a new password.
+ *
+ * The way back in when a colleague is locked out and email is not configured —
+ * the owner sets a password here and hands it over in person. Deliberately a
+ * dialog rather than an inline field: a password box sitting open in a list of
+ * staff invites a mistyped row, and this one signs the account out.
+ *
+ * The value is never echoed back. It exists in this input, travels to the
+ * action, and is gone — the audit row records that a password was set and
+ * nothing about what it was, and the success message says so, because an owner
+ * who expects to re-read it later will otherwise not write it down.
+ */
+function SetPasswordControl({
+  user,
+  pending,
+  onApply,
+}: {
+  user: { id: string; email: string };
+  pending: boolean;
+  onApply: (password: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function close() {
+    setOpen(false);
+    setPassword('');
+    setError(null);
+  }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (password.length < 12) {
+      setError('Не короче 12 символов.');
+      return;
+    }
+    onApply(password);
+    close();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => setOpen(true)}
+        className={cn(buttonClasses('ghost', 'sm'), 'text-[12px]')}
+      >
+        Задать пароль
+      </button>
+
+      {open ? (
+        <Modal label="Задать пароль" onClose={close} className="max-w-[420px]">
+          <form onSubmit={submit} className="flex flex-col gap-3 p-5">
+            <h2 className="font-display text-[19px]">Задать пароль</h2>
+            <p className="text-ink-soft text-[13px]">
+              {user.email} войдёт с этим паролем, а текущий сеанс этого человека завершится.
+              Передайте пароль лично и попросите сменить его в разделе «Мой доступ».
+            </p>
+
+            <label htmlFor={`pw-${user.id}`} className="text-ink-muted text-[13px] font-medium">
+              Новый пароль
+            </label>
+            <input
+              id={`pw-${user.id}`}
+              type="text"
+              value={password}
+              minLength={12}
+              autoComplete="off"
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setError(null);
+              }}
+              className={cn(
+                'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3 py-2 text-[14px]',
+                'focus:border-accent outline-none',
+              )}
+            />
+
+            {error ? (
+              <p role="alert" className="text-danger text-[12px]">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="mt-1 flex justify-end gap-2">
+              <button type="button" onClick={close} className={buttonClasses('ghost', 'sm')}>
+                Отмена
+              </button>
+              <button type="submit" className={buttonClasses('primary', 'sm')}>
+                Задать пароль
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+    </>
   );
 }

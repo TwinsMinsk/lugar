@@ -149,6 +149,97 @@ test.describe('users and invitations', () => {
 
     await invitee.close();
   });
+
+  /**
+   * Password recovery, both halves of it.
+   *
+   * Until this shipped there was no way to change a password anywhere in the
+   * panel — the bootstrap script told the operator to do it "in the panel",
+   * and the panel could not. Proven on a throwaway invited account rather than
+   * on the owner: changing the owner's password would invalidate the storage
+   * state every other admin spec reuses.
+   */
+  test('an editor changes their own password, and the owner can set one for them', async ({
+    page,
+    browser,
+  }) => {
+    const email = `pw-${Date.now()}@example.test`;
+    const first = 'pervyi-parol-12345';
+    const second = 'vtoroi-parol-67890';
+    const third = 'tretii-parol-abcdef';
+
+    await page.goto('/admin/users');
+    const inviteForm = page.locator('form');
+    await inviteForm.getByLabel('Email').fill(email);
+    await inviteForm.getByLabel('Роль', { exact: true }).selectOption('content_editor');
+    await inviteForm.getByRole('button', { name: 'Пригласить' }).click();
+
+    const link = page.locator('code').first();
+    await expect(link).toBeVisible({ timeout: 15_000 });
+    const inviteUrl = (await link.textContent())!.trim();
+
+    const editor = await browser.newContext({ storageState: undefined });
+    const editorPage = await editor.newPage();
+    await editorPage.goto(new URL(inviteUrl).pathname);
+    await editorPage.getByLabel('Как вас зовут').fill('Смена Пароля');
+    await editorPage.getByLabel('Пароль').fill(first);
+    await editorPage.getByRole('button', { name: 'Завершить' }).click();
+    await expect(editorPage.getByText('Теперь войдите с этим паролем')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await signIn(editorPage, email, first);
+
+    // The wrong current password must not change anything, or the form is an
+    // unauthenticated password reset for anyone holding a stolen session.
+    await editorPage.goto('/admin/profile');
+    await editorPage.getByLabel('Текущий пароль').fill('sovsem-ne-tot-parol');
+    await editorPage.getByLabel('Новый пароль', { exact: true }).fill(second);
+    await editorPage.getByLabel('Повторите новый пароль').fill(second);
+    await editorPage.getByRole('button', { name: 'Сменить пароль' }).click();
+    await expect(editorPage.getByRole('alert')).toBeVisible();
+
+    await editorPage.getByLabel('Текущий пароль').fill(first);
+    await editorPage.getByLabel('Новый пароль', { exact: true }).fill(second);
+    await editorPage.getByLabel('Повторите новый пароль').fill(second);
+    await editorPage.getByRole('button', { name: 'Сменить пароль' }).click();
+    await expect(editorPage.getByRole('status')).toContainText('Пароль изменён', {
+      timeout: 15_000,
+    });
+
+    // The change is journalled — without the audit row, a password change is
+    // the one account event nobody could reconstruct afterwards.
+    // Scoped to the list: the action filter is built from the actions actually
+    // present, so a bare text match finds its <option> and passes on a page
+    // showing no entry at all.
+    await page.goto('/admin/audit');
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'Смена своего пароля' }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The owner's own recovery path when email is not configured: set a
+    // password directly. It signs the account out, so the editor's open tab
+    // lands on the login screen.
+    await page.goto('/admin/users');
+    const row = page.getByRole('listitem').filter({ hasText: email });
+    await row.getByRole('button', { name: 'Задать пароль' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Новый пароль').fill(third);
+    await dialog.getByRole('button', { name: 'Задать пароль' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('Пароль задан', { timeout: 15_000 });
+
+    await editorPage.goto('/admin/pages');
+    await expect(editorPage).toHaveURL(/\/admin\/login/);
+
+    // better-auth allows three sign-ins per ten seconds per IP, and this test
+    // has already spent two. Waiting is the honest way to prove the password
+    // works — a 429 here would read exactly like a wrong password.
+    await editorPage.waitForTimeout(11_000);
+    await signIn(editorPage, email, third);
+
+    await editor.close();
+  });
 });
 
 async function signIn(page: Page, email: string, password: string) {

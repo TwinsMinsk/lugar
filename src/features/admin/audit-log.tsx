@@ -45,6 +45,8 @@ const ACTION_LABEL: Record<string, string> = {
   'users.role_changed': 'Изменена роль',
   'users.banned': 'Доступ отключён',
   'users.unbanned': 'Доступ восстановлен',
+  'users.password_changed': 'Смена своего пароля',
+  'users.password_set': 'Владелец задал пароль сотруднику',
   'lead.deleted': 'Заявка удалена',
   'crm.exported': 'Выгрузка заявок',
   'pipeline.stage_created': 'Этап воронки создан',

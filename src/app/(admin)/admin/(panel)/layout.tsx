@@ -140,9 +140,15 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             >
               Открыть сайт ↗
             </Link>
-            <span className="text-ink-faint hidden text-[13px] sm:inline">
+            {/* Who you are is also where you change your own password — the
+                one screen every role can reach, so it hangs off the identity
+                rather than taking a slot in a capability-filtered group. */}
+            <Link
+              href="/admin/profile"
+              className="text-ink-faint hover:text-accent hidden text-[13px] sm:inline"
+            >
               {user.email} · {ROLE_LABEL[role] ?? role}
-            </span>
+            </Link>
             <SignOutButton />
           </div>
         </div>

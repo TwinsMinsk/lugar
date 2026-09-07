@@ -11,7 +11,7 @@ import { invitation, session, user } from '@/db/schema';
 import { env, publicEnv } from '@/env';
 import { recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
-import { ROLES } from '@/lib/auth/server';
+import { auth, ROLES } from '@/lib/auth/server';
 
 /**
  * User administration.
@@ -240,6 +240,71 @@ export async function setUserBanned(userId: string, banned: boolean): Promise<Us
         action: banned ? 'users.banned' : 'users.unbanned',
         entityType: 'user',
         entityId: userId,
+        ...context,
+      },
+      tx,
+    );
+  });
+
+  return { ok: true };
+}
+
+const setPasswordSchema = z.object({
+  userId: z.string().min(1),
+  password: z.string().min(12).max(200),
+});
+
+/**
+ * Give someone a new password.
+ *
+ * The recovery path for a colleague who is locked out while email is not
+ * configured — the owner sets a password and hands it over, and that person
+ * changes it on `/admin/profile`. The capability check is the real gate:
+ * better-auth's own `set-password` is already granted to the owner role by the
+ * admin plugin, so this action adds an interface to something the server has
+ * always allowed, not a new power.
+ *
+ * Not for your own account. `changePassword` demands the current password;
+ * this does not, so allowing it on yourself would turn a stolen session into a
+ * permanent one without ever knowing the password it came from.
+ *
+ * The new sessions rule follows `setUserBanned`: whoever was signed in as this
+ * account is signed out, because the reason to reach for this is usually that
+ * the old credential should stop working.
+ */
+export async function setUserPassword(
+  input: z.input<typeof setPasswordSchema>,
+): Promise<UserActionResult> {
+  const { user: actor } = await requireCapability('users.manage');
+
+  const parsed = setPasswordSchema.safeParse(input);
+  if (!parsed.success) {
+    const tooShort = parsed.error.issues.some((issue) => issue.path[0] === 'password');
+    return { ok: false, error: tooShort ? 'password_too_short' : 'invalid_input' };
+  }
+  const { userId, password } = parsed.data;
+
+  if (userId === actor.id) return { ok: false, error: 'use_own_profile' };
+
+  const [target] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId));
+  if (!target) return { ok: false, error: 'not_found' };
+
+  const context = await requestContext();
+
+  await auth.api.setUserPassword({
+    body: { userId, newPassword: password },
+    headers: await headers(),
+  });
+
+  await db.transaction(async (tx) => {
+    await tx.delete(session).where(eq(session.userId, userId));
+    await recordAudit(
+      {
+        actorUserId: actor.id,
+        action: 'users.password_set',
+        entityType: 'user',
+        entityId: userId,
+        // Never the password, never its length, never a hash.
         ...context,
       },
       tx,
