@@ -44,7 +44,17 @@ test.describe('locale routing', () => {
     await page.goto('/');
     const alternates = page.locator('link[rel="alternate"]');
     await expect(alternates).toHaveCount(4);
-    await expect(page.locator('link[hreflang="x-default"]')).toHaveAttribute('href', /\/$/);
+    // The bare site root, with or without a trailing slash: once `metadataBase`
+    // is set, Next normalizes an absolute URL that resolves to exactly the
+    // origin by dropping the slash — documented, intentional, and specific to
+    // this one case (a locale/project path like `/es/muebles-a-medida` is
+    // never touched). Asserting either form keeps this test honest about what
+    // matters here — the alternate points at the site root — without being
+    // pinned to a formatting detail Next itself already normalizes.
+    await expect(page.locator('link[hreflang="x-default"]')).toHaveAttribute(
+      'href',
+      /^https?:\/\/[^/]+\/?$/,
+    );
   });
 
   test('an unknown path 404s rather than resolving to something plausible', async ({ page }) => {

@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 
 import { getPortfolioIndexSlug, listPublishedPaths } from '@/data/public/documents';
 import { publicEnv } from '@/env';
-import { LOCALE_TAG, LOCALES, type Locale } from '@/i18n/routing';
+import { HREFLANG_TAG, LOCALES, type Locale } from '@/i18n/routing';
 import { absoluteLocaleUrl, documentPath } from '@/lib/routes';
 
 /**
@@ -62,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const siblings = byDocument.get(entry.documentId) ?? [entry];
     const languages: Record<string, string> = {};
     for (const sibling of siblings) {
-      languages[LOCALE_TAG[sibling.locale]] = urlFor(sibling);
+      languages[HREFLANG_TAG[sibling.locale]] = urlFor(sibling);
     }
 
     return {

@@ -4,13 +4,20 @@ import { notFound, permanentRedirect, redirect } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 
+import { mediaUrl } from '@/components/ui/media-image';
+import { JsonLd } from '@/components/seo/json-ld';
+import { breadcrumbJsonLd, localBusinessJsonLd } from '@/components/seo/structured-data';
 import { Blocks } from '@/content/blocks/render';
+import { t } from '@/content/i18n';
 import { PortfolioIndex } from '@/features/portfolio/portfolio-index';
+import { DOCUMENT_IDS } from '@/db/seed/content';
 import { getPortfolioIndexSlug, listPublishedPaths } from '@/data/public/documents';
+import { getMediaAssets } from '@/data/public/media';
 import { loadPage } from '@/data/public/page-loader';
 import { resolveRedirect } from '@/data/public/redirects';
+import { getSiteSettings } from '@/data/public/settings';
 import { publicEnv } from '@/env';
-import { LOCALE_TAG, routing, type Locale } from '@/i18n/routing';
+import { HREFLANG_TAG, LOCALE_TAG, routing, type Locale } from '@/i18n/routing';
 import { absoluteLocaleUrl, documentPath, localePath } from '@/lib/routes';
 
 type PageProps = {
@@ -86,9 +93,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const loaded = await loadPage(locale, slug ?? []);
   if (!loaded) return { title: 'LUGAR', robots: { index: false, follow: false } };
 
-  const seo = loaded.meta.seo?.[locale] ?? loaded.meta.seo?.ru ?? {};
+  // Per field, not per object. Falling back to the whole `ru` object once the
+  // owner had filled in only this locale's title meant a page with an es title
+  // and no es description served the RUSSIAN description underneath it — a
+  // mixed-language search result. `canonical` deliberately never falls back:
+  // it is this locale's own URL, and ru's would point an es page at the wrong
+  // language entirely.
+  const seoLocale = loaded.meta.seo?.[locale];
+  const seoRu = loaded.meta.seo?.ru;
+  const seoTitle = seoLocale?.title ?? seoRu?.title;
+  const seoDescription = seoLocale?.description ?? seoRu?.description;
+
   const path = documentPath(loaded.ref.kind, loaded.ref.slug, loaded.portfolioIndexSlug);
-  const canonical = seo.canonical ?? absoluteLocaleUrl(locale, path, publicEnv.appUrl);
+  const canonical = seoLocale?.canonical ?? absoluteLocaleUrl(locale, path, publicEnv.appUrl);
 
   // Only locales that are actually published get an alternate. Emitting an
   // hreflang URL that 404s is worse than omitting it.
@@ -99,23 +116,44 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       alternate.slug,
       alternate.kind === 'project' ? loaded.portfolioIndexSlug : null,
     );
-    languages[LOCALE_TAG[alternate.locale]] = absoluteLocaleUrl(
+    languages[HREFLANG_TAG[alternate.locale]] = absoluteLocaleUrl(
       alternate.locale,
       alternatePath,
       publicEnv.appUrl,
     );
   }
   if (loaded.alternates.some((alternate) => alternate.locale === 'ru')) {
-    languages['x-default'] = languages[LOCALE_TAG.ru]!;
+    languages['x-default'] = languages[HREFLANG_TAG.ru]!;
   }
 
   // A preview render shows unpublished content, so it must never be indexed —
   // regardless of the document's own robots setting.
   const { isEnabled: isPreview } = await draftMode();
 
+  const settings = await getSiteSettings();
+  // `seo.defaultTitle` used to be read into `SiteSettings` and then read by
+  // nothing — an untitled page fell back to the hardcoded string `'LUGAR'`
+  // from the layout's own metadata, not to the setting the owner can actually
+  // see and edit under "SEO" in Settings.
+  const title = seoTitle ?? t(settings.seo.defaultTitle, locale);
+
+  // A page-level override wins if one is ever set (the schema supports it;
+  // the admin editor does not expose it yet); otherwise the sitewide
+  // "Картинка для соцсетей" setting, so every page gets a real preview card
+  // the moment the owner uploads one image, rather than each page needing its
+  // own. Relative URLs resolve against `metadataBase` (the site layout).
+  const ogImageAssetId = seoLocale?.ogImageAssetId ?? settings.seo.ogImageAssetId ?? undefined;
+  const ogAsset = ogImageAssetId
+    ? (await getMediaAssets([ogImageAssetId])).get(ogImageAssetId)
+    : undefined;
+  const ogImages =
+    ogAsset && !ogAsset.isPlaceholder
+      ? [{ url: mediaUrl(ogAsset), width: ogAsset.width, height: ogAsset.height }]
+      : undefined;
+
   return {
-    title: seo.title,
-    description: seo.description,
+    title,
+    description: seoDescription,
     alternates: { canonical, languages },
     robots: isPreview || loaded.ref.noindex ? { index: false, follow: false } : undefined,
     openGraph: {
@@ -123,10 +161,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       siteName: 'LUGAR',
       locale: LOCALE_TAG[locale],
       url: canonical,
-      title: seo.title,
-      description: seo.description,
+      title,
+      description: seoDescription,
+      images: ogImages,
     },
-    twitter: { card: 'summary_large_image', title: seo.title, description: seo.description },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: seoDescription,
+      images: ogImages?.map((image) => image.url),
+    },
   };
 }
 
@@ -153,6 +197,35 @@ export default async function PublicPage({ params }: PageProps) {
     notFound();
   }
 
+  const isHome = loaded.ref.documentId === DOCUMENT_IDS.HOME;
+  const isHomeOrContact = isHome || loaded.ref.documentId === DOCUMENT_IDS.CONTACTS;
+
+  // Fetched once, shared by both JSON-LD blocks below — `'use cache'` means a
+  // second call in generateMetadata for the same request is a cache hit, not
+  // a second query, but there is no reason to ask twice within this function.
+  const settings = await getSiteSettings();
+
+  const localBusiness = isHomeOrContact ? (
+    <JsonLd data={localBusinessJsonLd(settings, locale, publicEnv.appUrl)} />
+  ) : null;
+
+  const breadcrumb = isHome ? null : (
+    <JsonLd
+      data={breadcrumbJsonLd(
+        absoluteLocaleUrl(locale, '/', publicEnv.appUrl),
+        absoluteLocaleUrl(
+          locale,
+          documentPath(loaded.ref.kind, loaded.ref.slug, loaded.portfolioIndexSlug),
+          publicEnv.appUrl,
+        ),
+        loaded.meta.seo?.[locale]?.title ??
+          loaded.meta.seo?.ru?.title ??
+          t(settings.seo.defaultTitle, locale) ??
+          'LUGAR',
+      )}
+    />
+  );
+
   // The portfolio index is the one template with a section that is not editable
   // content: the filterable project grid is generated from published projects,
   // not authored block-by-block. It sits immediately after the page heading,
@@ -161,6 +234,8 @@ export default async function PublicPage({ params }: PageProps) {
     const [heading, ...rest] = loaded.blocks;
     return (
       <>
+        {localBusiness}
+        {breadcrumb}
         {heading ? <Blocks blocks={[heading]} ctx={loaded.ctx} /> : null}
         <PortfolioIndex ctx={loaded.ctx} />
         <Blocks blocks={rest} ctx={loaded.ctx} />
@@ -168,5 +243,11 @@ export default async function PublicPage({ params }: PageProps) {
     );
   }
 
-  return <Blocks blocks={loaded.blocks} ctx={loaded.ctx} />;
+  return (
+    <>
+      {localBusiness}
+      {breadcrumb}
+      <Blocks blocks={loaded.blocks} ctx={loaded.ctx} />
+    </>
+  );
 }

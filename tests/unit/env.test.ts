@@ -91,3 +91,37 @@ describe('WHATSAPP_MODE', () => {
     expect(env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME).toBe('lead_alert');
   });
 });
+
+describe('publicEnv', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * The regression this guards: `?? fallback` never fires on `""`, and an
+   * empty `NEXT_PUBLIC_APP_URL` silently produced relative canonical URLs
+   * sitewide, plus a session cookie with `Secure` dropped
+   * (`useSecureCookies` checks whether this string starts with `https://`).
+   */
+  it('falls back to localhost when NEXT_PUBLIC_APP_URL is blanked rather than absent', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '');
+    const { publicEnv } = await import('@/env');
+    expect(publicEnv.appUrl).toBe('http://localhost:3000');
+  });
+
+  it('keeps a real value untouched', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://lugar.es');
+    const { publicEnv } = await import('@/env');
+    expect(publicEnv.appUrl).toBe('https://lugar.es');
+  });
+
+  it('treats a blanked media base URL the same way', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MEDIA_BASE_URL', '');
+    const { publicEnv } = await import('@/env');
+    expect(publicEnv.mediaBaseUrl).toBe('');
+  });
+});

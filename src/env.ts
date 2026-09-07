@@ -186,6 +186,24 @@ export const env: z.infer<typeof serverSchema> = new Proxy({} as z.infer<typeof 
 });
 
 /**
+ * `??` alone is not enough for a `NEXT_PUBLIC_*` value: Railway (and most
+ * dashboards) represent a variable someone added and left blank as `""`, not
+ * as absent, so `?? fallback` never fires and the app runs on an empty
+ * string. For `appUrl` that means every canonical URL, hreflang alternate and
+ * sitemap entry silently loses its host — and separately, `useSecureCookies`
+ * (`lib/auth/server.ts`) derives from whether this string starts with
+ * `https://`, so the same empty value quietly drops `Secure` from the session
+ * cookie. Deliberately not a zod schema here, unlike `serverSchema` above:
+ * this function has to keep working with `process.env.NEXT_PUBLIC_X` inlined
+ * as a literal by Next's build — see the module doc comment — and a plain
+ * function preserves that without pulling zod's parsing into the browser
+ * bundle for values nothing in the client needs validated, only defaulted.
+ */
+function normalizePublic(value: string | undefined, fallback: string): string {
+  return value && value.trim() !== '' ? value : fallback;
+}
+
+/**
  * Browser-safe environment.
  *
  * There used to be a `whatsappPhone` here, defaulting to a real phone number
@@ -196,8 +214,8 @@ export const env: z.infer<typeof serverSchema> = new Proxy({} as z.infer<typeof 
  * gone; the lead form now reads the same setting everything else does.
  */
 export const publicEnv = {
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  mediaBaseUrl: process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? '',
+  appUrl: normalizePublic(process.env.NEXT_PUBLIC_APP_URL, 'http://localhost:3000'),
+  mediaBaseUrl: normalizePublic(process.env.NEXT_PUBLIC_MEDIA_BASE_URL, ''),
   gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? '',
   metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID ?? '',
 } as const;

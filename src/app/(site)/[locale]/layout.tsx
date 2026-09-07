@@ -13,6 +13,7 @@ import { t } from '@/content/i18n';
 import { getDocumentSlug } from '@/data/public/navigation';
 import { getServiceCategories } from '@/data/public/portfolio';
 import { DOCUMENT_IDS } from '@/db/seed/content';
+import { publicEnv } from '@/env';
 import { AnalyticsBeacon } from '@/features/analytics/analytics-beacon';
 import { AttributionBeacon } from '@/features/attribution/attribution-beacon';
 import { ConsentGate } from '@/features/consent/consent-gate';
@@ -61,6 +62,16 @@ export async function generateMetadata({
   if (!hasLocale(routing.locales, locale)) notFound();
 
   return {
+    // Resolves every relative URL a page or its `opengraph-image` returns —
+    // without it, Next warns at build time and falls back to guessing the
+    // origin from request headers, which is exactly the kind of thing that
+    // works locally and points at the wrong host once deployed. One side
+    // effect worth knowing: once this is set, Next normalizes a URL that
+    // resolves to the bare site root by dropping its trailing slash — an
+    // already-absolute `https://x.com/` becomes `https://x.com` — even though
+    // its own docs say an absolute URL should pass through untouched. Real,
+    // reproducible behavior in this exact version; see the sibling e2e test.
+    metadataBase: new URL(publicEnv.appUrl),
     title: { default: 'LUGAR', template: '%s — LUGAR' },
     applicationName: 'LUGAR',
     // Stops iOS from turning measurements and dimensions into phone links.

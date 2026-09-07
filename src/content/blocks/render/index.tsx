@@ -1,3 +1,4 @@
+import { JsonLd } from '@/components/seo/json-ld';
 import { MediaImage } from '@/components/ui/media-image';
 import { Reveal } from '@/components/motion/reveal';
 import { Container, Eyebrow, Lead, Section, SectionHeading } from '@/components/ui/typography';
@@ -9,7 +10,7 @@ import type { Cta } from '../primitives';
 import type { AnyBlock } from '../union';
 import type { RenderContext } from './context';
 import { CtaLink } from './cta-link';
-import { RichText } from './rich-text';
+import { RichText, richTextToPlainText } from './rich-text';
 
 /**
  * Block list renderer.
@@ -934,6 +935,22 @@ function FaqBlock({
 }) {
   return (
     <Section id={anchor}>
+      {data.emitStructuredData ? (
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: data.items.map((item) => ({
+              '@type': 'Question',
+              name: tRequired(item.question, ctx.locale),
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: richTextToPlainText(t(item.answer, ctx.locale)),
+              },
+            })),
+          }}
+        />
+      ) : null}
       <Eyebrow>{t(data.eyebrow, ctx.locale)}</Eyebrow>
       <SectionHeading className="mb-8">{tRequired(data.heading, ctx.locale)}</SectionHeading>
       <div className="max-w-[72ch]">

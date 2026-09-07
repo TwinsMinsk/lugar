@@ -101,6 +101,43 @@ function Node({ node }: { node: RichTextNode }) {
   }
 }
 
+/**
+ * Flattens stored rich text to plain text — for the one consumer that cannot
+ * take React elements at all: a `FAQPage` JSON-LD `acceptedAnswer.text` is a
+ * string field, not markup. Walks the same tree `RichText` renders, so a node
+ * type this schema allows is a node type this function already knows how to
+ * read; nothing here re-derives that list independently.
+ *
+ * Siblings join with a space or without one depending on what kind of
+ * siblings they are, and getting the two confused is the bug this function
+ * exists to not have: a paragraph's children are an inline run of text —
+ * "bold" sitting between two plain runs is one word in the middle of one
+ * sentence, and inserting a space at every mark boundary would print "Plain
+ * and  bold  text." with doubled spaces. A list's or blockquote's children,
+ * by contrast, are whole separate blocks, and concatenating those directly
+ * is what actually runs sentences together.
+ */
+const INLINE_PARENTS = new Set(['paragraph', 'heading']);
+
+export function richTextToPlainText(doc: RichTextDoc | undefined): string {
+  if (!doc?.content?.length) return '';
+  return doc.content
+    .map((node) => plainTextOf(node))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function plainTextOf(node: RichTextNode): string {
+  if (node.type === 'text') return node.text ?? '';
+  // A manual line break carries no text of its own, but dropping it silently
+  // would run the line before it into the line after with no space at all.
+  if (node.type === 'hardBreak') return ' ';
+  if (!node.content?.length) return '';
+
+  const parts = node.content.map((child) => plainTextOf(child));
+  return INLINE_PARENTS.has(node.type) ? parts.join('') : parts.filter(Boolean).join(' ');
+}
+
 function TextNode({ node }: { node: RichTextNode }) {
   const text = node.text ?? '';
   if (!node.marks?.length) return <Fragment>{text}</Fragment>;

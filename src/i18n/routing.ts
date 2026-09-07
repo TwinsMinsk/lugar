@@ -16,11 +16,28 @@ export const LOCALE_FALLBACK: Record<Locale, readonly Locale[]> = {
   en: ['en', 'ru'],
 };
 
-/** BCP-47 tags for <html lang>, hreflang and Open Graph. */
+/** BCP-47 tags for <html lang> and Open Graph's `og:locale`. */
 export const LOCALE_TAG: Record<Locale, string> = {
   ru: 'ru-RU',
   es: 'es-ES',
   en: 'en-GB',
+};
+
+/**
+ * hreflang tags — a narrower claim than `LOCALE_TAG`, and not the same thing.
+ * `<html lang="en-GB">` says "this text is British English", a defensible
+ * regional detail. `hreflang="en-GB"` says "show this page to searchers in
+ * the United Kingdom" — that is what tells Google who the page is *for*, and
+ * a Spain-based studio's English content is for any English-speaking
+ * searcher, not specifically UK ones. Spanish and Russian keep their regional
+ * tags: the Spanish audience genuinely is Spain, and the Russian one is
+ * Russian speakers, not a specific country whose exclusion would be wrong the
+ * same way.
+ */
+export const HREFLANG_TAG: Record<Locale, string> = {
+  ru: 'ru-RU',
+  es: 'es-ES',
+  en: 'en',
 };
 
 export const LOCALE_LABEL: Record<Locale, string> = {
