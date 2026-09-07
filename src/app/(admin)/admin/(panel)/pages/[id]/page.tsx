@@ -42,28 +42,24 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
           {/* Preview enters draft mode for this document, so the page renders
               the unsaved-to-public draft. Requires an admin session.
 
-              One link per locale, not just Russian: Spanish is the main market
-              and a native speaker proofreading it is what stands between a
-              draft and the launch. The route always accepted any locale — only
-              this link was hardwired. Offered only where the locale has been
-              published, because that is the condition the route resolves on. */}
+              One link per locale, and every locale — including one that has
+              never been published, which is exactly when proofreading matters:
+              Spanish is the main market, and asking a native speaker to check
+              a translation after it is already live is the wrong order. The
+              published-only filter that used to sit here was not a policy, it
+              was the route's own limitation showing through the interface. */}
           <span className="text-ink-faint text-[13px]">Черновик:</span>
-          {document.locales
-            .filter((entry) => entry.status === 'published')
-            .map((entry) => (
-              <a
-                key={entry.locale}
-                href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
-                target="_blank"
-                rel="noopener"
-                className="text-accent text-[13px] uppercase underline underline-offset-2"
-              >
-                {entry.locale} ↗
-              </a>
-            ))}
-          {document.locales.every((entry) => entry.status !== 'published') ? (
-            <span className="text-ink-faint text-[13px]">появится после первой публикации</span>
-          ) : null}
+          {document.locales.map((entry) => (
+            <a
+              key={entry.locale}
+              href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
+              target="_blank"
+              rel="noopener"
+              className="text-accent text-[13px] uppercase underline underline-offset-2"
+            >
+              {entry.locale} ↗
+            </a>
+          ))}
           {ru && ru.status === 'published' ? (
             <Link
               href={localePath('ru', documentPath(document.kind, ru.slug, 'raboty'))}

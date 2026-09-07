@@ -1,8 +1,7 @@
 import { draftMode } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { getPortfolioIndexSlug } from '@/data/public/documents';
-import { getDocumentSlug } from '@/data/public/navigation';
+import { resolvePreviewTarget } from '@/data/public/documents';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { getSession } from '@/lib/auth/guards';
 import { documentPath, localePath } from '@/lib/routes';
@@ -60,15 +59,20 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const target = await getDocumentSlug(documentId, locale);
+  // Uncached on purpose — see `resolvePreviewTarget`. The cached readers
+  // cannot see the draft mode this request is about to switch on, which is why
+  // this route used to 404 on a locale that had never been published.
+  const target = await resolvePreviewTarget(documentId, locale);
   if (!target) {
-    // Never published in this locale, so there is no public URL to preview at.
+    // No row for this locale at all, or the document is archived. Either way
+    // there is nothing to preview.
     return new NextResponse('Not found', { status: 404 });
   }
 
   const draft = await draftMode();
   draft.enable();
 
-  const indexSlug = target.kind === 'project' ? await getPortfolioIndexSlug(locale) : null;
-  return relativeRedirect(localePath(locale, documentPath(target.kind, target.slug, indexSlug)));
+  return relativeRedirect(
+    localePath(locale, documentPath(target.kind, target.slug, target.portfolioIndexSlug)),
+  );
 }

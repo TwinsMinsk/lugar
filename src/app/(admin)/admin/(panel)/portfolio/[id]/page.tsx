@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { t } from '@/content/i18n';
 import { getDocumentForEditing, listRevisions } from '@/data/admin/documents';
+import { getPortfolioIndexSlugs } from '@/data/admin/navigation';
 import { getProjectMeta, listCategoriesForAdmin, listPickableAssets } from '@/data/admin/portfolio';
 import { AddressEditor } from '@/features/admin/address-editor';
 import { SeoEditor } from '@/features/admin/seo-editor';
@@ -17,11 +18,15 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
   const document = await getDocumentForEditing(id);
   if (!document || document.kind !== 'project') notFound();
 
-  const [meta, revisions, assets, categories] = await Promise.all([
+  const [meta, revisions, assets, categories, portfolioIndexSlugs] = await Promise.all([
     getProjectMeta(id),
     listRevisions(id),
     listPickableAssets(),
     listCategoriesForAdmin(),
+    // Per locale, because a project's parent segment differs per language —
+    // /raboty, /es/proyectos, /en/work — and the editor showed the Russian one
+    // on all three rows.
+    getPortfolioIndexSlugs(),
   ]);
   if (!meta) notFound();
 
@@ -38,32 +43,27 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
             ← Наши работы
           </Link>
           <h1 className="font-display mt-2 text-[30px] leading-tight">
-            /raboty/{ru?.slug ?? ''}
+            /{portfolioIndexSlugs.ru ?? 'raboty'}/{ru?.slug ?? ''}
             <span className="text-ink-faint ml-3 font-sans text-[14px]">
               черновик · версия {document.draftRevisionNumber}
             </span>
           </h1>
         </div>
 
-        {/* One link per published locale — see the pages editor for why. */}
+        {/* One link per locale, published or not — see the pages editor. */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-ink-faint text-[13px]">Черновик:</span>
-          {document.locales
-            .filter((entry) => entry.status === 'published')
-            .map((entry) => (
-              <a
-                key={entry.locale}
-                href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
-                target="_blank"
-                rel="noopener"
-                className="text-accent text-[13px] uppercase underline underline-offset-2"
-              >
-                {entry.locale} ↗
-              </a>
-            ))}
-          {document.locales.every((entry) => entry.status !== 'published') ? (
-            <span className="text-ink-faint text-[13px]">появится после первой публикации</span>
-          ) : null}
+          {document.locales.map((entry) => (
+            <a
+              key={entry.locale}
+              href={`/api/preview?documentId=${document.id}&locale=${entry.locale}`}
+              target="_blank"
+              rel="noopener"
+              className="text-accent text-[13px] uppercase underline underline-offset-2"
+            >
+              {entry.locale} ↗
+            </a>
+          ))}
         </div>
       </div>
 
@@ -92,7 +92,9 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
           slug: entry.slug,
           status: entry.status,
         }))}
-        prefix="raboty/"
+        prefix={Object.fromEntries(
+          Object.entries(portfolioIndexSlugs).map(([locale, slug]) => [locale, `${slug}/`]),
+        )}
       />
 
       <BlockEditor

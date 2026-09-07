@@ -65,16 +65,26 @@ export type PublishedDocument = PublishedRef & {
  * that has never been published becomes reachable so the owner can review
  * something before its first publish.
  */
-async function previewState(): Promise<boolean> {
+export async function previewState(): Promise<boolean> {
   const { isEnabled } = await draftMode();
   return isEnabled;
 }
 
-/** Slug of the portfolio index per locale — the parent segment of project URLs. */
+/**
+ * Slug of the portfolio index per locale — the parent segment of project URLs.
+ *
+ * Preview-aware, and it has to be: `loadPage` only resolves a two-segment path
+ * when the first segment matches this value, so previewing a Spanish project
+ * draft while the Spanish index page is itself unpublished would 404 on the
+ * parent segment rather than on the project. Same rule as everywhere else —
+ * published normally, published-or-draft under preview, never archived.
+ */
 export async function getPortfolioIndexSlug(locale: Locale): Promise<string | null> {
   'use cache';
   cacheLife(PUBLIC_CACHE_PROFILE);
   cacheTag(tags.projectsIndex(locale));
+
+  const preview = await previewState();
 
   const [row] = await db
     .select({ slug: documentLocales.slug })
@@ -84,13 +94,76 @@ export async function getPortfolioIndexSlug(locale: Locale): Promise<string | nu
       and(
         eq(documents.template, 'portfolio_index'),
         eq(documentLocales.locale, locale),
-        eq(documentLocales.status, 'published'),
-        isNotNull(documentLocales.publishedRevisionId),
+        isNull(documents.archivedAt),
+        preview
+          ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
+          : eq(documentLocales.status, 'published'),
+        preview ? undefined : isNotNull(documentLocales.publishedRevisionId),
       ),
     )
     .limit(1);
 
   return row?.slug ?? null;
+}
+
+/**
+ * Where a preview link should land, resolved without the cache.
+ *
+ * Deliberately not `getDocumentSlug`, and the difference is the whole reason
+ * this exists. The preview route turns draft mode on for the *response*, so
+ * within that same request the incoming draft cookie is still absent — and a
+ * `'use cache'` function reads the request it was entered with, so
+ * `previewState()` inside one answers `false` no matter what the route just
+ * enabled. The route resolved published-only and 404'd on exactly the drafts
+ * it exists to show. Every later request carries the cookie, so the cached
+ * readers behave correctly for the render itself; only this first hop cannot
+ * use them.
+ *
+ * Same rules as the cached pair otherwise: published or draft, never archived,
+ * and the project's parent segment comes from the portfolio index in that same
+ * locale — a Spanish project draft is unreachable if the Spanish index page is
+ * not resolvable, because the route only matches a two-segment path against it.
+ */
+export async function resolvePreviewTarget(
+  documentId: string,
+  locale: Locale,
+): Promise<{ slug: string; kind: 'page' | 'project'; portfolioIndexSlug: string | null } | null> {
+  const [row] = await db
+    .select({ slug: documentLocales.slug, kind: documentLocales.kind })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documentLocales.documentId, documentId),
+        eq(documentLocales.locale, locale),
+        isNull(documents.archivedAt),
+        or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft')),
+      ),
+    )
+    .limit(1);
+
+  if (!row) return null;
+  const kind = row.kind as 'page' | 'project';
+
+  let portfolioIndexSlug: string | null = null;
+  if (kind === 'project') {
+    const [index] = await db
+      .select({ slug: documentLocales.slug })
+      .from(documentLocales)
+      .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+      .where(
+        and(
+          eq(documents.template, 'portfolio_index'),
+          eq(documentLocales.locale, locale),
+          isNull(documents.archivedAt),
+          or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft')),
+        ),
+      )
+      .limit(1);
+    portfolioIndexSlug = index?.slug ?? null;
+  }
+
+  return { slug: row.slug, kind, portfolioIndexSlug };
 }
 
 /** Resolve a published page by its locale slug. `''` is the home page. */

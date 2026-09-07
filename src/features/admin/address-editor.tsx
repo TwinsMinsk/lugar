@@ -31,12 +31,20 @@ const ERRORS = {
 export function AddressEditor({
   documentId,
   locales,
-  prefix = '',
+  prefix = {},
 }: {
   documentId: string;
   locales: Array<{ locale: Locale; slug: string; status: string }>;
-  /** Path segment in front of the slug, e.g. 'raboty/' for a project. */
-  prefix?: string;
+  /**
+   * Path segment in front of the slug, per language.
+   *
+   * A single string was wrong in a way that reads as correct: the project
+   * editor passed `'raboty/'` and all three rows showed it, so the Spanish row
+   * claimed `/es/raboty/<slug>` for a page that actually lives at
+   * `/es/proyectos/<slug>`. The owner checking an address in the panel was
+   * being shown one that 404s.
+   */
+  prefix?: Partial<Record<Locale, string>>;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(locales.map((entry) => [entry.locale, entry.slug])),
@@ -81,7 +89,7 @@ export function AddressEditor({
                 <div className="flex items-center gap-1">
                   <span className="text-ink-faint font-mono text-[13px]">
                     /{locale === 'ru' ? '' : `${locale}/`}
-                    {prefix}
+                    {prefix[locale] ?? ''}
                   </span>
                   <input
                     id={`slug-${locale}`}

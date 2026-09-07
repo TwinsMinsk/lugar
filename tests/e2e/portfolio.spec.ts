@@ -123,6 +123,43 @@ test.describe('portfolio', () => {
     await expect(page.locator('form').getByRole('alert')).toContainText('строчные латинские');
   });
 
+  /**
+   * Proofreading before the first publish, which was impossible.
+   *
+   * A new project is a draft in all three languages, and the editor offered a
+   * preview link only for locales already published — so the Spanish text
+   * could not be read in place until after it was live, which is the wrong
+   * order for the studio's main market. The route refused too: it resolved the
+   * slug with a published-only lookup before enabling draft mode.
+   *
+   * Asserted on Spanish specifically, because that path has a second
+   * dependency the Russian one does not: the project's parent segment is the
+   * Spanish portfolio index slug, and the page only resolves a two-segment URL
+   * when the first segment matches it.
+   */
+  test('a project draft can be previewed in a locale that was never published', async ({
+    page,
+  }) => {
+    const slug = `chernovik-${Date.now()}`;
+
+    await page.goto('/admin/portfolio');
+    await page.getByLabel('Название').fill('Черновик для вычитки');
+    await page.getByLabel('Адрес страницы').fill(slug);
+    await page.getByRole('button', { name: 'Создать проект' }).click();
+    await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
+
+    // Nothing is published, so the old interface showed «появится после первой
+    // публикации» in place of every link.
+    const esPreview = page.getByRole('link', { name: 'es ↗' });
+    await expect(esPreview).toBeVisible();
+
+    const documentId = page.url().split('/').pop()!;
+    const response = await page.goto(`/api/preview?documentId=${documentId}&locale=es`);
+    expect(response?.status()).toBe(200);
+    await expect(page).toHaveURL(/\/es\/[^/]+\/chernovik-/);
+    await expect(page.locator('h1')).toBeVisible();
+  });
+
   test('publishing a project puts it on the public index and its own page', async ({ page }) => {
     const slug = `opublikovannyy-${Date.now()}`;
 

@@ -1,12 +1,42 @@
 import 'server-only';
 
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import type { LocalizedText } from '@/content/i18n';
 import { db } from '@/db/client';
 import { documentLocales, documents, navigationItems } from '@/db/schema';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { requireCapability } from '@/lib/auth/guards';
+
+/**
+ * Where project URLs hang, per language.
+ *
+ * The public reader (`getPortfolioIndexSlug`) answers for one locale and only
+ * once that locale is published, which is the wrong question for the panel:
+ * the editor has to show the address a project *will* have, including in a
+ * language whose index page is still a draft. Archived rows are excluded — a
+ * removed index is not an address.
+ *
+ * Falls back to nothing rather than to 'raboty'. A caller that guesses the
+ * Russian slug for a Spanish row is the bug this exists to remove.
+ */
+export async function getPortfolioIndexSlugs(): Promise<Partial<Record<Locale, string>>> {
+  const rows = await db
+    .select({ locale: documentLocales.locale, slug: documentLocales.slug })
+    .from(documentLocales)
+    .innerJoin(documents, eq(documents.id, documentLocales.documentId))
+    .where(
+      and(
+        eq(documents.template, 'portfolio_index'),
+        isNull(documents.archivedAt),
+        ne(documentLocales.status, 'archived'),
+      ),
+    );
+
+  const byLocale: Partial<Record<Locale, string>> = {};
+  for (const row of rows) byLocale[row.locale as Locale] = row.slug;
+  return byLocale;
+}
 
 /**
  * Navigation for the editor.

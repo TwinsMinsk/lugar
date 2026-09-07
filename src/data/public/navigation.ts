@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { cacheLife, cacheTag } from 'next/cache';
 
 import type { LocalizedText } from '@/content/i18n';
@@ -8,6 +8,7 @@ import { db } from '@/db/client';
 import { documentLocales, documents, navigationItems } from '@/db/schema';
 import type { Locale } from '@/i18n/routing';
 import { PUBLIC_CACHE_PROFILE, tags } from '../cache-tags';
+import { previewState } from './documents';
 
 export type NavigationEntry = {
   id: string;
@@ -68,7 +69,19 @@ export async function getNavigation(
     }));
 }
 
-/** Slug of a document in one locale — used to resolve CTA targets. */
+/**
+ * Slug of a document in one locale — used to resolve CTA targets, and to work
+ * out where a preview link should land.
+ *
+ * Follows `previewState()` for the same reason `resolvePage` does: in preview
+ * a locale that has never been published is reachable, which is the whole
+ * point of previewing before the first publish. Outside preview this is
+ * unchanged — published rows with a published revision, nothing else.
+ *
+ * Archived is excluded in both modes. A removed document must be gone from the
+ * site including through a signed preview link, because those get sent to
+ * people.
+ */
 export async function getDocumentSlug(
   documentId: string,
   locale: Locale,
@@ -76,6 +89,8 @@ export async function getDocumentSlug(
   'use cache';
   cacheLife(PUBLIC_CACHE_PROFILE);
   cacheTag(tags.document(documentId, locale));
+
+  const preview = await previewState();
 
   const [row] = await db
     .select({ slug: documentLocales.slug, kind: documentLocales.kind })
@@ -85,8 +100,11 @@ export async function getDocumentSlug(
       and(
         eq(documentLocales.documentId, documentId),
         eq(documentLocales.locale, locale),
-        eq(documentLocales.status, 'published'),
-        isNotNull(documentLocales.publishedRevisionId),
+        isNull(documents.archivedAt),
+        preview
+          ? or(eq(documentLocales.status, 'published'), eq(documentLocales.status, 'draft'))
+          : eq(documentLocales.status, 'published'),
+        preview ? undefined : isNotNull(documentLocales.publishedRevisionId),
       ),
     )
     .limit(1);
