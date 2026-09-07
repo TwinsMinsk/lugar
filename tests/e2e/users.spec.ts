@@ -53,7 +53,7 @@ test.describe('users and invitations', () => {
     await expect(ownerRow.getByRole('combobox')).toHaveValue('owner');
   });
 
-  test('an invited editor gets in, and is refused what their role excludes', async ({
+  test('an invited editor gets in, is refused what their role excludes, and is signed out when banned', async ({
     page,
     browser,
   }) => {
@@ -126,6 +126,26 @@ test.describe('users and invitations', () => {
     await expect(inviteePage.getByRole('link', { name: 'Заявки' })).toHaveCount(0);
     await expect(inviteePage.getByRole('link', { name: 'Настройки' })).toHaveCount(0);
     await expect(inviteePage.getByRole('link', { name: 'Страницы' })).toBeVisible();
+
+    // Disabling access ends the session that is already open.
+    //
+    // The distinction this asserts is the whole point: a ban that only sets a
+    // flag leaves whoever holds the current cookie signed in, and the panel
+    // answers them with a not-found body rather than the login screen. The
+    // redirect is what proves the session itself is gone — the reason to
+    // press this button is usually that the credential is in the wrong hands,
+    // and "they cannot see anything until their cookie expires" is not the
+    // same promise as "they are out".
+    //
+    // Reloaded first: the owner's list was rendered before this account existed.
+    await page.goto('/admin/users');
+    const row = page.getByRole('listitem').filter({ hasText: email });
+    await row.getByRole('button', { name: 'Отключить доступ' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Отключить доступ' }).click();
+    await expect(row.getByText('доступ отключён')).toBeVisible({ timeout: 15_000 });
+
+    await inviteePage.goto('/admin/pages');
+    await expect(inviteePage).toHaveURL(/\/admin\/login/);
 
     await invitee.close();
   });

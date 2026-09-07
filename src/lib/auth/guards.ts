@@ -77,9 +77,25 @@ export function roleCan(role: Role, capability: Capability): boolean {
   return (CAPABILITIES[capability] as readonly Role[]).includes(role);
 }
 
-/** Returns the session or null. Never throws — for optional-auth surfaces. */
+/**
+ * Returns the session or null. Never throws — for optional-auth surfaces.
+ *
+ * `disableCookieCache` is not an optimisation knob here, it is what makes the
+ * two checks below mean anything. With `session.cookieCache` enabled (see
+ * `auth/server.ts`), `getSession` answers from the signed cookie payload and
+ * never reaches the database until that payload expires — so `banned` and
+ * `role` read out of it are whatever they were up to a minute ago. Disabling
+ * access to a compromised account, or demoting someone mid-incident, would
+ * then take effect a minute later, which is exactly the minute it matters.
+ * better-auth makes the same call for its own sensitive paths, where
+ * `getAuthoritativeSessionFromCtx` sets this flag for this reason. The cost is
+ * one query per admin request, on the lowest-traffic surface in the app.
+ */
 export async function getSession() {
-  return auth.api.getSession({ headers: await headers() });
+  return auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
 }
 
 /** Requires any authenticated, non-banned user. */

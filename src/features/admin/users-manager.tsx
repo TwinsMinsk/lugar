@@ -240,7 +240,7 @@ export function UsersManager({
                 <ConfirmButton
                   label="Отключить доступ"
                   title="Отключить доступ?"
-                  description={`${row.email} перестанет входить в панель. Учётная запись и всё, что этот человек сделал, сохраняются — доступ можно вернуть.`}
+                  description={`${row.email} выйдет из панели прямо сейчас и больше не сможет войти. Учётная запись и всё, что этот человек сделал, сохраняются — доступ можно вернуть.`}
                   disabled={isBusy(row.id)}
                   onConfirm={() =>
                     run(() => setUserBanned(row.id, true), {
@@ -308,7 +308,7 @@ function RoleControl({
         <ConfirmButton
           label="Применить"
           title="Сменить роль?"
-          description={`${user.email} станет — ${ROLE_LABEL[role] ?? role}. ${ROLE_HELP[role] ?? ''}`}
+          description={`${user.email} станет — ${ROLE_LABEL[role] ?? role}. ${ROLE_HELP[role] ?? ''} Этот человек выйдет из панели и войдёт уже с новой ролью.`}
           confirmLabel="Сменить роль"
           disabled={pending}
           onConfirm={() => onApply(role as 'owner')}

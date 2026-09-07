@@ -92,8 +92,17 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
     cookieCache: {
-      // Short cache to avoid a DB round trip on every request. Any
-      // authorization decision still re-reads the session server-side.
+      /**
+       * Short cache to avoid a DB round trip on every request.
+       *
+       * This used to claim that authorization decisions re-read the session
+       * server-side regardless. They did not: `getSession` answers from this
+       * cookie payload unless the caller asks it not to, which made `banned`
+       * and `role` up to `maxAge` seconds stale everywhere the panel checks
+       * them. The guards in `auth/guards.ts` now pass `disableCookieCache`
+       * for exactly that reason, so what this setting still buys is the
+       * non-authorization reads — better-auth's own endpoints included.
+       */
       enabled: true,
       maxAge: 60,
     },

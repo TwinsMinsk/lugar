@@ -7,7 +7,7 @@ import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { db } from '@/db/client';
-import { invitation, user } from '@/db/schema';
+import { invitation, session, user } from '@/db/schema';
 import { env, publicEnv } from '@/env';
 import { recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
@@ -179,6 +179,13 @@ export async function changeUserRole(input: z.input<typeof roleSchema>): Promise
 
   await db.transaction(async (tx) => {
     await tx.update(user).set({ role }).where(eq(user.id, userId));
+    // A role lives on the session as well as on the user row, so a demotion
+    // that leaves the old sessions alive is not a demotion until they expire.
+    // Signing the account out is the only way the new role is the only role
+    // it has; the same reasoning applies to a promotion, and treating both
+    // the same avoids a rule that says "your access changed silently" in one
+    // direction and "sign in again" in the other.
+    await tx.delete(session).where(eq(session.userId, userId));
     await recordAudit(
       {
         actorUserId: actor.id,
@@ -219,6 +226,14 @@ export async function setUserBanned(userId: string, banned: boolean): Promise<Us
 
   await db.transaction(async (tx) => {
     await tx.update(user).set({ banned }).where(eq(user.id, userId));
+    // Disabling access has to sign the account out, not merely mark it.
+    // `requireUser` does reject a banned user on every read, so the panel was
+    // never open to them — but a session left alive is a live credential, and
+    // the whole reason to reach for this button is that a credential may be
+    // in the wrong hands. better-auth's own ban endpoint deletes the sessions
+    // for the same reason (`admin/routes.mjs`); this action writes the column
+    // directly, so it has to do it too.
+    if (banned) await tx.delete(session).where(eq(session.userId, userId));
     await recordAudit(
       {
         actorUserId: actor.id,
