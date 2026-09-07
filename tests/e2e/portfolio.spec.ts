@@ -160,6 +160,99 @@ test.describe('portfolio', () => {
     await expect(page.locator('h1')).toBeVisible();
   });
 
+  /**
+   * Building a page, which the editor could not do.
+   *
+   * It could reorder, hide and edit — but the block list itself was whatever
+   * the seed or the create action produced, so "add a section" meant asking a
+   * developer. The registry has carried `allowedOn` and `maxPerPage` from the
+   * start and nothing read them; this is the palette they were written for.
+   *
+   * On a project this test creates rather than on a seeded page, and that is
+   * not incidental: the first version of this test edited and published «О
+   * компании», which `block-media.spec` also publishes to, and the two raced
+   * under a parallel run — each undoing the other's publish. A fixture that
+   * mutates a shared document is a fixture that fails somewhere else.
+   */
+  test('an owner can add a block to a page, publish it and remove it again', async ({ page }) => {
+    const slug = `s-blokom-${Date.now()}`;
+
+    await page.goto('/admin/portfolio');
+    await page.getByLabel('Название').fill('Проект с блоком');
+    await page.getByLabel('Адрес страницы').fill(slug);
+    await page.getByRole('button', { name: 'Создать проект' }).click();
+    await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
+
+    await page.getByRole('button', { name: 'Добавить блок' }).click();
+    const palette = page.getByRole('dialog', { name: 'Добавить блок' });
+    // Only what fits this template: the legal text block belongs to the policy
+    // pages and must not be on offer here.
+    await expect(palette.getByRole('button', { name: 'Юридический текст' })).toHaveCount(0);
+    // The hero is capped at one per page, and a new project already has one.
+    await expect(palette.getByRole('button', { name: /^Обложка/ })).toBeDisabled();
+
+    await palette.getByRole('button', { name: /^Вопросы и ответы/ }).click();
+    await expect(palette).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click();
+    await expect(page.getByText('Черновик сохранён')).toBeVisible({ timeout: 15_000 });
+
+    await publishRu(page);
+    await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
+    published.push(slug);
+
+    // Really on the site, with the placeholder heading the defaults give it —
+    // which is what the defaults are for: valid enough to save, obvious enough
+    // to replace.
+    await expect
+      .poll(
+        live(page, `/raboty/${slug}`, () =>
+          page.getByRole('heading', { name: 'Вопросы и ответы' }).count(),
+        ),
+        LIVE,
+      )
+      .toBeGreaterThan(0);
+
+    // And it comes off again, which is the other half nobody had.
+    await page.goto('/admin/portfolio');
+    await page.getByRole('row').filter({ hasText: slug }).getByRole('link').first().click();
+    // Scoped to the block list by name: a bare listitem locator also matches
+    // the palette entries and the revision rows.
+    const blockList = page.getByRole('list', { name: 'Блоки страницы' });
+    // Counted after the list has rendered: taking it while the editor is still
+    // loading reads zero, and the assertion below then compares against -1.
+    await expect(blockList.getByRole('listitem').first()).toBeVisible();
+    const before = await blockList.getByRole('listitem').count();
+    const row = blockList.getByRole('listitem').filter({ hasText: 'Вопросы и ответы' }).first();
+    await row.getByRole('button', { name: 'Убрать блок' }).click();
+    await row.getByRole('button', { name: 'Убрать блок' }).click();
+    // Exactly one block goes. Removal that takes neighbours with it is the
+    // failure mode worth pinning: the page is published straight afterwards.
+    await expect(blockList.getByRole('listitem')).toHaveCount(before - 1);
+
+    await publishRu(page);
+    await expect(page.getByText(/Опубликовано \(RU\)/)).toBeVisible({ timeout: 15_000 });
+
+    await expect
+      .poll(
+        live(page, `/raboty/${slug}`, () =>
+          page.getByRole('heading', { name: 'Вопросы и ответы' }).count(),
+        ),
+        LIVE,
+      )
+      .toBe(0);
+
+    // Off the site again before finishing. The sibling spec asserts that the
+    // index shows its empty state, and a project left published here fails it
+    // from another worker — which is exactly how this test broke the suite the
+    // first time it published anything.
+    await page.goto('/admin/portfolio');
+    await page.getByRole('row').filter({ hasText: slug }).getByRole('link').first().click();
+    await page.getByRole('button', { name: 'Снять со всех языков' }).click();
+    await page.getByRole('button', { name: 'Снять', exact: true }).click();
+    await expect(page.getByText('Проект снят с сайта.')).toBeVisible({ timeout: 15_000 });
+  });
+
   test('publishing a project puts it on the public index and its own page', async ({ page }) => {
     const slug = `opublikovannyy-${Date.now()}`;
 

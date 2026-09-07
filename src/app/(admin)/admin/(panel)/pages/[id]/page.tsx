@@ -6,6 +6,7 @@ import { listPickableAssets } from '@/data/admin/portfolio';
 import { AddressEditor } from '@/features/admin/address-editor';
 import { pageLabel } from '@/features/admin/page-labels';
 import { SeoEditor } from '@/features/admin/seo-editor';
+import type { TemplateId } from '@/content/blocks/union';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { documentPath, localePath } from '@/lib/routes';
 
@@ -93,6 +94,8 @@ export default async function AdminPageEditor({ params }: { params: Promise<{ id
       />
 
       <BlockEditor
+        template={document.template as TemplateId}
+        isSystem={document.isSystem}
         documentId={document.id}
         initialBlocks={document.blocks}
         publishedLocales={publishedLocales}

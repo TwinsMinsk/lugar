@@ -9,9 +9,10 @@ import {
   unpublishDocument,
 } from '@/app/(admin)/admin/_actions/content';
 import { buttonClasses } from '@/components/ui/button';
-import { ConfirmButton, InlineConfirm } from '@/components/ui/dialog';
-import { BLOCK_REGISTRY } from '@/content/blocks/registry';
-import type { AnyBlock } from '@/content/blocks/union';
+import { ConfirmButton, InlineConfirm, Modal } from '@/components/ui/dialog';
+import { blockNeedsMedia, createBlock } from '@/content/blocks/defaults';
+import { BLOCK_REGISTRY, blocksAllowedOn } from '@/content/blocks/registry';
+import type { AnyBlock, BlockType, TemplateId } from '@/content/blocks/union';
 import { LOCALES, type Locale } from '@/i18n/routing';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -47,19 +48,74 @@ export function BlockEditor({
   revisions,
   publishedLocales,
   assets,
+  template,
+  isSystem,
 }: {
   documentId: string;
   initialBlocks: AnyBlock[];
   revisions: RevisionOption[];
   publishedLocales: Locale[];
   assets: PickableAsset[];
+  /** Decides which block types this page may hold — see `blocksAllowedOn`. */
+  template: TemplateId;
+  /**
+   * A page the site itself depends on. Its structural blocks stay: removing the
+   * contact block from the contacts page leaves a page that exists, is linked
+   * from the menu, and answers nothing.
+   */
+  isSystem: boolean;
 }) {
   const [blocks, setBlocks] = useState<AnyBlock[]>(initialBlocks);
   const [locale, setLocale] = useState<Locale>('ru');
   const [dirty, setDirty] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [expanded, setExpanded] = useState<string | null>(initialBlocks[0]?.id ?? null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { busy: pending, isBusy, error, status, run } = useAction();
+
+  /**
+   * What may be added here, and how many are already in place.
+   *
+   * `blocksAllowedOn` and `maxPerPage` have been declared in the registry from
+   * the start and read by nothing — this is the palette they were written for.
+   * The two types that cannot exist without a picture are offered only when the
+   * library has one, because inserting them empty produces a block that fails
+   * validation, and `saveDraft` refuses the whole page when one block does.
+   */
+  const firstAssetId = assets[0]?.id ?? null;
+  const counts = blocks.reduce<Partial<Record<BlockType, number>>>((acc, item) => {
+    acc[item.type] = (acc[item.type] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const palette = blocksAllowedOn(template).map((definition) => {
+    const used = counts[definition.type] ?? 0;
+    const atLimit = definition.maxPerPage !== undefined && used >= definition.maxPerPage;
+    const needsPicture = blockNeedsMedia(definition.type) && !firstAssetId;
+    return {
+      definition,
+      disabled: atLimit || needsPicture,
+      reason: atLimit
+        ? `Уже есть на странице (максимум ${definition.maxPerPage})`
+        : needsPicture
+          ? 'Нужна хотя бы одна фотография в библиотеке'
+          : null,
+    };
+  });
+
+  function addBlock(type: BlockType) {
+    const block = createBlock(type, firstAssetId);
+    const next = [...blocks, block];
+    setPaletteOpen(false);
+    setExpanded(block.id);
+    update(next, `Блок «${BLOCK_REGISTRY[type].label.ru}» добавлен в конец страницы`);
+  }
+
+  function removeBlock(index: number) {
+    const [removed] = blocks.slice(index, index + 1);
+    const next = blocks.filter((_, position) => position !== index);
+    update(next, `Блок «${BLOCK_REGISTRY[removed!.type].label.ru}» убран со страницы`);
+  }
 
   function update(next: AnyBlock[], message?: string) {
     setBlocks(next);
@@ -156,7 +212,9 @@ export function BlockEditor({
         {announcement}
       </p>
 
-      <ol className="flex flex-col gap-3">
+      {/* Named so the list is addressable: a bare listitem locator also
+          matches the palette and the revision rows. */}
+      <ol aria-label="Блоки страницы" className="flex flex-col gap-3">
         {blocks.map((block, index) => {
           const definition = BLOCK_REGISTRY[block.type];
           const fields = collectLocalizedFields(block.data);
@@ -226,6 +284,23 @@ export function BlockEditor({
                 >
                   {block.hidden ? 'Показать' : 'Скрыть'}
                 </button>
+
+                {/* «Скрыть» is the reversible half and stays for everything.
+                    Removal is offered for anything the owner added — and for a
+                    structural block on a system page it is not offered at all,
+                    because a contacts page without its contact block is a page
+                    the menu still links to and that answers nothing. Nothing is
+                    lost either way until the draft is saved. */}
+                {definition.structural && isSystem ? (
+                  <span className="text-ink-faint text-[12px]">часть страницы</span>
+                ) : (
+                  <InlineConfirm
+                    label="Убрать блок"
+                    question={`Убрать блок «${definition.label.ru}»?`}
+                    confirmLabel="Убрать блок"
+                    onConfirm={() => removeBlock(index)}
+                  />
+                )}
               </div>
 
               {isOpen ? (
@@ -284,6 +359,67 @@ export function BlockEditor({
           );
         })}
       </ol>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className={buttonClasses('outline', 'sm')}
+        >
+          Добавить блок
+        </button>
+        <p className="text-ink-faint mt-1.5 text-[12px]">
+          Новый блок появится в конце страницы — переставить его можно кнопками выше.
+        </p>
+      </div>
+
+      {paletteOpen ? (
+        <Modal
+          label="Добавить блок"
+          onClose={() => setPaletteOpen(false)}
+          className="max-w-[560px]"
+        >
+          <div className="flex flex-col gap-3 p-5">
+            <h2 className="font-display text-[19px]">Добавить блок</h2>
+            <p className="text-ink-soft text-[13px]">
+              Показаны только те блоки, которые подходят этой странице.
+            </p>
+
+            <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+              {palette.map(({ definition, disabled, reason }) => (
+                <li key={definition.type}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => addBlock(definition.type)}
+                    className={cn(
+                      'border-line hover:border-accent w-full rounded-[--radius-btn] border px-3 py-2.5 text-left',
+                      'disabled:hover:border-line disabled:opacity-50',
+                    )}
+                  >
+                    <span className="text-ink block text-[14px] font-medium">
+                      {definition.label.ru}
+                    </span>
+                    <span className="text-ink-faint block text-[12px]">
+                      {reason ?? definition.description.ru}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(false)}
+                className={buttonClasses('ghost', 'sm')}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       <div className="border-line bg-surface sticky bottom-0 flex flex-wrap items-center gap-3 rounded-[--radius-card] border p-4">
         <button

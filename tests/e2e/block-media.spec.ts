@@ -126,7 +126,14 @@ test.describe('block media', () => {
     });
     try {
       await openMaterialsBlock(page);
-      const remove = page.getByRole('button', { name: 'Убрать' });
+      // Scoped to the open block, and to the picker's own wording. An
+      // unscoped `getByRole('button', { name: 'Убрать' })` loop clicks
+      // whatever else the editor grows a button for — when block removal
+      // arrived, this deleted every block on the page and published that.
+      const remove = page
+        .getByRole('listitem')
+        .filter({ hasText: 'Материалы и качество' })
+        .getByRole('button', { name: 'Убрать', exact: true });
       while ((await remove.count()) > 0) await remove.first().click();
       await publishRu(page);
     } finally {

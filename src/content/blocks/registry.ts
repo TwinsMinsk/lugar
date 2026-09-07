@@ -56,7 +56,19 @@ export const BLOCK_REGISTRY: Registry = {
       en: 'Page header. The photo variant is for the home page only.',
     },
     schema: heroSchema as z.ZodType<BlockData<'hero'>>,
-    allowedOn: ['home', 'service', 'portfolio_index', 'about', 'contact', 'legal', 'thanks'],
+    // 'project' included because every new project is created with a hero
+    // (see the starter blocks in the portfolio action). Leaving it out meant an
+    // owner who removed that block could never add it back.
+    allowedOn: [
+      'home',
+      'service',
+      'portfolio_index',
+      'about',
+      'contact',
+      'legal',
+      'thanks',
+      'project',
+    ],
     maxPerPage: 1,
     structural: true,
   },

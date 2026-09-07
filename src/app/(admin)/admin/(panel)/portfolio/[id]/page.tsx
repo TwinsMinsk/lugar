@@ -7,6 +7,7 @@ import { getPortfolioIndexSlugs } from '@/data/admin/navigation';
 import { getProjectMeta, listCategoriesForAdmin, listPickableAssets } from '@/data/admin/portfolio';
 import { AddressEditor } from '@/features/admin/address-editor';
 import { SeoEditor } from '@/features/admin/seo-editor';
+import type { TemplateId } from '@/content/blocks/union';
 import { BlockEditor } from '@/features/admin/block-editor';
 import { ProjectMetaForm } from '@/features/admin/portfolio-forms';
 
@@ -98,6 +99,8 @@ export default async function AdminProjectEditor({ params }: { params: Promise<{
       />
 
       <BlockEditor
+        template={document.template as TemplateId}
+        isSystem={document.isSystem}
         assets={assets}
         documentId={document.id}
         initialBlocks={document.blocks}
