@@ -14,10 +14,14 @@ import { RichText } from './rich-text';
 /**
  * Block list renderer.
  *
- * Each block is rendered independently and wrapped so that one failure cannot
- * take the page down with it. Blocks that failed schema validation upstream are
- * already absent from `blocks`; this is the second line of defence for a block
- * whose renderer throws.
+ * Blocks that failed schema validation upstream are already absent from
+ * `blocks` — that is the first line of defence. There is no second one here:
+ * a renderer that throws for a block that *did* pass validation takes the
+ * whole page down with it, caught only by the route's own `error.tsx`
+ * boundary rather than by anything scoped to the one block. Per-block
+ * isolation would need each block wrapped in its own error boundary, which
+ * cannot be verified without a running dev server to actually trigger and
+ * observe a failure — do that before claiming it works, not before.
  */
 export function Blocks({ blocks, ctx }: { blocks: AnyBlock[]; ctx: RenderContext }) {
   return (
