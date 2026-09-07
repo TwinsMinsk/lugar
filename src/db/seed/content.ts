@@ -156,9 +156,10 @@ const CONTACT_BLOCK_DATA = {
   },
   primaryCta: CTA_CALCULATE,
   showPhone: true,
+  showEmail: true,
+  showAddress: true,
   showSocial: true,
   showServiceArea: true,
-  showForm: false,
   tone: 'dark' as const,
 };
 
@@ -801,12 +802,7 @@ export const PAGE_SEEDS: PageSeed[] = [
         overlay: 'none',
         primaryCta: CTA_CALCULATE,
       }),
-      block(
-        'kontakty.contacts',
-        'contact_block',
-        { ...CONTACT_BLOCK_DATA, showForm: true },
-        'contacts',
-      ),
+      block('kontakty.contacts', 'contact_block', CONTACT_BLOCK_DATA, 'contacts'),
     ],
   },
 

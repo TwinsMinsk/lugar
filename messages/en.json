@@ -1,10 +1,6 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "back": "Back",
-    "more": "Learn more",
-    "required": "required"
+    "close": "Close"
   },
   "nav": {
     "skipToContent": "Skip to content",
@@ -21,8 +17,7 @@
     "price": "Ask for a price",
     "calculate": "Request a quote",
     "measure": "Book a measurement",
-    "allWorks": "View all",
-    "callPhone": "Call {phone}"
+    "allWorks": "View all"
   },
   "form": {
     "title": "Tell us about your project",
@@ -38,10 +33,6 @@
     "cityPlaceholder": "For example, Marbella",
     "comment": "Comment",
     "commentPlaceholder": "Measurements, preferences, timing",
-    "budget": "Approximate budget",
-    "budgetOptional": "optional",
-    "files": "Photos or floor plan",
-    "filesHint": "JPG, PNG or PDF, up to 10 MB",
     "consentPersonal": "I consent to the processing of my personal data under the <policy>privacy policy</policy>.",
     "consentWhatsapp": "I agree to receive a reply on WhatsApp at the number provided.",
     "submit": "Send enquiry",
@@ -57,8 +48,6 @@
       "serviceRequired": "Please choose a service",
       "commentTooLong": "That comment is too long",
       "consentRequired": "We cannot process the enquiry without your consent",
-      "fileTooLarge": "That file is larger than 10 MB",
-      "fileType": "Only JPG, PNG and PDF are supported",
       "rateLimited": "Too many attempts. Please try again in a few minutes.",
       "generic": "We couldn't send the enquiry. Please try again or message us on WhatsApp."
     }
@@ -67,11 +56,9 @@
     "filterLabel": "Filter by category",
     "filterAll": "All",
     "showing": "Showing {count} of {total}",
-    "loadMore": "Show more",
     "empty": "No projects in this category yet.",
-    "relatedTitle": "Related projects",
-    "category": "Category",
-    "openProject": "Open project “{title}”"
+    "teaserEmpty": "Projects will appear here soon.",
+    "category": "Category"
   },
   "consent": {
     "title": "We use cookies",

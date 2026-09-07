@@ -75,4 +75,39 @@ test.describe('settings', () => {
 
     await expect.poll(live(page, '/kontakty', instagram), LIVE).toBe(0);
   });
+
+  test('a filled email and address appear on the contacts page, and clearing removes them', async ({
+    page,
+  }) => {
+    const email = 'estudio@lugar.test';
+    const address = 'Calle de Prueba 12, Marbella';
+    const emailLink = () => page.getByRole('link', { name: email }).count();
+    const addressText = () => page.getByText(address).count();
+
+    // Absent to begin with: contact_block renders neither.
+    await expect.poll(live(page, '/kontakty', emailLink), LIVE).toBe(0);
+    await expect.poll(live(page, '/kontakty', addressText), LIVE).toBe(0);
+
+    await page.goto('/admin/settings');
+    await page.getByLabel('Публичный email').fill(email);
+    await page.getByLabel('Физический адрес').fill(address);
+    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+    await expect(page.getByText('Настройки сохранены.')).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(live(page, '/kontakty', emailLink), LIVE).toBe(1);
+    await expect.poll(live(page, '/kontakty', addressText), LIVE).toBe(1);
+
+    const link = page.getByRole('link', { name: email }).first();
+    await expect(link).toHaveAttribute('href', `mailto:${email}`);
+
+    // Clearing restores "not filled in" rather than leaving an empty slot.
+    await page.goto('/admin/settings');
+    await page.getByLabel('Публичный email').fill('');
+    await page.getByLabel('Физический адрес').fill('');
+    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+    await expect(page.getByText('Настройки сохранены.')).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(live(page, '/kontakty', emailLink), LIVE).toBe(0);
+    await expect.poll(live(page, '/kontakty', addressText), LIVE).toBe(0);
+  });
 });

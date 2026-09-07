@@ -1,3 +1,5 @@
+import { getTranslations } from 'next-intl/server';
+
 import { JsonLd } from '@/components/seo/json-ld';
 import { MediaImage } from '@/components/ui/media-image';
 import { Reveal } from '@/components/motion/reveal';
@@ -409,7 +411,7 @@ function CtaWrapper({
 // ---------------------------------------------------------------------------
 // portfolio_teaser
 // ---------------------------------------------------------------------------
-function PortfolioTeaserBlock({
+async function PortfolioTeaserBlock({
   data,
   ctx,
   anchor,
@@ -439,6 +441,11 @@ function PortfolioTeaserBlock({
     ? ctx.documentSlugs.get(data.linkTargetDocumentId)
     : null;
 
+  // Only fetched when actually needed — every other block in this file reads
+  // purely from already-loaded `ctx`/editorial content, so this is the one
+  // place a per-request message lookup is worth avoiding on the common path.
+  const emptyText = cards.length === 0 ? await getTranslations('portfolio') : null;
+
   return (
     <Section id={anchor}>
       <div className="mb-[clamp(28px,3.5vw,44px)] flex flex-wrap items-end justify-between gap-5">
@@ -456,8 +463,13 @@ function PortfolioTeaserBlock({
         ) : null}
       </div>
 
-      {cards.length === 0 ? (
-        <p className="text-ink-faint text-[15px]">—</p>
+      {emptyText ? (
+        // The honest default, not an em dash: an empty portfolio is this
+        // deploy's actual starting state, and a bare "—" on the homepage's
+        // main showcase section reads as broken rather than as "not filled in
+        // yet". `/raboty`'s own empty state already says this per category
+        // (`portfolio.empty`); this block has no category to name.
+        <p className="text-ink-faint text-[15px]">{emptyText('teaserEmpty')}</p>
       ) : (
         <div className="grid gap-[clamp(10px,1.2vw,18px)]" style={gridStyle(260)}>
           {cards.map((card, index) => (
@@ -874,6 +886,29 @@ function ContactBlock({
               >
                 {contact.phone}
               </a>
+            </div>
+          ) : null}
+
+          {data.showEmail && contact.email ? (
+            <div>
+              <div className="text-on-dark-faint mb-2 text-[11px] tracking-[0.22em] uppercase">
+                Email
+              </div>
+              <a
+                href={`mailto:${contact.email}`}
+                className="font-display hover:text-accent-on-dark text-[clamp(20px,2.4vw,28px)] leading-[1.2] break-all transition-colors"
+              >
+                {contact.email}
+              </a>
+            </div>
+          ) : null}
+
+          {data.showAddress && contact.address ? (
+            <div>
+              <div className="text-on-dark-faint mb-2 text-[11px] tracking-[0.22em] uppercase">
+                {ctx.locale === 'ru' ? 'Адрес' : ctx.locale === 'es' ? 'Dirección' : 'Address'}
+              </div>
+              <div className="text-on-dark-muted text-[16px] leading-[1.6]">{contact.address}</div>
             </div>
           ) : null}
 

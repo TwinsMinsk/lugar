@@ -1,10 +1,6 @@
 {
   "common": {
-    "loading": "Cargando…",
-    "close": "Cerrar",
-    "back": "Volver",
-    "more": "Ver más",
-    "required": "obligatorio"
+    "close": "Cerrar"
   },
   "nav": {
     "skipToContent": "Ir al contenido",
@@ -21,8 +17,7 @@
     "price": "Consultar precio",
     "calculate": "Solicitar presupuesto",
     "measure": "Pedir medición",
-    "allWorks": "Ver todo",
-    "callPhone": "Llamar al {phone}"
+    "allWorks": "Ver todo"
   },
   "form": {
     "title": "Cuéntanos tu proyecto",
@@ -38,10 +33,6 @@
     "cityPlaceholder": "Por ejemplo, Marbella",
     "comment": "Comentario",
     "commentPlaceholder": "Medidas, preferencias, plazos",
-    "budget": "Presupuesto orientativo",
-    "budgetOptional": "opcional",
-    "files": "Fotos o plano",
-    "filesHint": "JPG, PNG o PDF, hasta 10 MB",
     "consentPersonal": "Acepto el tratamiento de mis datos personales según la <policy>política de privacidad</policy>.",
     "consentWhatsapp": "Acepto recibir la respuesta por WhatsApp en el número indicado.",
     "submit": "Enviar solicitud",
@@ -57,8 +48,6 @@
       "serviceRequired": "Elige un servicio",
       "commentTooLong": "El comentario es demasiado largo",
       "consentRequired": "Sin tu consentimiento no podemos tramitar la solicitud",
-      "fileTooLarge": "El archivo supera los 10 MB",
-      "fileType": "Solo se admiten JPG, PNG y PDF",
       "rateLimited": "Demasiados intentos. Prueba de nuevo en unos minutos.",
       "generic": "No hemos podido enviar la solicitud. Inténtalo de nuevo o escríbenos por WhatsApp."
     }
@@ -67,11 +56,9 @@
     "filterLabel": "Filtrar por categoría",
     "filterAll": "Todo",
     "showing": "Mostrando {count} de {total}",
-    "loadMore": "Ver más",
     "empty": "Todavía no hay proyectos en esta categoría.",
-    "relatedTitle": "Proyectos relacionados",
-    "category": "Categoría",
-    "openProject": "Abrir el proyecto «{title}»"
+    "teaserEmpty": "Los proyectos aparecerán aquí muy pronto.",
+    "category": "Categoría"
   },
   "consent": {
     "title": "Usamos cookies",

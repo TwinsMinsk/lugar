@@ -241,14 +241,16 @@ export const contactBlockSchema = z.object({
   lead: localizedTextOptional(400).optional(),
   primaryCta: cta.optional(),
   /**
-   * Phone, social links and service area are read from site_settings, not
-   * stored here — so an unknown Instagram URL stays unknown in exactly one
-   * place instead of being copy-pasted into three locales of three pages.
+   * Phone, email, address, social links and service area are read from
+   * site_settings, not stored here — so an unknown Instagram URL stays
+   * unknown in exactly one place instead of being copy-pasted into three
+   * locales of three pages.
    */
   showPhone: z.boolean().default(true),
+  showEmail: z.boolean().default(true),
+  showAddress: z.boolean().default(true),
   showSocial: z.boolean().default(true),
   showServiceArea: z.boolean().default(true),
-  showForm: z.boolean().default(false),
   tone: sectionTone.default('dark'),
 });
 
