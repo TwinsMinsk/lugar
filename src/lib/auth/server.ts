@@ -9,6 +9,7 @@ import { adminAc, defaultStatements } from 'better-auth/plugins/admin/access';
 import { db } from '@/db/client';
 import { account, session, user, verification } from '@/db/schema/auth';
 import { env, publicEnv } from '@/env';
+import { logger } from '@/lib/logger';
 
 export const ROLES = ['owner', 'manager', 'content_editor'] as const;
 export type Role = (typeof ROLES)[number];
@@ -86,6 +87,50 @@ export const auth = betterAuth({
     disableSignUp: true,
     minPasswordLength: 12,
     requireEmailVerification: false,
+    /**
+     * The way back in when nobody else can let you in.
+     *
+     * An owner who forgets their password is otherwise stuck: there is no
+     * sign-up, `auth:bootstrap` refuses to run once an owner exists, and the
+     * one person who could set a password for them is themselves. This is the
+     * only path that does not need a second administrator.
+     *
+     * Without this function better-auth's reset endpoint refuses outright
+     * ("Reset password isn't enabled"), so the flag that turns the feature on
+     * *is* the presence of the sender. It is therefore always defined — the
+     * Resend keys being absent is handled below, by declining to send, which
+     * keeps the failure in the logs rather than in the visitor's face: the
+     * endpoint answers the same way whether or not the address exists, and
+     * that answer must not change because a key is missing either.
+     *
+     * The link points at the panel's own page, not at better-auth's endpoint.
+     * `/api/auth/reset-password/<token>` redirects there with the token as a
+     * query parameter, which is what `redirectTo` on the request carries.
+     */
+    sendResetPassword: async ({ user: recipient, url }) => {
+      if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+        logger.warn(
+          { userId: recipient.id },
+          'password reset requested but RESEND_API_KEY / EMAIL_FROM are not set',
+        );
+        return;
+      }
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: env.EMAIL_FROM,
+          to: recipient.email,
+          subject: 'Сброс пароля в панели LUGAR',
+          text:
+            `Кто-то запросил сброс пароля для этой учётной записи в панели LUGAR.\n\n` +
+            `Ссылка действует один час и сработает один раз:\n${url}\n\n` +
+            `Если это были не вы — ничего делать не нужно, пароль остаётся прежним.\n`,
+        });
+      } catch (error) {
+        logger.error({ err: error, userId: recipient.id }, 'password reset email failed to send');
+      }
+    },
   },
 
   session: {

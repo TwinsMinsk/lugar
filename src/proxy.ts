@@ -53,11 +53,14 @@ export default function proxy(request: NextRequest) {
       request.cookies.has('better-auth.session_token') ||
       request.cookies.has('__Secure-better-auth.session_token');
 
-    // /admin/invite is deliberately open: the token is the authorisation, and
-    // requiring a session to accept an invitation would make it impossible to
-    // ever use one.
+    // /admin/invite and /admin/reset-password are deliberately open: in both
+    // the token is the authorisation, and requiring a session would make them
+    // impossible to use — nobody accepting an invitation has an account yet,
+    // and nobody resetting a forgotten password can sign in to reach the form.
     const isPublicAdminPath =
-      pathname.startsWith('/admin/login') || pathname.startsWith('/admin/invite');
+      pathname.startsWith('/admin/login') ||
+      pathname.startsWith('/admin/invite') ||
+      pathname.startsWith('/admin/reset-password');
 
     if (!hasSession && !isPublicAdminPath) {
       const url = request.nextUrl.clone();

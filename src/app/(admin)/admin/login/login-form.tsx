@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 import { buttonClasses } from '@/components/ui/button';
 import { authClient } from '@/lib/auth/client';
@@ -10,9 +11,10 @@ import { cn } from '@/lib/utils';
 /**
  * Admin sign-in.
  *
- * There is no sign-up link and no password-reset self-service beyond what
- * better-auth exposes, because there is no public sign-up: accounts come from
- * the one-time owner bootstrap or an owner's invitation.
+ * No sign-up link: accounts come from the one-time owner bootstrap or an
+ * owner's invitation, never from this screen. There *is* a password reset,
+ * which there was not when this comment first claimed otherwise — an owner who
+ * forgets their password is the one person nobody else can let back in.
  *
  * The error message is deliberately identical for "no such user" and "wrong
  * password". Distinguishing them turns this form into an account enumeration
@@ -100,6 +102,13 @@ export function LoginForm() {
       >
         {pending ? 'Входим…' : 'Войти'}
       </button>
+
+      <Link
+        href="/admin/reset-password"
+        className="text-ink-faint hover:text-accent text-center text-[13px]"
+      >
+        Забыли пароль?
+      </Link>
     </form>
   );
 }

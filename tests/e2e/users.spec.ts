@@ -240,6 +240,44 @@ test.describe('users and invitations', () => {
 
     await editor.close();
   });
+
+  /**
+   * The forgotten-password screen, without the email.
+   *
+   * Delivery needs Resend, which a fresh deploy does not have — but the parts
+   * that fail silently are all before delivery: the page has to be reachable
+   * without a session (the panel redirects everything else to the login
+   * screen, and this is the one page a locked-out person can reach), and its
+   * answer must not reveal whether an address belongs to an account.
+   */
+  test('the reset screen is public and reveals nothing about which accounts exist', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+
+    await page.goto('/admin/login');
+    await page.getByRole('link', { name: 'Забыли пароль?' }).click();
+    await expect(page).toHaveURL(/\/admin\/reset-password/);
+
+    // A stale or reused link comes back here with ?error=, and has to say so
+    // rather than silently showing the request form again.
+    await page.goto('/admin/reset-password?error=INVALID_TOKEN');
+    // Scoped to the form: Next's route announcer is also role=alert.
+    await expect(page.locator('form').getByRole('alert')).toContainText('недействительна');
+
+    await page.goto('/admin/reset-password');
+    await page.getByLabel('Email').fill(`nobody-${Date.now()}@example.test`);
+    await page.getByRole('button', { name: 'Прислать ссылку' }).click();
+
+    // Identical wording for an address that exists and one that does not: this
+    // form is public, so anything else turns it into a staff directory.
+    await expect(page.getByRole('status')).toContainText('Если такая учётная запись существует', {
+      timeout: 15_000,
+    });
+
+    await context.close();
+  });
 });
 
 async function signIn(page: Page, email: string, password: string) {
