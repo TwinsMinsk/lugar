@@ -107,6 +107,19 @@ test.describe('leads', () => {
 
     // A task is the thing that stops a lead going quiet.
     await page.getByLabel('Новая задача').fill('Перезвонить и уточнить размеры');
+    /**
+     * The task can be handed to someone else.
+     *
+     * The form never sent an assignee, so the action's fallback made every
+     * task belong to whoever typed it — while the list rendered an
+     * «Ответственный» name and the dashboard counted "my open tasks" off a
+     * field the interface could not vary. Selecting a real person here only
+     * proves the value travels (this suite signs in as the sole owner, so the
+     * chosen person is also the author); what it pins is that the control
+     * exists, is labelled apart from the lead's own «Ответственный», and that
+     * its value reaches the action rather than being dropped.
+     */
+    await page.getByLabel('Исполнитель').selectOption({ index: 1 });
     await page.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(page.getByText('Задача создана')).toBeVisible({ timeout: 15_000 });
 

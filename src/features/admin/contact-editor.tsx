@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import { updateContact } from '@/app/(admin)/admin/_actions/contacts';
 import { buttonClasses } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAction } from './use-action';
+
+/** Only what this screen says better than the shared vocabulary. */
+const ERRORS = {
+  not_found: 'Контакт не найден — возможно, его уже убрали.',
+  invalid_input: 'Проверьте адрес электронной почты.',
+};
 
 const inputClass = cn(
   'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3 py-2 text-[14px]',
@@ -32,23 +38,30 @@ export function ContactEditor({
   city: string | null;
   notes: string | null;
 }) {
-  const router = useRouter();
   const [values, setValues] = useState({
     fullName: fullName ?? '',
     email: email ?? '',
     city: city ?? '',
     notes: notes ?? '',
   });
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  /**
+   * Through `useAction`, like the other admin screens.
+   *
+   * The failure branch was a two-way ternary: anything that was not
+   * `invalid_input` was reported as «Контакт не найден», which happened to be
+   * true for the only other code this action returns today and would have been
+   * a lie for the next one. And the bare `startTransition` swallowed a thrown
+   * action, so a refused guard said nothing at all.
+   */
+  const { busy: pending, error, status, run, reset } = useAction(ERRORS);
 
   function field(key: keyof typeof values) {
     return {
       value: values[key],
       onChange: (event: { target: { value: string } }) => {
         setValues((current) => ({ ...current, [key]: event.target.value }));
-        setSaved(false);
+        // "Сохранено." must not outlive the value it described.
+        reset();
       },
     };
   }
@@ -58,20 +71,7 @@ export function ContactEditor({
       className="flex flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        startTransition(async () => {
-          setError(null);
-          const result = await updateContact({ id: contactId, ...values });
-          if (!result.ok) {
-            setError(
-              result.error === 'invalid_input'
-                ? 'Проверьте адрес электронной почты.'
-                : 'Контакт не найден.',
-            );
-            return;
-          }
-          setSaved(true);
-          router.refresh();
-        });
+        run(() => updateContact({ id: contactId, ...values }), { success: 'Сохранено.' });
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
@@ -108,18 +108,18 @@ export function ContactEditor({
         />
       </div>
 
-      {error ? (
-        <p role="alert" className="text-danger text-[13px]">
-          {error}
-        </p>
-      ) : null}
+      {/* Mounted whether or not it has text: an alert inserted together with
+          its message is not announced. */}
+      <p role="alert" className="text-danger text-[13px] empty:hidden">
+        {error}
+      </p>
 
       <div className="flex items-center gap-3">
         <button type="submit" disabled={pending} className={buttonClasses('primary', 'sm')}>
           {pending ? 'Сохраняем…' : 'Сохранить'}
         </button>
-        <span aria-live="polite" className="text-ink-faint text-[13px]">
-          {saved ? 'Сохранено.' : ''}
+        <span role="status" className="text-ink-faint text-[13px]">
+          {status}
         </span>
       </div>
     </form>

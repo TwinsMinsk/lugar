@@ -57,6 +57,9 @@ export function LeadActions({
   const [note, setNote] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDue, setTaskDue] = useState('');
+  // Empty means "me": the action falls back to the actor, which is what every
+  // task got when the form could not send this at all.
+  const [taskAssignee, setTaskAssignee] = useState('');
   const { busy: pending, isBusy, error, status, run } = useAction(ERRORS);
 
   const open = tasks.filter((task) => task.completedAt === null);
@@ -240,14 +243,24 @@ export function LeadActions({
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            run(() => createLeadTask({ leadId, title: taskTitle, dueOn: taskDue }), {
-              key: 'task',
-              success: 'Задача создана.',
-              onDone: () => {
-                setTaskTitle('');
-                setTaskDue('');
+            run(
+              () =>
+                createLeadTask({
+                  leadId,
+                  title: taskTitle,
+                  dueOn: taskDue,
+                  assigneeId: taskAssignee,
+                }),
+              {
+                key: 'task',
+                success: 'Задача создана.',
+                onDone: () => {
+                  setTaskTitle('');
+                  setTaskDue('');
+                  setTaskAssignee('');
+                },
               },
-            });
+            );
           }}
         >
           <div className="min-w-[200px] flex-1">
@@ -262,6 +275,27 @@ export function LeadActions({
               placeholder="Перезвонить и уточнить размеры"
               className={inputClass}
             />
+          </div>
+          <div>
+            {/* "Исполнитель", not "Ответственный": the lead itself already has
+                a control by that name on this screen, and two identical labels
+                make both unaddressable — to a screen reader and to a test. */}
+            <label htmlFor="task-assignee" className="text-ink-muted mb-1 block text-[12px]">
+              Исполнитель
+            </label>
+            <select
+              id="task-assignee"
+              value={taskAssignee}
+              onChange={(event) => setTaskAssignee(event.target.value)}
+              className={inputClass}
+            >
+              <option value="">Я сам</option>
+              {assignees.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name || person.email}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label htmlFor="task-due" className="text-ink-muted mb-1 block text-[12px]">

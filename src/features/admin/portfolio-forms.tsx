@@ -13,15 +13,18 @@ import { InlineConfirm } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { MediaPicker, type PickableAsset } from './media-picker';
 import { messagesFor } from './messages';
+import { useAction } from './use-action';
 
 /** Only what this screen says better than the shared vocabulary. */
-const message = messagesFor({
+const ERRORS = {
   slug_format: 'Адрес может содержать только строчные латинские буквы, цифры и дефис.',
   slug_taken: 'Такой адрес уже занят другим проектом.',
   slug_taken_archived:
     'Такой адрес занят убранным проектом. Верните его из списка «Убранные проекты» или удалите насовсем — либо возьмите другой адрес.',
   invalid_input: 'Проверьте заполненные поля.',
-});
+};
+
+const message = messagesFor(ERRORS);
 
 const inputClass = cn(
   'border-line-strong bg-surface w-full rounded-[--radius-btn] border px-3 py-2 text-[14px]',
@@ -241,14 +244,23 @@ export function ProjectMetaForm({
     sortOrder: number;
   };
 }) {
-  const router = useRouter();
   const [cover, setCover] = useState(initial.coverAssetId);
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [city, setCity] = useState(initial.city ?? '');
   const [isFeatured, setIsFeatured] = useState(initial.isFeatured);
   const [sortOrder, setSortOrder] = useState(initial.sortOrder);
-  const [status, setStatus] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  /**
+   * Through `useAction`, like the other eleven admin screens.
+   *
+   * Two defects went together here. The failure branch printed the action's
+   * own code — the owner read «Ошибка: invalid_input», an English token inside
+   * a Russian sentence, while the file's own `message` resolver sat unused a
+   * few lines above. And a bare `startTransition` with no catch swallows a
+   * thrown action outright: `requireCapability` refuses by throwing
+   * `notFound()`, so a refusal produced no message at all. `useAction` was
+   * written for exactly this pair.
+   */
+  const { busy: pending, error, status, run } = useAction(ERRORS);
 
   return (
     <section className="border-line bg-surface flex flex-col gap-4 rounded-[--radius-card] border p-4">
@@ -336,18 +348,18 @@ export function ProjectMetaForm({
           type="button"
           disabled={pending}
           onClick={() =>
-            startTransition(async () => {
-              const result = await updateProjectMeta({
-                documentId,
-                coverAssetId: cover,
-                categoryIds,
-                city: city || null,
-                isFeatured,
-                sortOrder,
-              });
-              setStatus(result.ok ? 'Карточка сохранена.' : `Ошибка: ${result.error}`);
-              router.refresh();
-            })
+            run(
+              () =>
+                updateProjectMeta({
+                  documentId,
+                  coverAssetId: cover,
+                  categoryIds,
+                  city: city || null,
+                  isFeatured,
+                  sortOrder,
+                }),
+              { success: 'Карточка сохранена.' },
+            )
           }
           className={buttonClasses('outline', 'sm')}
         >
@@ -363,19 +375,18 @@ export function ProjectMetaForm({
           confirmLabel="Снять"
           disabled={pending}
           onConfirm={() =>
-            startTransition(async () => {
-              const result = await archiveProject(documentId);
-              setStatus(result.ok ? 'Проект снят с сайта.' : `Ошибка: ${result.error}`);
-              router.refresh();
-            })
+            run(() => archiveProject(documentId), { success: 'Проект снят с сайта.' })
           }
         />
 
-        {status ? (
-          <span role="status" className="text-ink-muted text-[13px]">
-            {status}
-          </span>
-        ) : null}
+        {/* Both areas stay mounted: one inserted together with its text is
+            not announced by a screen reader. */}
+        <span role="status" className="text-ink-muted text-[13px] empty:hidden">
+          {status}
+        </span>
+        <span role="alert" className="text-danger text-[13px] empty:hidden">
+          {error}
+        </span>
       </div>
     </section>
   );

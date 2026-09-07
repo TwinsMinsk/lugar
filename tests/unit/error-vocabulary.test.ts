@@ -89,4 +89,22 @@ describe('error vocabulary', () => {
 
     expect(offenders, 'return a code; the stack belongs in the server log').toEqual([]);
   });
+
+  /**
+   * The other half of the split, which nothing checked.
+   *
+   * Every test above reads the *actions*, so a screen that received a perfectly
+   * good code and then printed it raw was invisible here. Two did: the project
+   * card and the archive button showed «Ошибка: invalid_input» — an English
+   * token inside a Russian sentence — while the resolver sat unused at the top
+   * of the same file. This reads the screens instead.
+   */
+  it('never prints an action code straight into the interface', () => {
+    const dir = join(process.cwd(), 'src/features/admin');
+    const offenders = readdirSync(dir)
+      .filter((name) => name.endsWith('.tsx') || name.endsWith('.ts'))
+      .filter((name) => /Ошибка:\s*\$\{/.test(readFileSync(join(dir, name), 'utf8')));
+
+    expect(offenders, 'resolve through messagesFor or useAction').toEqual([]);
+  });
 });
