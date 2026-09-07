@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 
 import {
   DeleteObjectCommand,
@@ -66,9 +66,20 @@ class LocalStorage implements StorageDriver {
   readonly kind = 'local' as const;
 
   private path(key: string) {
-    // Refuse traversal outside the storage root.
+    /**
+     * Refuse traversal outside the storage root.
+     *
+     * The separator is the whole check. A bare `startsWith(LOCAL_ROOT)` compares
+     * strings, not paths, so with a root of `/data/media` the key
+     * `../media-evil/x` resolves to `/data/media-evil/x` — which starts with
+     * `/data/media` and was allowed through. Not a deep escape (the sibling has
+     * to be named after the root), but a real one, and this is the driver the
+     * deploy actually runs on.
+     */
     const full = resolve(LOCAL_ROOT, key);
-    if (!full.startsWith(LOCAL_ROOT)) throw new Error(`Unsafe storage key: ${key}`);
+    if (full !== LOCAL_ROOT && !full.startsWith(LOCAL_ROOT + sep)) {
+      throw new Error(`Unsafe storage key: ${key}`);
+    }
     return full;
   }
 

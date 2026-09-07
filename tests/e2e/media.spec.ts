@@ -105,6 +105,61 @@ test.describe('media library', () => {
     await expect(page.getByText('Изображение удалено навсегда.')).toBeVisible({ timeout: 15_000 });
   });
 
+  /**
+   * The route every photograph is actually served through.
+   *
+   * Its own comment calls it a development convenience, and it would be, with
+   * object storage configured. The deploy stores media on a mounted volume, so
+   * this is the production image path — and it used to hand any key under the
+   * storage root to the driver and take the content type from the characters
+   * after the last dot in a URL the visitor chose.
+   */
+  test('serves a key the library knows and refuses one it does not', async ({ page, request }) => {
+    const alt = `Проверка выдачи ${Date.now()}`;
+
+    await page.goto('/admin/media');
+    await page.locator('input[name="file"]').setInputFiles(await makeJpeg(800, 600));
+    await page.locator('input[name="altRu"]').fill(alt);
+    await page.getByRole('button', { name: 'Загрузить' }).click();
+    await expect(page.getByText('Изображение загружено.')).toBeVisible({ timeout: 30_000 });
+    await page.reload();
+
+    const card = library(page)
+      .getByRole('listitem')
+      .filter({ has: page.locator(`input[value="${alt}"]`) });
+    const src = await card.locator('img').first().getAttribute('src');
+    expect(src).toContain('/api/media/');
+
+    const served = await request.get(src!);
+    expect(served.status()).toBe(200);
+    // From the media record, not from the file extension in the URL.
+    expect(served.headers()['content-type']).toMatch(/^image\//);
+    expect(served.headers()['x-content-type-options']).toBe('nosniff');
+
+    // Same shape, no row behind it. This used to be served if the file
+    // happened to exist under the storage root, which is what made every
+    // staging upload public.
+    const invented = src!.replace(/[0-9a-f]{8}/, 'deadbeef');
+    expect(invented).not.toBe(src);
+    const refused = await request.get(invented);
+    expect(refused.status()).toBe(404);
+
+    // The fixture leaves nothing behind, like the upload test above.
+    await card.getByRole('button', { name: 'Убрать' }).click();
+    await page
+      .getByRole('dialog', { name: 'Убрать изображение?' })
+      .getByRole('button', { name: 'Убрать' })
+      .click();
+    await expect(page.getByText('Изображение убрано.')).toBeVisible({ timeout: 15_000 });
+    const removed = archive(page).getByRole('listitem').filter({ hasText: alt }).first();
+    await removed.getByRole('button', { name: 'Удалить навсегда' }).click();
+    await page
+      .getByRole('dialog', { name: 'Удалить навсегда?' })
+      .getByRole('button', { name: 'Удалить навсегда' })
+      .click();
+    await expect(page.getByText('Изображение удалено навсегда.')).toBeVisible({ timeout: 15_000 });
+  });
+
   test('deduplicates identical bytes instead of creating a second asset', async ({ page }) => {
     // One file, uploaded twice: identical bytes are the point of this test.
     // Everything is stamped per run — the bytes so the asset is genuinely new,

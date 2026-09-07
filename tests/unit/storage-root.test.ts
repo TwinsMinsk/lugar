@@ -61,4 +61,20 @@ describe('local storage root', () => {
     const { storage } = await import('@/lib/storage');
     await expect(storage().get('../../etc/passwd')).rejects.toThrow(/Unsafe storage key/);
   });
+
+  /**
+   * The escape the obvious check misses.
+   *
+   * `startsWith(root)` compares strings, so a sibling directory whose name
+   * begins with the root's name satisfies it: with a root of
+   * `/srv/lugar-media`, the key `../lugar-media-evil/x` resolves to
+   * `/srv/lugar-media-evil/x` and passed. Shallow, but real, and on the driver
+   * the deploy actually runs.
+   */
+  it('refuses a sibling directory whose name starts with the root', async () => {
+    vi.stubEnv('STORAGE_LOCAL_ROOT', resolve('/srv/lugar-media'));
+
+    const { storage } = await import('@/lib/storage');
+    await expect(storage().get('../lugar-media-evil/x.jpg')).rejects.toThrow(/Unsafe storage key/);
+  });
 });
