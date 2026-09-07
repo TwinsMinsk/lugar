@@ -117,6 +117,58 @@ test.describe('consent', () => {
     await page.reload();
     await expect(page.getByText('Мы используем файлы cookie')).toBeHidden();
   });
+
+  /**
+   * The claim under test is stronger than "events do not fire" — the tag
+   * itself must never reach the page. A script that loaded but stayed quiet
+   * could still set its own cookies or make its own requests outside
+   * anything this codebase controls; watching the network is what actually
+   * proves nothing was fetched, not just that nothing was logged.
+   */
+  test('no analytics or pixel request is made before consent is granted', async ({ page }) => {
+    const trackerRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.includes('googletagmanager.com') || url.includes('facebook.net')) {
+        trackerRequests.push(url);
+      }
+    });
+
+    await page.goto('/');
+    await expect(page.getByText('Мы используем файлы cookie')).toBeVisible();
+    // Declining is the one choice that must never let a tag through.
+    await page.getByRole('button', { name: 'Только необходимые' }).click();
+    await page.waitForTimeout(500);
+
+    expect(trackerRequests).toEqual([]);
+    expect(await page.evaluate(() => typeof window.gtag)).toBe('undefined');
+  });
+
+  /**
+   * Requires a real measurement ID: `NEXT_PUBLIC_GA_MEASUREMENT_ID` is unset
+   * on this deploy (analytics has not launched yet — see the launch
+   * checklist), and the id is baked in at build time, so there is no way to
+   * exercise the positive path against the currently-built server without
+   * one. Skipped rather than failed for the same reason the admin specs skip
+   * without credentials: a missing local value is a setup gap, not a
+   * regression.
+   */
+  test('granting consent with analytics enabled loads GA4', async ({ page }) => {
+    test.skip(
+      !process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+      'NEXT_PUBLIC_GA_MEASUREMENT_ID is not set',
+    );
+
+    const gaRequest = page.waitForRequest((request) =>
+      request.url().includes('googletagmanager.com/gtag/js'),
+    );
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Принять все' }).click();
+
+    await gaRequest;
+    await expect.poll(() => page.evaluate(() => typeof window.gtag)).toBe('function');
+  });
 });
 
 test.describe('lead capture', () => {

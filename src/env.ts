@@ -206,6 +206,15 @@ function normalizePublic(value: string | undefined, fallback: string): string {
 /**
  * Browser-safe environment.
  *
+ * "Browser-safe" in the sense that the *values* may reach the client — not
+ * that this module is free to import from one. It shares a file with
+ * `serverSchema`, so a `'use client'` component that imports `publicEnv`
+ * pulls zod and every server variable definition into the browser bundle
+ * with it. That is not theoretical: it happened the day `AnalyticsLoader`
+ * was written, and `performance.spec.ts` failed at 280 KB of scripts against
+ * a 260 KB budget. Read these on the server and pass what a client component
+ * needs down as props.
+ *
  * There used to be a `whatsappPhone` here, defaulting to a real phone number
  * hardcoded as a fallback. It fed exactly one thing — the post-submission
  * "continue in WhatsApp" link — while every other WhatsApp CTA on the site

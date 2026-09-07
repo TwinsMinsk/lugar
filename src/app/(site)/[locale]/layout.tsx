@@ -13,8 +13,10 @@ import { t } from '@/content/i18n';
 import { getDocumentSlug } from '@/data/public/navigation';
 import { getServiceCategories } from '@/data/public/portfolio';
 import { DOCUMENT_IDS } from '@/db/seed/content';
+import { getSiteSettings } from '@/data/public/settings';
 import { publicEnv } from '@/env';
 import { AnalyticsBeacon } from '@/features/analytics/analytics-beacon';
+import { AnalyticsLoader } from '@/features/analytics/analytics-loader';
 import { AttributionBeacon } from '@/features/attribution/attribution-beacon';
 import { ConsentGate } from '@/features/consent/consent-gate';
 import { PreviewBanner } from '@/features/preview/preview-banner';
@@ -93,12 +95,13 @@ export default async function SiteLayout({
   // Required for static rendering of a locale-segmented tree.
   setRequestLocale(locale);
 
-  const [tNav, korpus, mebel, dveri, privacy] = await Promise.all([
+  const [tNav, korpus, mebel, dveri, privacy, settings] = await Promise.all([
     getTranslations('nav'),
     getServiceCategories('korpusnaya'),
     getServiceCategories('mebel'),
     getServiceCategories('dveri'),
     getDocumentSlug(DOCUMENT_IDS.PRIVACY, locale),
+    getSiteSettings(),
   ]);
 
   const services = [...korpus, ...mebel, ...dveri].map((category) => ({
@@ -122,6 +125,11 @@ export default async function SiteLayout({
               </a>
               <AttributionBeacon />
               <AnalyticsBeacon />
+              <AnalyticsLoader
+                analyticsEnabled={settings.analytics.enabled}
+                gaId={publicEnv.gaMeasurementId}
+                pixelId={publicEnv.metaPixelId}
+              />
               <Header locale={locale} />
               <main id="main">{children}</main>
               <Footer locale={locale} />
