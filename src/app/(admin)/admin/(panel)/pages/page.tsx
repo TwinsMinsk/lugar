@@ -4,6 +4,7 @@ import { listDocuments, type AdminDocumentSummary } from '@/data/admin/documents
 import { DocumentRemoval } from '@/features/admin/document-removal';
 import { pageLabel } from '@/features/admin/page-labels';
 import { LOCALES } from '@/i18n/routing';
+import { can } from '@/lib/auth/guards';
 
 export const metadata = { title: 'Страницы' };
 
@@ -14,6 +15,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function AdminPagesList() {
+  // Asked once here rather than inside the table: the removal controls are
+  // owner-only (`content.delete`), and rendering them for an editor the server
+  // will refuse is the trapdoor this closes.
+  const canRemove = await can('content.delete');
+
   const [pages, archived] = await Promise.all([
     listDocuments('page'),
     listDocuments('page', { archived: true }),
@@ -29,7 +35,7 @@ export default async function AdminPagesList() {
         </p>
       </div>
 
-      <PageTable pages={pages} caption="Страницы" archived={false} />
+      <PageTable pages={pages} caption="Страницы" archived={false} canRemove={canRemove} />
 
       {archived.length > 0 ? (
         <section>
@@ -38,7 +44,7 @@ export default async function AdminPagesList() {
             Убранная страница не показывается на сайте и не занимает место в рабочем списке. Её
             можно вернуть. Постоянные страницы сайта убрать нельзя — их можно только снять с сайта.
           </p>
-          <PageTable pages={archived} caption="Убранные страницы" archived />
+          <PageTable pages={archived} caption="Убранные страницы" archived canRemove={canRemove} />
         </section>
       ) : null}
     </div>
@@ -49,10 +55,17 @@ function PageTable({
   pages,
   caption,
   archived,
+  canRemove,
 }: {
   pages: AdminDocumentSummary[];
   caption: string;
   archived: boolean;
+  /**
+   * All three removal controls are owner-only (`content.delete`), so for
+   * anyone else the column goes with them rather than standing empty above a
+   * table that already scrolls sideways.
+   */
+  canRemove: boolean;
 }) {
   return (
     <div className="border-line bg-surface overflow-x-auto rounded-[--radius-card] border">
@@ -67,7 +80,7 @@ function PageTable({
                 {locale}
               </th>
             ))}
-            <th className="px-4 py-3 text-right font-medium">Действия</th>
+            {canRemove ? <th className="px-4 py-3 text-right font-medium">Действия</th> : null}
           </tr>
         </thead>
         <tbody className="divide-line divide-y">
@@ -105,15 +118,17 @@ function PageTable({
                     </td>
                   );
                 })}
-                <td className="px-4 py-3">
-                  <DocumentRemoval
-                    documentId={page.id}
-                    kind="page"
-                    isSystem={page.isSystem}
-                    archived={archived}
-                    everPublished={page.everPublished}
-                  />
-                </td>
+                {canRemove ? (
+                  <td className="px-4 py-3">
+                    <DocumentRemoval
+                      documentId={page.id}
+                      kind="page"
+                      isSystem={page.isSystem}
+                      archived={archived}
+                      everPublished={page.everPublished}
+                    />
+                  </td>
+                ) : null}
               </tr>
             );
           })}

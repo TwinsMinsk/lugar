@@ -4,6 +4,7 @@ import { buttonClasses } from '@/components/ui/button';
 import { listMedia } from '@/data/admin/media';
 import { publicEnv } from '@/env';
 import { MediaManager, type MediaItem } from '@/features/admin/media-manager';
+import { can } from '@/lib/auth/guards';
 import { cn } from '@/lib/utils';
 
 export const metadata = { title: 'Фотографии' };
@@ -14,6 +15,11 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: P
   const { filter, q, page: rawPage } = await searchParams;
   const onlyPlaceholders = filter === 'placeholder';
   const page = Math.max(Number(rawPage ?? '1') || 1, 1);
+
+  // Removing an image — archiving it, restoring it, erasing it — is
+  // owner-only (`media.delete`). Editors upload and edit; they were shown
+  // three buttons the server refuses.
+  const canRemove = await can('media.delete');
 
   const [library, removedAssets] = await Promise.all([
     listMedia({ onlyPlaceholders, q, page }),
@@ -120,7 +126,11 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: P
         </p>
       ) : null}
 
-      <MediaManager items={library.rows.map(toItem)} removed={removedAssets.rows.map(toItem)} />
+      <MediaManager
+        items={library.rows.map(toItem)}
+        removed={removedAssets.rows.map(toItem)}
+        canRemove={canRemove}
+      />
 
       {pageCount > 1 ? (
         <nav aria-label="Страницы" className="flex flex-wrap items-center gap-3">

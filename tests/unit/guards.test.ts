@@ -36,6 +36,14 @@ describe('role capability matrix', () => {
     expect(roleCan('manager', 'audit.read')).toBe(false);
   });
 
+  // The same three were pinned against manager only, so a change granting them
+  // to the CMS role would have gone through unopposed.
+  it('denies content_editor user management, settings and audit', () => {
+    expect(roleCan('content_editor', 'users.manage')).toBe(false);
+    expect(roleCan('content_editor', 'settings.write')).toBe(false);
+    expect(roleCan('content_editor', 'audit.read')).toBe(false);
+  });
+
   it('keeps a manager out of the CMS entirely', () => {
     expect(roleCan('manager', 'content.publish')).toBe(false);
     expect(roleCan('manager', 'content.write')).toBe(false);
@@ -53,7 +61,20 @@ describe('role capability matrix', () => {
   });
 
   it('reserves destructive and recovery actions for owner alone', () => {
-    for (const capability of ['media.delete', 'crm.delete', 'whatsapp.requeue'] as Capability[]) {
+    /**
+     * `content.delete` was missing from this list, which is how the panel came
+     * to render "Убрать", "Вернуть" and "Удалить навсегда" to a content editor
+     * on every page and project row: nothing pinned the capability as
+     * owner-only, so nothing contradicted the interface that assumed everyone
+     * had it. The list is the claim — an owner-only capability absent from it
+     * is an owner-only capability nobody is checking.
+     */
+    for (const capability of [
+      'content.delete',
+      'media.delete',
+      'crm.delete',
+      'whatsapp.requeue',
+    ] as Capability[]) {
       for (const role of ROLES.filter((r) => r !== 'owner')) {
         expect(roleCan(role as Role, capability), `${role} must not have ${capability}`).toBe(
           false,

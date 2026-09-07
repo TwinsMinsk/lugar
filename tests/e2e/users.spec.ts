@@ -120,6 +120,33 @@ test.describe('users and invitations', () => {
     const csv = await inviteePage.request.get('/api/admin/leads/export');
     expect(csv.status()).toBe(404);
 
+    // Removal is owner-only, and the panel used to offer it anyway.
+    //
+    // Asserted on a project this editor creates itself, because that is the
+    // only row where the assertion can fail: every seeded page is a system
+    // document, whose removal controls are replaced by "постоянная страница"
+    // regardless of role, so the same check on /admin/pages would pass just as
+    // happily with the bug in place.
+    await inviteePage.goto('/admin/portfolio');
+    const projectTitle = `Права ${Date.now()}`;
+    const titleField = inviteePage.getByLabel('Название');
+    const slugField = inviteePage.getByLabel('Адрес страницы');
+    // Waits for hydration: the address derives from the title in the browser,
+    // and a value typed before React attaches is discarded when it does.
+    await expect(async () => {
+      await titleField.fill(projectTitle);
+      await expect(slugField).not.toHaveValue('', { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await inviteePage.getByRole('button', { name: 'Создать проект' }).click();
+    await expect(inviteePage).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+
+    await inviteePage.goto('/admin/portfolio');
+    const projectRow = inviteePage.getByRole('row').filter({ hasText: projectTitle });
+    await expect(projectRow).toHaveCount(1);
+    await expect(projectRow.getByRole('button', { name: 'Убрать' })).toHaveCount(0);
+    // The column goes with the buttons rather than standing empty.
+    await expect(inviteePage.getByRole('columnheader', { name: 'Действия' })).toHaveCount(0);
+
     // And the navigation does not offer what they cannot reach.
     await inviteePage.goto('/admin');
     await expect(inviteePage.getByRole('link', { name: 'Сотрудники' })).toHaveCount(0);

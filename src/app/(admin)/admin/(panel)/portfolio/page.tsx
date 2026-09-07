@@ -10,6 +10,7 @@ import { t } from '@/content/i18n';
 import { DocumentRemoval } from '@/features/admin/document-removal';
 import { CreateProjectForm } from '@/features/admin/portfolio-forms';
 import { LOCALES } from '@/i18n/routing';
+import { can } from '@/lib/auth/guards';
 
 export const metadata = { title: 'Наши работы' };
 
@@ -20,6 +21,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function AdminPortfolioList() {
+  // Asked once here rather than inside the table: the removal controls are
+  // owner-only (`content.delete`), and rendering them for an editor who will
+  // be refused by the server is the trapdoor this closes.
+  const canRemove = await can('content.delete');
+
   const [projects, archived, categories, cards] = await Promise.all([
     listDocuments('project'),
     listDocuments('project', { archived: true }),
@@ -54,7 +60,13 @@ export default async function AdminPortfolioList() {
       {projects.length === 0 ? (
         <p className="text-ink-soft text-[14px]">Проектов пока нет.</p>
       ) : (
-        <ProjectTable projects={projects} cards={cards} caption="Проекты" archived={false} />
+        <ProjectTable
+          projects={projects}
+          cards={cards}
+          caption="Проекты"
+          archived={false}
+          canRemove={canRemove}
+        />
       )}
 
       {archived.length > 0 ? (
@@ -65,7 +77,13 @@ export default async function AdminPortfolioList() {
             остаётся в базе. Его можно вернуть. Насовсем удаляются только те, что никогда не были
             опубликованы.
           </p>
-          <ProjectTable projects={archived} cards={cards} caption="Убранные проекты" archived />
+          <ProjectTable
+            projects={archived}
+            cards={cards}
+            caption="Убранные проекты"
+            archived
+            canRemove={canRemove}
+          />
         </section>
       ) : null}
     </div>
@@ -77,11 +95,19 @@ function ProjectTable({
   cards,
   caption,
   archived,
+  canRemove,
 }: {
   projects: AdminDocumentSummary[];
   cards: Map<string, AdminProjectCard>;
   caption: string;
   archived: boolean;
+  /**
+   * Whether this reader may remove anything at all. When they may not, the
+   * column goes with the buttons: all three controls behind it are owner-only,
+   * so leaving the header over empty cells would explain nothing and take
+   * space on a table that already scrolls sideways.
+   */
+  canRemove: boolean;
 }) {
   return (
     <div className="border-line bg-surface overflow-x-auto rounded-[--radius-card] border">
@@ -99,7 +125,7 @@ function ProjectTable({
                 {locale}
               </th>
             ))}
-            <th className="px-4 py-3 text-right font-medium">Действия</th>
+            {canRemove ? <th className="px-4 py-3 text-right font-medium">Действия</th> : null}
           </tr>
         </thead>
         <tbody className="divide-line divide-y">
@@ -156,15 +182,17 @@ function ProjectTable({
                     </td>
                   );
                 })}
-                <td className="px-4 py-3">
-                  <DocumentRemoval
-                    documentId={project.id}
-                    kind="project"
-                    isSystem={project.isSystem}
-                    archived={archived}
-                    everPublished={project.everPublished}
-                  />
-                </td>
+                {canRemove ? (
+                  <td className="px-4 py-3">
+                    <DocumentRemoval
+                      documentId={project.id}
+                      kind="project"
+                      isSystem={project.isSystem}
+                      archived={archived}
+                      everPublished={project.everPublished}
+                    />
+                  </td>
+                ) : null}
               </tr>
             );
           })}

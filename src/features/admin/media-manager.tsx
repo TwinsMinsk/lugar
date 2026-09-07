@@ -50,7 +50,21 @@ const message = messagesFor({
   no_file: 'Файл не выбран.',
 });
 
-export function MediaManager({ items, removed }: { items: MediaItem[]; removed: MediaItem[] }) {
+export function MediaManager({
+  items,
+  removed,
+  canRemove,
+}: {
+  items: MediaItem[];
+  removed: MediaItem[];
+  /**
+   * Whether this reader holds `media.delete`. All three removal controls need
+   * it, so for anyone else the archive section does not render at all — an
+   * "Убранные изображения" heading above cards whose only two buttons are
+   * refused would be a list of things you can look at and not touch.
+   */
+  canRemove: boolean;
+}) {
   const [status, setStatus] = useState<string | null>(null);
 
   return (
@@ -72,12 +86,12 @@ export function MediaManager({ items, removed }: { items: MediaItem[]; removed: 
           style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}
         >
           {items.map((item) => (
-            <MediaCard key={item.id} item={item} onStatus={setStatus} />
+            <MediaCard key={item.id} item={item} onStatus={setStatus} canRemove={canRemove} />
           ))}
         </ul>
       )}
 
-      {removed.length > 0 ? (
+      {canRemove && removed.length > 0 ? (
         <section>
           <h2 className="font-display mb-2 text-[19px]">Убранные изображения</h2>
           <p className="text-ink-faint mb-3 max-w-[70ch] text-[13px]">
@@ -229,7 +243,15 @@ function UploadForm({ onDone }: { onDone: (message: string) => void }) {
   );
 }
 
-function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) => void }) {
+function MediaCard({
+  item,
+  onStatus,
+  canRemove,
+}: {
+  item: MediaItem;
+  onStatus: (m: string) => void;
+  canRemove: boolean;
+}) {
   const [alt, setAlt] = useState(item.alt);
   const [focal, setFocal] = useState({ x: item.focalX, y: item.focalY });
   const [locale, setLocale] = useState<Locale>('ru');
@@ -396,7 +418,7 @@ function MediaCard({ item, onStatus }: { item: MediaItem; onStatus: (m: string) 
             />
           </label>
 
-          {item.usedOnPublishedPage ? (
+          {!canRemove ? null : item.usedOnPublishedPage ? (
             <span className="text-ink-faint text-[12px]">
               стоит на опубликованной странице — убрать нельзя
             </span>
