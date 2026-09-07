@@ -57,10 +57,33 @@ test.describe('locale routing', () => {
     );
   });
 
-  test('an unknown path 404s rather than resolving to something plausible', async ({ page }) => {
-    const response = await page.goto('/definitely-not-a-page');
-    expect(response?.status()).toBe(404);
-  });
+  /**
+   * The status code alone proved almost nothing here.
+   *
+   * This used to assert `404` and stop, which the framework's own built-in
+   * not-found page satisfies just as well as ours does — the assertion would
+   * have stayed green through a `not-found.tsx` that never rendered. Worse,
+   * inspecting the response body by hand is misleading in the other
+   * direction: the flight payload always carries Next's default
+   * "This page could not be found" markup as the framework-level notFound
+   * slot, whether or not it is what the visitor sees. Asserting on the
+   * rendered heading is the only reading of this that cannot lie, and the
+   * site header has to be there too — a 404 outside the site's own chrome is
+   * the exact failure this page was written to fix.
+   */
+  for (const { path, heading, locale } of [
+    { path: '/definitely-not-a-page', heading: 'Страница не найдена', locale: 'ru' },
+    { path: '/es/definitely-not-a-page', heading: 'Página no encontrada', locale: 'es' },
+  ]) {
+    test(`an unknown ${locale} path renders the site's own 404, not the framework's`, async ({
+      page,
+    }) => {
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+      await expect(page.getByRole('banner')).toBeVisible();
+    });
+  }
 });
 
 test.describe('SEO surfaces', () => {
