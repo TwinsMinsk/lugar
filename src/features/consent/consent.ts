@@ -79,7 +79,12 @@ export function readConsentCookie(): ConsentState | null {
 export function writeConsentCookie(state: ConsentState): void {
   if (typeof document === 'undefined') return;
   const maxAge = CONSENT_MAX_AGE_DAYS * 24 * 60 * 60;
-  document.cookie = `${CONSENT_COOKIE}=${serializeConsent(state)}; path=/; max-age=${maxAge}; samesite=lax`;
+  // `Secure` cannot be set unconditionally from `document.cookie`: a browser
+  // refuses a `Secure` cookie written from a page served over plain http,
+  // which is exactly `npm run dev`. Gating on the page's own protocol is the
+  // same check `useSecureCookies` makes for the session cookie server-side.
+  const secure = location.protocol === 'https:' ? '; secure' : '';
+  document.cookie = `${CONSENT_COOKIE}=${serializeConsent(state)}; path=/; max-age=${maxAge}; samesite=lax${secure}`;
 }
 
 export function buildConsentState(choice: Omit<ConsentState, 'version' | 'at'>): ConsentState {

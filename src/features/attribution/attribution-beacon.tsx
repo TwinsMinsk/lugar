@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 import {
-  COOKIE_ATTRS,
+  cookieAttrs,
   encodeTouch,
   FIRST_TOUCH_COOKIE,
   hasAttributionSignal,
@@ -37,7 +37,7 @@ export function AttributionBeacon() {
         .find((entry) => entry.startsWith(`${FIRST_TOUCH_COOKIE}=`));
 
       if (!existingFirst) {
-        document.cookie = `${FIRST_TOUCH_COOKIE}=${encodeTouch(touch)}; ${COOKIE_ATTRS}`;
+        document.cookie = `${FIRST_TOUCH_COOKIE}=${encodeTouch(touch)}; ${cookieAttrs()}`;
       }
 
       // Overwrite last touch only when this navigation actually carries a

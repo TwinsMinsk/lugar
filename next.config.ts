@@ -7,6 +7,65 @@ const mediaHost = process.env.NEXT_PUBLIC_MEDIA_BASE_URL
   ? new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL)
   : null;
 
+/**
+ * Content-Security-Policy — the static, no-nonce form.
+ *
+ * Next's own CSP guide offers two shapes: a nonce-based one, and this one. The
+ * nonce form buys a script-src that does not need `'unsafe-inline'`, but its
+ * price is absolute: "all pages must be dynamically rendered" — no static
+ * generation, no ISR, nothing cacheable at the edge. That is the opposite of
+ * this site's own architecture (`generateStaticParams` prerenders every
+ * published path, `PUBLIC_CACHE_PROFILE` exists specifically because the
+ * per-instance cache is worth keeping). Trading that away for a marginally
+ * stricter script-src, on a site with zero `dangerouslySetInnerHTML` for
+ * scripts and no free-text content ever rendered as raw HTML, is a worse
+ * trade than it looks — so this is the static form, `'unsafe-inline'` and all.
+ *
+ * `'unsafe-inline'` on style-src is not a compromise here, it is a
+ * requirement: several components set `style={{...}}` directly (the focal
+ * point on a cropped photo, the placeholder's diagonal hatching) — an
+ * arbitrary, per-render value a nonce or a hash cannot cover. Without it
+ * those elements silently lose their styling; CSP violations do not throw,
+ * they just make the browser drop the rule.
+ *
+ * `blob:` in img-src is for the admin media picker's local preview
+ * (`URL.createObjectURL`) before a file has finished uploading.
+ * `data:` covers the LQIP blur placeholder, an inline base64 image.
+ *
+ * The googletagmanager.com / google-analytics.com / facebook.net /
+ * facebook.com entries are not in use yet — analytics is consent-gated and
+ * the loader script has not shipped. They are here so that shipping it later
+ * is adding a `<Script src>` tag, not also debugging a CSP that silently
+ * blocks it; an unused allowance costs nothing.
+ *
+ * `frame-ancestors 'self'` matches the existing `X-Frame-Options: SAMEORIGIN`
+ * below rather than tightening it to `'none'` — nothing here embeds the site
+ * in an iframe today, but that is a narrower, separate claim than "nothing
+ * may ever frame it, including itself".
+ *
+ * `'unsafe-eval'` is added in dev only, on Next's own explicit instruction:
+ * React calls `eval()` in development to reconstruct server-side error
+ * stacks in the browser console. Confirmed by running into it directly —
+ * without this branch, `npm run dev` logs "eval() is not supported in this
+ * environment" on every page. Neither React nor Next uses `eval` in a
+ * production build, so production stays without it.
+ */
+const isDev = process.env.NODE_ENV === 'development';
+
+const CSP_HEADER = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://connect.facebook.net`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data: https://www.facebook.com",
+  "font-src 'self'",
+  "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  'upgrade-insecure-requests',
+].join('; ');
+
 const nextConfig: NextConfig = {
   // Railway deploys the standalone server bundle (`node .next/standalone/server.js`).
   output: 'standalone',
@@ -71,6 +130,18 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
           },
+          /**
+           * HSTS is safe to send unconditionally: browsers only honour it on a
+           * response actually received over TLS (RFC 6797), so this has no
+           * effect on `npm run dev` over plain http — no dev/prod branch
+           * needed. `preload` is deliberately left off: submitting to the
+           * browser preload list is close to irreversible (every subdomain is
+           * forced to https, forever, long after removal), and the domain
+           * this ships on is not final yet. Add it later, once the domain is,
+           * as its own decision — not a default.
+           */
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          { key: 'Content-Security-Policy', value: CSP_HEADER },
         ],
       },
       {

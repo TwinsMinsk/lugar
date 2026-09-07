@@ -86,4 +86,13 @@ export function decodeTouch(raw: string | null | undefined): AttributionTouch | 
   return null;
 }
 
-export const COOKIE_ATTRS = `path=/; max-age=${COOKIE_MAX_AGE_DAYS * 24 * 60 * 60}; samesite=lax`;
+/**
+ * A function rather than a precomputed string: `Secure` can only be sent when
+ * the page itself is on https (a browser drops a `Secure` cookie written from
+ * plain http, which is what local dev serves), so it has to be evaluated at
+ * write time against `location.protocol`, not once at module load.
+ */
+export function cookieAttrs(): string {
+  const secure = location.protocol === 'https:' ? '; secure' : '';
+  return `path=/; max-age=${COOKIE_MAX_AGE_DAYS * 24 * 60 * 60}; samesite=lax${secure}`;
+}
