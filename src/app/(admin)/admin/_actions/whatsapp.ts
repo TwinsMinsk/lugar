@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { db } from '@/db/client';
 import { contacts, leadActivities, leads, whatsappOutbox } from '@/db/schema';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { whatsapp } from '@/lib/whatsapp';
 
@@ -169,7 +170,7 @@ export async function sendWhatsAppTemplate(
  * whatever caused it — usually an unapproved or paused template.
  */
 export async function requeueOutboxMessage(outboxId: string): Promise<WhatsAppResult> {
-  await requireCapability('whatsapp.requeue');
+  const { user: actor } = await requireCapability('whatsapp.requeue');
   if (!z.uuid().safeParse(outboxId).success) return { ok: false, error: 'invalid_input' };
 
   const [row] = await db
@@ -182,17 +183,33 @@ export async function requeueOutboxMessage(outboxId: string): Promise<WhatsAppRe
     return { ok: false, error: 'not_dead' };
   }
 
-  await db
-    .update(whatsappOutbox)
-    .set({
-      status: 'pending',
-      attemptCount: 0,
-      nextAttemptAt: sql`now()`,
-      deadLetteredAt: null,
-      lastErrorCode: null,
-      lastErrorMessage: null,
-    })
-    .where(eq(whatsappOutbox.id, outboxId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(whatsappOutbox)
+      .set({
+        status: 'pending',
+        attemptCount: 0,
+        nextAttemptAt: sql`now()`,
+        deadLetteredAt: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      })
+      .where(eq(whatsappOutbox.id, outboxId));
+    await recordAudit(
+      {
+        actorUserId: actor.id,
+        action: 'whatsapp.requeued',
+        entityType: 'whatsapp_outbox',
+        entityId: outboxId,
+        // The status it came from, not the message: the queue row holds text
+        // that was written to a customer, and the trail records the decision.
+        before: { status: row.status },
+        after: { status: 'pending' },
+        ...(await auditRequestContext()),
+      },
+      tx,
+    );
+  });
 
   return { ok: true };
 }
@@ -211,7 +228,7 @@ export async function requeueOutboxMessage(outboxId: string): Promise<WhatsAppRe
  * already in someone's phone, and nothing here can take it back.
  */
 export async function cancelOutboxMessage(outboxId: string): Promise<WhatsAppResult> {
-  await requireCapability('whatsapp.requeue');
+  const { user: actor } = await requireCapability('whatsapp.requeue');
   if (!z.uuid().safeParse(outboxId).success) return { ok: false, error: 'invalid_input' };
 
   const [row] = await db
@@ -226,7 +243,24 @@ export async function cancelOutboxMessage(outboxId: string): Promise<WhatsAppRes
   // it would race the send itself.
   if (row.status === 'claimed') return { ok: false, error: 'in_flight' };
 
-  await db.update(whatsappOutbox).set({ status: 'skipped' }).where(eq(whatsappOutbox.id, outboxId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(whatsappOutbox)
+      .set({ status: 'skipped' })
+      .where(eq(whatsappOutbox.id, outboxId));
+    await recordAudit(
+      {
+        actorUserId: actor.id,
+        action: 'whatsapp.cancelled',
+        entityType: 'whatsapp_outbox',
+        entityId: outboxId,
+        before: { status: row.status },
+        after: { status: 'skipped' },
+        ...(await auditRequestContext()),
+      },
+      tx,
+    );
+  });
 
   return { ok: true };
 }

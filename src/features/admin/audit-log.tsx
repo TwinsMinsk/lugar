@@ -48,26 +48,45 @@ const ACTION_LABEL: Record<string, string> = {
   'users.password_changed': 'Смена своего пароля',
   'users.password_set': 'Владелец задал пароль сотруднику',
   'lead.deleted': 'Заявка удалена',
+  'contact.updated': 'Изменены данные клиента',
+  'contact.archived': 'Клиент убран из списка',
+  'contact.restored': 'Клиент возвращён в список',
+  'contact.deleted': 'Клиент удалён',
+  'whatsapp.requeued': 'Сообщение возвращено в очередь',
+  'whatsapp.cancelled': 'Сообщение отменено',
   'crm.exported': 'Выгрузка заявок',
   'pipeline.stage_created': 'Этап воронки создан',
   'pipeline.stage_updated': 'Этап воронки изменён',
   'pipeline.stage_archived': 'Этап воронки убран',
   'pipeline.stage_restored': 'Этап воронки возвращён',
   'pipeline.entry_changed': 'Изменена точка входа заявок',
+  'pipeline.stage_moved': 'Этап воронки передвинут',
 };
 
+/**
+ * Every entity type an action actually writes, and only those.
+ *
+ * This table is also the "Объект" filter's list of options, which is why the
+ * difference matters: `media`, `project` and `settings` were labelled here and
+ * have never been written by anything — no commit in the history sets them —
+ * so the filter offered three choices that could only ever return nothing.
+ * Meanwhile the type `settings.ts` does write, `site_settings`, had no label,
+ * so every settings entry showed a raw slug in the column and was unreachable
+ * from the filter. Both halves of that are fixed by making this list match
+ * what `grep "entityType: '"` returns.
+ */
 const ENTITY_LABEL: Record<string, string> = {
   document: 'страница',
-  media: 'файл',
   media_asset: 'изображение',
-  project: 'проект',
   redirect: 'редирект',
   navigation: 'меню',
-  settings: 'настройки',
+  site_settings: 'настройки',
   user: 'сотрудник',
   invitation: 'приглашение',
   lead: 'заявка',
   lead_status: 'этап воронки',
+  contact: 'клиент',
+  whatsapp_outbox: 'сообщение WhatsApp',
 };
 
 export type AuditFilterValues = {

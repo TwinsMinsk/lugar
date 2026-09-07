@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { db } from '@/db/client';
 import { leadStatuses, leads } from '@/db/schema';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -229,7 +229,7 @@ export async function setDefaultEntry(id: string): Promise<PipelineResult> {
 
 /** Swap a stage with its neighbour. Keyboard-operable, no dragging required. */
 export async function moveStage(id: string, direction: 'up' | 'down'): Promise<PipelineResult> {
-  await requireCapability('settings.write');
+  const { user: actor } = await requireCapability('settings.write');
   if (!z.uuid().safeParse(id).success) return { ok: false, error: 'invalid_input' };
 
   const stages = await db
@@ -256,6 +256,22 @@ export async function moveStage(id: string, direction: 'up' | 'down'): Promise<P
       .update(leadStatuses)
       .set({ sortOrder: moving.sortOrder })
       .where(eq(leadStatuses.id, neighbour.id));
+    // The only mutating action in the admin panel that recorded nothing.
+    // Reordering the funnel changes what every manager sees on the board, so
+    // it belongs beside the other pipeline entries — positions rather than ids,
+    // because that is what a reader of the journal is trying to reconstruct.
+    await recordAudit(
+      {
+        actorUserId: actor.id,
+        action: 'pipeline.stage_moved',
+        entityType: 'lead_status',
+        entityId: id,
+        before: { position: index + 1 },
+        after: { position: target + 1 },
+        ...(await auditRequestContext()),
+      },
+      tx,
+    );
   });
 
   return { ok: true };

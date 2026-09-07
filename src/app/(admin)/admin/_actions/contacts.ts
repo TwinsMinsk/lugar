@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { db } from '@/db/client';
 import { contacts, leads } from '@/db/schema';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -21,6 +22,37 @@ import { requireCapability } from '@/lib/auth/guards';
  */
 export type ContactResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Everything a contact action records, and nothing else.
+ *
+ * A contact row is personal data end to end — name, email, city, free-text
+ * notes — so the entry says which fields a person touched and never what they
+ * were changed from or to. `audit.ts` sets this rule for every caller ("never
+ * a second copy of customer personal data"), and this is the one table where
+ * following it literally matters: an audit log an owner can read must not
+ * become the place a deleted customer's details survive.
+ */
+async function auditContact(
+  actorUserId: string,
+  action: string,
+  contactId: string,
+  extra: Record<string, unknown> | null,
+  tx?: Parameters<typeof recordAudit>[1],
+) {
+  const context = await auditRequestContext();
+  await recordAudit(
+    {
+      actorUserId,
+      action,
+      entityType: 'contact',
+      entityId: contactId,
+      after: extra,
+      ...context,
+    },
+    tx,
+  );
+}
+
 const updateSchema = z.object({
   id: z.uuid(),
   fullName: z.string().trim().max(200).optional(),
@@ -30,25 +62,48 @@ const updateSchema = z.object({
 });
 
 export async function updateContact(input: z.input<typeof updateSchema>): Promise<ContactResult> {
-  await requireCapability('crm.write');
+  const { user: actor } = await requireCapability('crm.write');
 
   const parsed = updateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const { id, fullName, email, city, notes } = parsed.data;
 
-  const updated = await db
-    .update(contacts)
-    .set({
-      fullName: fullName === '' ? null : (fullName ?? null),
-      email: email === '' ? null : (email ?? null),
-      city: city === '' ? null : (city ?? null),
-      notes: notes === '' ? null : (notes ?? null),
-      updatedAt: sql`now()`,
+  // Read before writing so "not found" is answered outside the transaction: a
+  // `return` inside the callback cannot abort the action, and the audit row
+  // has to commit with the update rather than after a change that rolled back.
+  const [before] = await db
+    .select({
+      fullName: contacts.fullName,
+      email: contacts.email,
+      city: contacts.city,
+      notes: contacts.notes,
     })
+    .from(contacts)
     .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
-    .returning({ id: contacts.id });
+    .limit(1);
+  if (!before) return { ok: false, error: 'not_found' };
 
-  if (updated.length === 0) return { ok: false, error: 'not_found' };
+  const next = {
+    fullName: fullName === '' ? null : (fullName ?? null),
+    email: email === '' ? null : (email ?? null),
+    city: city === '' ? null : (city ?? null),
+    notes: notes === '' ? null : (notes ?? null),
+  };
+  const changed = (Object.keys(next) as Array<keyof typeof next>).filter(
+    (field) => next[field] !== before[field],
+  );
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(contacts)
+      .set({ ...next, updatedAt: sql`now()` })
+      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)));
+    // Field names, never values — see `auditContact`. Joined rather than left
+    // as an array because the journal renders an array as its length, and
+    // "fields: 2" answers none of the question a reader came with.
+    await auditContact(actor.id, 'contact.updated', id, { fields: changed.join(', ') }, tx);
+  });
+
   return { ok: true };
 }
 
@@ -60,31 +115,47 @@ export async function updateContact(input: z.input<typeof updateSchema>): Promis
  * getting shorter, not a record being erased.
  */
 export async function archiveContact(contactId: string): Promise<ContactResult> {
-  await requireCapability('crm.write');
+  const { user: actor } = await requireCapability('crm.write');
   if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
 
-  const updated = await db
-    .update(contacts)
-    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+  const [existing] = await db
+    .select({ id: contacts.id })
+    .from(contacts)
     .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)))
-    .returning({ id: contacts.id });
+    .limit(1);
+  if (!existing) return { ok: false, error: 'not_found' };
 
-  if (updated.length === 0) return { ok: false, error: 'not_found' };
+  await db.transaction(async (tx) => {
+    await tx
+      .update(contacts)
+      .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)));
+    await auditContact(actor.id, 'contact.archived', contactId, null, tx);
+  });
+
   return { ok: true };
 }
 
 /** Undo level 1. */
 export async function restoreContact(contactId: string): Promise<ContactResult> {
-  await requireCapability('crm.write');
+  const { user: actor } = await requireCapability('crm.write');
   if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
 
-  const updated = await db
-    .update(contacts)
-    .set({ archivedAt: null, updatedAt: sql`now()` })
+  const [existing] = await db
+    .select({ id: contacts.id })
+    .from(contacts)
     .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)))
-    .returning({ id: contacts.id });
+    .limit(1);
+  if (!existing) return { ok: false, error: 'not_found' };
 
-  if (updated.length === 0) return { ok: false, error: 'not_found' };
+  await db.transaction(async (tx) => {
+    await tx
+      .update(contacts)
+      .set({ archivedAt: null, updatedAt: sql`now()` })
+      .where(and(eq(contacts.id, contactId), isNull(contacts.deletedAt)));
+    await auditContact(actor.id, 'contact.restored', contactId, null, tx);
+  });
+
   return { ok: true };
 }
 
@@ -101,7 +172,7 @@ export async function restoreContact(contactId: string): Promise<ContactResult> 
  * can open, so the enquiries are archived first, deliberately.
  */
 export async function deleteContact(contactId: string): Promise<ContactResult> {
-  await requireCapability('crm.delete');
+  const { user: actor } = await requireCapability('crm.delete');
   if (!z.uuid().safeParse(contactId).success) return { ok: false, error: 'invalid_input' };
 
   const [contact] = await db
@@ -118,10 +189,16 @@ export async function deleteContact(contactId: string): Promise<ContactResult> {
     .where(and(eq(leads.contactId, contactId), isNull(leads.deletedAt), isNull(leads.archivedAt)));
   if ((live?.count ?? 0) > 0) return { ok: false, error: 'has_active_leads' };
 
-  await db
-    .update(contacts)
-    .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
-    .where(eq(contacts.id, contactId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(contacts)
+      .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(eq(contacts.id, contactId));
+    // The one entry that has to outlive what it describes: `audit_log` holds
+    // `entityId` as plain text with no foreign key, so this row survives the
+    // contact it names — which is the point of recording a deletion.
+    await auditContact(actor.id, 'contact.deleted', contactId, null, tx);
+  });
 
   return { ok: true };
 }

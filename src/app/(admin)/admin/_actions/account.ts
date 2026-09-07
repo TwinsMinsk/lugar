@@ -1,8 +1,6 @@
 'use server';
 
-import { headers } from 'next/headers';
-
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireUser } from '@/lib/auth/guards';
 
 /**
@@ -30,14 +28,12 @@ import { requireUser } from '@/lib/auth/guards';
  */
 export async function recordPasswordChange(): Promise<void> {
   const { user } = await requireUser();
-  const headerList = await headers();
 
   await recordAudit({
     actorUserId: user.id,
     action: 'users.password_changed',
     entityType: 'user',
     entityId: user.id,
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
+    ...(await auditRequestContext()),
   });
 }

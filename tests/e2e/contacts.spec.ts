@@ -87,6 +87,22 @@ test.describe('contacts', () => {
     await page.goto(contactHref);
     await expect(page.getByLabel('Заметки о клиенте')).toHaveValue(note);
     await expect(page.getByLabel('Город')).toHaveValue('Marbella');
+
+    /**
+     * And the edit is in the journal — it was not, for any contact action.
+     *
+     * The entry names the fields and never their values: this row is a
+     * person's name, address and free-text notes, and an audit log an owner
+     * can read must not become the place a deleted customer's details
+     * survive. So the assertion is on the field names, and on the absence of
+     * the note itself anywhere on the page.
+     */
+    await page.goto('/admin/audit?entity=contact');
+    const entry = page.getByRole('listitem').filter({ hasText: 'Изменены данные клиента' }).first();
+    await expect(entry).toBeVisible({ timeout: 15_000 });
+    await expect(entry).toContainText('notes');
+    await expect(entry).toContainText('city');
+    await expect(page.getByText(note)).toHaveCount(0);
   });
 
   test('search finds the client by the last digits of the phone', async ({ page }) => {

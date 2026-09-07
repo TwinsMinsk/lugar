@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
+
 import { db, type Database } from '@/db/client';
 import { auditLog } from '@/db/schema';
 
@@ -40,6 +42,25 @@ export async function recordAudit(input: AuditInput, tx: Tx = db): Promise<void>
     userAgent: input.userAgent ?? null,
     result: input.result ?? 'ok',
   });
+}
+
+/**
+ * The request-scoped fields every audit row carries.
+ *
+ * Lived as a private copy in each action file until a fourth one needed it.
+ * Must be called inside the action rather than hoisted: `headers()` is
+ * per-request, and a value captured once at module load would attribute every
+ * later entry to whoever happened to trigger the first.
+ */
+export async function auditRequestContext(): Promise<{
+  ipAddress: string | null;
+  userAgent: string | null;
+}> {
+  const headerList = await headers();
+  return {
+    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
+  };
 }
 
 /** Compact description of a block list, for audit diffs. */

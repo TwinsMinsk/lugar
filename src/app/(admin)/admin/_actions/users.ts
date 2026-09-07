@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { db } from '@/db/client';
 import { invitation, session, user } from '@/db/schema';
 import { env, publicEnv } from '@/env';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { auth, ROLES } from '@/lib/auth/server';
 
@@ -31,14 +31,6 @@ const INVITE_TTL_HOURS = 72;
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
-}
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
 }
 
 const inviteSchema = z.object({
@@ -68,7 +60,7 @@ export async function inviteUser(input: z.input<typeof inviteSchema>): Promise<U
 
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 60 * 60 * 1000);
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     // Supersede any outstanding invitation for this address, so a resend
@@ -129,7 +121,7 @@ export async function revokeInvitation(invitationId: string): Promise<UserAction
   const { user: actor } = await requireCapability('users.manage');
   if (!z.uuid().safeParse(invitationId).success) return { ok: false, error: 'invalid_input' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx
@@ -175,7 +167,7 @@ export async function changeUserRole(input: z.input<typeof roleSchema>): Promise
     if (owners.length <= 1) return { ok: false, error: 'last_owner' };
   }
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(user).set({ role }).where(eq(user.id, userId));
@@ -222,7 +214,7 @@ export async function setUserBanned(userId: string, banned: boolean): Promise<Us
     if (owners.length <= 1) return { ok: false, error: 'last_owner' };
   }
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(user).set({ banned }).where(eq(user.id, userId));
@@ -289,7 +281,7 @@ export async function setUserPassword(
   const [target] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId));
   if (!target) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await auth.api.setUserPassword({
     body: { userId, newPassword: password },
