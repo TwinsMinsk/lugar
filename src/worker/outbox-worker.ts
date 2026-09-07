@@ -1,7 +1,8 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
+import { coerceSettingValue } from '@/content/settings-registry';
 import { db, pgClient } from '@/db/client';
-import { notificationAttempts, whatsappMessages, whatsappOutbox } from '@/db/schema';
+import { notificationAttempts, siteSettings, whatsappMessages, whatsappOutbox } from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
 import { whatsapp } from '@/lib/whatsapp';
@@ -138,6 +139,32 @@ async function recordAttempt(
 }
 
 /**
+ * Where the email fallback goes.
+ *
+ * Deliberately not `INITIAL_OWNER_EMAIL`. That variable exists to bootstrap
+ * the first admin account, the launch checklist used to say it could be
+ * removed once that was done — and this fallback, the CRM's only backstop
+ * when WhatsApp cannot deliver, quietly depended on it anyway. Reading the
+ * "Публичный email" setting instead means there is exactly one place the
+ * owner sets where lead alerts land, and removing a bootstrap variable can no
+ * longer disable it.
+ *
+ * A plain query, not `getSiteSettings()`: that function's `'use cache'`
+ * directive is a Next.js build-time transform, and this worker runs as a bare
+ * `tsx` process outside the Next.js compiler — it was never going to see that
+ * transform applied.
+ */
+async function leadAlertEmailRecipient(): Promise<string | null> {
+  const [row] = await db
+    .select({ value: siteSettings.value })
+    .from(siteSettings)
+    .where(eq(siteSettings.key, 'contact.email'))
+    .limit(1);
+  const value = coerceSettingValue('text', row?.value ?? null);
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/**
  * Last-resort email alert.
  *
  * Staff phone numbers get no opt-in exemption from Meta, so an alert outside
@@ -148,7 +175,10 @@ async function recordAttempt(
  */
 async function emailFallback(job: ClaimedJob, reason: string): Promise<void> {
   if (job.purpose !== 'internal_new_lead') return;
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM || !env.INITIAL_OWNER_EMAIL) return;
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return;
+
+  const recipient = await leadAlertEmailRecipient();
+  if (!recipient) return;
 
   const started = Date.now();
   try {
@@ -156,13 +186,13 @@ async function emailFallback(job: ClaimedJob, reason: string): Promise<void> {
     const resend = new Resend(env.RESEND_API_KEY);
     await resend.emails.send({
       from: env.EMAIL_FROM,
-      to: env.INITIAL_OWNER_EMAIL,
+      to: recipient,
       subject: 'Новая заявка — WhatsApp-уведомление не доставлено',
       text:
         `WhatsApp не смог доставить уведомление о заявке (${reason}).\n\n` +
         `Заявка есть в панели: /admin/leads\n`,
     });
-    await recordAttempt(job, 'email', env.INITIAL_OWNER_EMAIL, {
+    await recordAttempt(job, 'email', recipient, {
       latencyMs: Date.now() - started,
     });
   } catch (error) {
@@ -211,6 +241,13 @@ async function settle(job: ClaimedJob, result: SendResult): Promise<void> {
       .update(whatsappOutbox)
       .set({ status: 'skipped', claimedBy: null, claimedUntil: null })
       .where(sql`${whatsappOutbox.id} = ${job.id}`);
+    // `skipped` is what `WHATSAPP_MODE=fallback` returns for every send — the
+    // mode the site launches in before Meta verification completes. Without
+    // this, a fully-configured `WHATSAPP_INTERNAL_RECIPIENTS` and template
+    // name produced complete silence in that mode: the row just sat there
+    // marked "skipped", which looks like success next to anything else in
+    // this table.
+    await emailFallback(job, `WhatsApp не настроен (${result.reason})`);
     return;
   }
 

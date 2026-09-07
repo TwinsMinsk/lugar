@@ -17,11 +17,14 @@ import {
   projectFiles,
   whatsappOutbox,
 } from '@/db/schema';
+import { getSiteSettings } from '@/data/public/settings';
 import { env } from '@/env';
 import { decodeTouch, FIRST_TOUCH_COOKIE } from '@/features/attribution/attribution';
+import { logger } from '@/lib/logger';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { whatsapp } from '@/lib/whatsapp';
 import { LOCALE_PHONE_REGION, type Locale } from '@/i18n/routing';
+import { issueDwellToken, verifyDwellToken, type DwellToken } from './dwell-token';
 import { attributionSchema, leadFormSchema, type LeadFormState } from './schema';
 
 /** Minimum time a human plausibly needs to fill the form, in milliseconds. */
@@ -43,6 +46,17 @@ function hashText(input: string): string {
 }
 
 /**
+ * Mint the timestamp the dwell check below will measure from.
+ *
+ * Called once when the dialog mounts. Handing the client a server timestamp —
+ * instead of letting it report its own — is what keeps the anti-bot check
+ * honest: see `dwell-token.ts` for why a browser clock cannot be trusted here.
+ */
+export async function startLeadForm(): Promise<DwellToken> {
+  return issueDwellToken();
+}
+
+/**
  * Submit a lead.
  *
  * The whole design hinges on one property: **a valid submission always
@@ -61,8 +75,15 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
   }
 
   const renderedAt = Number(formData.get('renderedAt'));
+  const dwellSignature = formData.get('renderedAtSignature');
+  if (!verifyDwellToken(renderedAt, typeof dwellSignature === 'string' ? dwellSignature : null)) {
+    return { status: 'success', publicId: 'LG-000000', whatsappUrl: '#' };
+  }
+  // Both sides of this subtraction are this process's own clock — `renderedAt`
+  // came from `startLeadForm()` on this same server a moment ago. A visitor's
+  // device clock never enters the calculation.
   const dwell = Date.now() - renderedAt;
-  if (!Number.isFinite(renderedAt) || dwell < MIN_DWELL_MS || dwell > MAX_DWELL_MS) {
+  if (dwell < MIN_DWELL_MS || dwell > MAX_DWELL_MS) {
     return { status: 'success', publicId: 'LG-000000', whatsappUrl: '#' };
   }
 
@@ -127,6 +148,7 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
     RATE_WINDOW_SECONDS,
   );
   if (!limit.allowed) {
+    logger.warn({ ip, phoneE164 }, 'lead submission rate limited');
     return { status: 'error', formError: 'rateLimited' };
   }
 
@@ -312,20 +334,22 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
 
     // Queued, not sent. Committing this row is the durability boundary — the
     // worker drains it afterwards, so a Meta outage delays the alert without
-    // ever costing us the lead.
+    // ever costing us the lead. `WHATSAPP_LEAD_ALERT_TEMPLATE_NAME` always has
+    // a value now (see env.ts) — the only thing that decides whether this row
+    // gets created at all is whether anyone is listed to receive it.
     const staffRecipients = (env.WHATSAPP_INTERNAL_RECIPIENTS ?? '')
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    if (staffRecipients.length > 0 && env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME) {
+    if (staffRecipients.length > 0) {
       await tx.insert(whatsappOutbox).values(
         staffRecipients.map((recipient) => ({
           leadId: lead!.id,
           toPhoneE164: recipient,
           purpose: 'internal_new_lead' as const,
           kind: 'template' as const,
-          templateName: env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME!,
+          templateName: env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME,
           templateLanguage: env.WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE,
           templateVariables: {
             '1': input.name,
@@ -341,15 +365,39 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
       );
     }
 
-    return { replayed: false as const, publicId: lead!.publicId };
+    return {
+      replayed: false as const,
+      publicId: lead!.publicId,
+      staffAlertsQueued: staffRecipients.length,
+    };
   });
 
+  // Never "заявка отправлена" and silence together: this is the one line that
+  // tells anyone reading the logs whether a new lead is about to notify
+  // nobody, because `WHATSAPP_INTERNAL_RECIPIENTS` was never set. Deliberately
+  // outside the transaction — a form resubmission (bfcache, double-click)
+  // returns the same lead through the `replayed` branch and logs that instead
+  // of pretending to create it twice.
+  if (result.replayed) {
+    logger.info({ publicId: result.publicId }, 'lead submission replayed (idempotency)');
+  } else {
+    logger.info(
+      { publicId: result.publicId, staffAlertsQueued: result.staffAlertsQueued },
+      result.staffAlertsQueued > 0
+        ? 'lead created, staff alert queued'
+        : 'lead created, no staff alert queued — WHATSAPP_INTERNAL_RECIPIENTS is empty',
+    );
+  }
+
   const handoffText = buildHandoffText(input.locale as Locale, input.service, result.publicId);
+  // The same number every WhatsApp CTA on the site already reads — not a
+  // build-time env var, so changing it in Settings changes this link too.
+  const { contact } = await getSiteSettings();
 
   return {
     status: 'success',
     publicId: result.publicId ?? 'LG-000000',
-    whatsappUrl: provider.buildHandoffLink({ text: handoffText }),
+    whatsappUrl: provider.buildHandoffLink({ phone: contact.whatsappNumber, text: handoffText }),
   };
 }
 

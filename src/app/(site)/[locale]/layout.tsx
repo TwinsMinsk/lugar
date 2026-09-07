@@ -115,7 +115,10 @@ export default async function SiteLayout({
               <main id="main">{children}</main>
               <Footer locale={locale} />
               <StickyMobileCta />
-              <LeadDialog services={services} />
+              <LeadDialog
+                services={services}
+                privacyHref={privacy ? `/${privacy.slug}` : '/politika-konfidencialnosti'}
+              />
               {/* Consent is per-visitor, so it is a dynamic hole in an
                   otherwise fully prerendered page. */}
               <Suspense fallback={null}>

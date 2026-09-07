@@ -103,15 +103,29 @@ const serverSchema = z
     EMAIL_FROM: optionalString,
 
     WHATSAPP_MODE: z.enum(['fallback', 'mock', 'cloud_api']).default('fallback'),
-    WHATSAPP_GRAPH_API_VERSION: z.string().default('v26.0'),
+    // `z.string().default(...)` alone does not catch this: Zod's `.default()`
+    // only fires on `undefined`, and Railway leaves a variable someone cleared
+    // in the dashboard as `""`, not absent. `optionalString` already collapses
+    // "" to undefined for exactly this reason — chaining the real default onto
+    // it is what makes an emptied field behave like an unset one.
+    WHATSAPP_GRAPH_API_VERSION: optionalString.transform((v) => v ?? 'v26.0'),
     WHATSAPP_PHONE_NUMBER_ID: optionalString,
     WHATSAPP_BUSINESS_ACCOUNT_ID: optionalString,
     WHATSAPP_ACCESS_TOKEN: optionalString,
     WHATSAPP_APP_SECRET: optionalString,
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: optionalString,
     WHATSAPP_INTERNAL_RECIPIENTS: optionalString,
-    WHATSAPP_LEAD_ALERT_TEMPLATE_NAME: optionalString,
-    WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE: z.string().default('ru'),
+    /**
+     * Defaults rather than being merely optional: in `fallback`/`mock` mode
+     * this name is never sent to Meta — the outbox row it labels either goes
+     * nowhere (`fallback`) or is faked (`mock`) — so it is harmless metadata
+     * until `cloud_api` makes it real. Leaving it genuinely unset used to mean
+     * `submitLead` created no outbox row at all for a new lead, which meant
+     * the worker's email fallback had nothing to fall back *from*. A default
+     * value is what lets that row exist in every mode.
+     */
+    WHATSAPP_LEAD_ALERT_TEMPLATE_NAME: optionalString.transform((v) => v ?? 'lead_alert'),
+    WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE: optionalString.transform((v) => v ?? 'ru'),
 
     PREVIEW_SECRET: requiredInProd('PREVIEW_SECRET'),
     CRON_SECRET: optionalString,
@@ -126,6 +140,12 @@ const serverSchema = z
       'WHATSAPP_ACCESS_TOKEN',
       'WHATSAPP_APP_SECRET',
       'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+      // Both added deliberately: neither gates the Cloud API client itself,
+      // but a `cloud_api` deployment with no configured recipient is a studio
+      // that verified a WhatsApp Business account and still never hears about
+      // a new lead. That is exactly the failure this refinement exists to
+      // catch at boot rather than in production silence.
+      'WHATSAPP_INTERNAL_RECIPIENTS',
     ] as const;
     for (const key of required) {
       if (!value[key]) {
@@ -165,11 +185,19 @@ export const env: z.infer<typeof serverSchema> = new Proxy({} as z.infer<typeof 
   },
 });
 
-/** Browser-safe environment. */
+/**
+ * Browser-safe environment.
+ *
+ * There used to be a `whatsappPhone` here, defaulting to a real phone number
+ * hardcoded as a fallback. It fed exactly one thing — the post-submission
+ * "continue in WhatsApp" link — while every other WhatsApp CTA on the site
+ * read the number from Settings. Changing the number in the panel silently
+ * left that one link pointing at whoever's number shipped in the build. It is
+ * gone; the lead form now reads the same setting everything else does.
+ */
 export const publicEnv = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   mediaBaseUrl: process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? '',
-  whatsappPhone: process.env.NEXT_PUBLIC_WHATSAPP_PHONE ?? '34624527303',
   gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? '',
   metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID ?? '',
 } as const;

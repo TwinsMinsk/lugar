@@ -78,4 +78,6 @@ export type LeadFormValues = z.infer<typeof leadFormSchema>;
 export type LeadFormState =
   | { status: 'idle' }
   | { status: 'error'; formError?: string; fieldErrors?: Record<string, string[]> }
-  | { status: 'success'; publicId: string; whatsappUrl: string };
+  // `whatsappUrl` is null when no WhatsApp number is configured in Settings —
+  // never a placeholder link, so the UI can tell "no hand-off" from "one exists".
+  | { status: 'success'; publicId: string; whatsappUrl: string | null };

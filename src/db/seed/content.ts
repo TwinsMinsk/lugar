@@ -150,9 +150,9 @@ const CONTACT_BLOCK_DATA = {
     en: 'Tell us about your project',
   },
   lead: {
-    ru: 'Пришлите планировку или пару фото помещения — вернёмся с расчётом и сроками.',
-    es: 'Envíanos el plano o unas fotos del espacio y te respondemos con presupuesto y plazos.',
-    en: "Send us a floor plan or a couple of photos of the space and we'll come back with a quote and timing.",
+    ru: 'Опишите задачу в двух словах — перезвоним с расчётом и сроками.',
+    es: 'Cuéntanos brevemente qué necesitas y te respondemos con presupuesto y plazos.',
+    en: "Give us a quick idea of what you need and we'll come back with a quote and timing.",
   },
   primaryCta: CTA_CALCULATE,
   showPhone: true,
@@ -771,18 +771,17 @@ export const PAGE_SEEDS: PageSeed[] = [
     seo: {
       ru: {
         title: 'Контакты',
-        description:
-          'Телефон и WhatsApp LUGAR. Пришлите планировку — вернёмся с расчётом и сроками.',
+        description: 'Телефон и WhatsApp LUGAR. Опишите задачу — вернёмся с расчётом и сроками.',
       },
       es: {
         title: 'Contacto',
         description:
-          'Teléfono y WhatsApp de LUGAR. Envíanos el plano y te respondemos con presupuesto y plazos.',
+          'Teléfono y WhatsApp de LUGAR. Cuéntanos qué necesitas y te respondemos con presupuesto y plazos.',
       },
       en: {
         title: 'Contact',
         description:
-          "LUGAR's phone and WhatsApp. Send us a floor plan and we'll come back with a quote and timing.",
+          "LUGAR's phone and WhatsApp. Tell us what you need and we'll come back with a quote and timing.",
       },
     },
     blocks: [
@@ -795,9 +794,9 @@ export const PAGE_SEEDS: PageSeed[] = [
           en: 'Tell us about your project',
         },
         subheading: {
-          ru: 'Пришлите планировку или пару фото помещения — вернёмся с расчётом и сроками.',
-          es: 'Envíanos el plano o unas fotos del espacio y te respondemos con presupuesto y plazos.',
-          en: "Send us a floor plan or a couple of photos of the space and we'll come back with a quote and timing.",
+          ru: 'Опишите задачу в двух словах — перезвоним с расчётом и сроками.',
+          es: 'Cuéntanos brevemente qué necesitas y te respondemos con presupuesto y plazos.',
+          en: "Give us a quick idea of what you need and we'll come back with a quote and timing.",
         },
         overlay: 'none',
         primaryCta: CTA_CALCULATE,

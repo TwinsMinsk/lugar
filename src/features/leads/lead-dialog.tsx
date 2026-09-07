@@ -10,9 +10,11 @@ import {
   decodeTouch,
   FIRST_TOUCH_COOKIE,
 } from '@/features/attribution/attribution';
+import { Link } from '@/i18n/navigation';
 import type { Locale } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
-import { submitLead } from './actions';
+import { startLeadForm, submitLead } from './actions';
+import type { DwellToken } from './dwell-token';
 import { useLeadDialog, type LeadDialogRequest } from './lead-dialog-context';
 import type { LeadFormState } from './schema';
 
@@ -27,23 +29,44 @@ export type ServiceOption = { value: string; label: string };
  * gets a one-tap conversation, but the lead is captured first and survives
  * regardless of what happens next.
  */
-export function LeadDialog({ services }: { services: ServiceOption[] }) {
+export function LeadDialog({
+  services,
+  privacyHref,
+}: {
+  services: ServiceOption[];
+  /**
+   * Same value the cookie banner links to (`ConsentGate` → `SiteLayout`), so
+   * the consent checkbox here points at the real published privacy page
+   * rather than a hardcoded slug that would drift the moment the owner
+   * renames it.
+   */
+  privacyHref: string;
+}) {
   const { request, close } = useLeadDialog();
   // The panel is a separate component so that closing the dialog unmounts it
   // and mount-time initialisers reset the form state. Resetting via an effect
   // instead would cause a cascading render on every open.
   if (!request) return null;
-  return <LeadDialogPanel request={request} close={close} services={services} />;
+  return (
+    <LeadDialogPanel
+      request={request}
+      close={close}
+      services={services}
+      privacyHref={privacyHref}
+    />
+  );
 }
 
 function LeadDialogPanel({
   request,
   close,
   services,
+  privacyHref,
 }: {
   request: LeadDialogRequest;
   close: () => void;
   services: ServiceOption[];
+  privacyHref: string;
 }) {
   const t = useTranslations('form');
   const tc = useTranslations('common');
@@ -60,14 +83,30 @@ function LeadDialogPanel({
    * mints a new one, so two genuine enquiries from the same person both land.
    */
   const idempotencyKeyRef = useRef<string | null>(null);
-  const renderedAtRef = useRef<number | null>(null);
+  /**
+   * When the form opened, attested by the server — not `Date.now()`. A
+   * visitor's device clock is not this component's business: see
+   * `dwell-token.ts` for why trusting it silently discarded submissions from
+   * anyone whose clock ran fast. If this is still null by the time the form is
+   * submitted (the request has not returned yet, or failed), the submission
+   * is missing its signature and the server treats it exactly like any other
+   * malformed one — the same outcome the old code had before the mount effect
+   * ran, just reached a different way.
+   */
+  const dwellTokenRef = useRef<DwellToken | null>(null);
 
-  // Populated on mount rather than during render: crypto.randomUUID() and
-  // Date.now() are impure, and calling them in a render body is exactly what
-  // makes a component non-idempotent under React's concurrent rendering.
+  // Populated on mount rather than during render: crypto.randomUUID() is
+  // impure, and a Server Action obviously cannot be called from a render body.
   useEffect(() => {
     idempotencyKeyRef.current ??= crypto.randomUUID();
-    renderedAtRef.current ??= Date.now();
+    startLeadForm()
+      .then((token) => {
+        dwellTokenRef.current ??= token;
+      })
+      .catch(() => {
+        // Left null. A submission before this resolves is treated as
+        // malformed by the server, same as a missing field would be.
+      });
   }, []);
 
   // Focus management: into the panel on open, back to the opener on close,
@@ -132,9 +171,11 @@ function LeadDialogPanel({
     const formData = new FormData(event.currentTarget);
     // Fall back defensively in case submit somehow precedes the mount effect.
     idempotencyKeyRef.current ??= crypto.randomUUID();
-    renderedAtRef.current ??= Date.now();
     formData.set('idempotencyKey', idempotencyKeyRef.current);
-    formData.set('renderedAt', String(renderedAtRef.current));
+    if (dwellTokenRef.current) {
+      formData.set('renderedAt', String(dwellTokenRef.current.renderedAt));
+      formData.set('renderedAtSignature', dwellTokenRef.current.signature);
+    }
     formData.set('locale', locale);
     formData.set('pageContext', window.location.pathname);
 
@@ -198,15 +239,24 @@ function LeadDialogPanel({
               {t('successBody', { publicId: state.publicId })}
             </p>
             <div className="mt-7 flex flex-col gap-2.5">
-              <a
-                href={state.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonClasses('primary', 'lg')}
+              {state.whatsappUrl ? (
+                <a
+                  href={state.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonClasses('primary', 'lg')}
+                >
+                  {t('successWhatsapp')}
+                </a>
+              ) : null}
+              {/* No number configured in Settings — the only action left is
+                  closing, so it takes the weight the WhatsApp button would
+                  otherwise carry rather than reading as an afterthought. */}
+              <button
+                type="button"
+                onClick={close}
+                className={buttonClasses(state.whatsappUrl ? 'ghost' : 'primary', 'md')}
               >
-                {t('successWhatsapp')}
-              </a>
-              <button type="button" onClick={close} className={buttonClasses('ghost', 'md')}>
                 {tc('close')}
               </button>
             </div>
@@ -346,7 +396,20 @@ function LeadDialogPanel({
                   required
                   className="accent-accent mt-0.5 h-4 w-4 flex-none"
                 />
-                <span>{t('consentPersonal')}</span>
+                <span>
+                  {t.rich('consentPersonal', {
+                    policy: (chunks) => (
+                      <Link
+                        href={privacyHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent underline underline-offset-2"
+                      >
+                        {chunks}
+                      </Link>
+                    ),
+                  })}
+                </span>
               </label>
               {fieldError('consentPersonalData') ? (
                 <p className="-mt-2 text-[13px] text-[oklch(0.52_0.17_25)]">

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { spanishMobile } from '../e2e/lead-phone';
 
-import { verifySignature } from '@/lib/whatsapp';
+import { verifySignature, whatsapp } from '@/lib/whatsapp';
 import { normalizeRecipient, orderedParameters } from '@/lib/whatsapp/cloud-api';
 import { classifyError } from '@/lib/whatsapp/provider';
 import { parseEnvelope } from '@/lib/whatsapp/webhook';
@@ -238,6 +238,26 @@ describe('cloud api request shaping', () => {
     // phone number where the customer's name belongs.
     const params = orderedParameters({ '2': 'Кухни', '10': 'LG-1', '1': 'Мария' });
     expect(params.map((p) => p.text)).toEqual(['Мария', 'Кухни', 'LG-1']);
+  });
+});
+
+describe('hand-off link', () => {
+  /**
+   * The regression this covers: the link used to come from a build-time env
+   * var with a real phone number as its fallback, so an unset number produced
+   * `https://wa.me/` — a link that opens WhatsApp to nobody — instead of no
+   * link at all.
+   */
+  it('is null rather than a bare wa.me link when no number is configured', () => {
+    expect(whatsapp().buildHandoffLink({ phone: null, text: 'hi' })).toBeNull();
+    expect(whatsapp().buildHandoffLink({ phone: '', text: 'hi' })).toBeNull();
+  });
+
+  it('builds a real link from whatever number it is given', () => {
+    const link = whatsapp().buildHandoffLink({ phone: '34600112233', text: 'Здравствуйте' });
+    expect(link).toBe(
+      'https://wa.me/34600112233?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5',
+    );
   });
 });
 

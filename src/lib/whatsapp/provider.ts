@@ -35,8 +35,12 @@ export interface WhatsAppProvider {
   readonly canSendProgrammatically: boolean;
   sendText(params: SendTextParams): Promise<SendResult>;
   sendTemplate(params: SendTemplateParams): Promise<SendResult>;
-  /** Every mode implements this — the wa.me hand-off is always available. */
-  buildHandoffLink(params: { text?: string }): string;
+  /**
+   * Every mode implements this. Returns `null` rather than a broken
+   * `https://wa.me/` link when no number is configured — the caller decides
+   * what "no hand-off available" looks like on screen.
+   */
+  buildHandoffLink(params: { phone: string | null; text?: string }): string | null;
   verifyWebhookSignature(rawBody: string, signatureHeader: string | null): boolean;
 }
 

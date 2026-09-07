@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { env, publicEnv } from '@/env';
+import { env } from '@/env';
 import { whatsappLink } from '@/lib/routes';
 import { sendTemplateViaCloudApi, sendTextViaCloudApi } from './cloud-api';
 import type { SendResult, SendTemplateParams, SendTextParams, WhatsAppProvider } from './provider';
@@ -29,8 +29,20 @@ function verifySignature(rawBody: string, header: string | null, appSecret?: str
   }
 }
 
-function handoffLink(text?: string): string {
-  return whatsappLink(publicEnv.whatsappPhone, text);
+/**
+ * Never falls back to a hardcoded number.
+ *
+ * The number used to come from a build-time env var with a real phone number
+ * as its default — meaning changing the WhatsApp number in Settings did not
+ * change *this* link (the block CTAs read the setting; only this hand-off
+ * link read the env var), and an empty value produced `https://wa.me/`, a
+ * dead link handed to a customer on the "thank you" screen. Both are fixed by
+ * routing this through the same setting the rest of the site already uses,
+ * and by returning `null` — never a broken URL — when it is unset.
+ */
+function handoffLink(phone: string | null, text?: string): string | null {
+  if (!phone) return null;
+  return whatsappLink(phone, text);
 }
 
 /**
@@ -52,8 +64,8 @@ class FallbackProvider implements WhatsAppProvider {
     return { status: 'skipped', reason: 'no_programmatic_send' };
   }
 
-  buildHandoffLink({ text }: { text?: string }) {
-    return handoffLink(text);
+  buildHandoffLink({ phone, text }: { phone: string | null; text?: string }) {
+    return handoffLink(phone, text);
   }
 
   verifyWebhookSignature(rawBody: string, header: string | null) {
@@ -78,8 +90,8 @@ class MockProvider implements WhatsAppProvider {
     return { status: 'sent', providerMessageId: `mock_${hash(params.to + params.name)}` };
   }
 
-  buildHandoffLink({ text }: { text?: string }) {
-    return handoffLink(text);
+  buildHandoffLink({ phone, text }: { phone: string | null; text?: string }) {
+    return handoffLink(phone, text);
   }
 
   verifyWebhookSignature(rawBody: string, header: string | null) {
@@ -107,11 +119,11 @@ class CloudApiProvider implements WhatsAppProvider {
     return sendTemplateViaCloudApi(params);
   }
 
-  buildHandoffLink({ text }: { text?: string }) {
+  buildHandoffLink({ phone, text }: { phone: string | null; text?: string }) {
     // Still offered in cloud_api mode: outside the 24h window a link the staff
     // member opens on their own phone is the only way to start a conversation
     // that no approved template covers.
-    return handoffLink(text);
+    return handoffLink(phone, text);
   }
 
   verifyWebhookSignature(rawBody: string, header: string | null) {

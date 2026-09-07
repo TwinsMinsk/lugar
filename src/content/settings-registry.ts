@@ -84,6 +84,9 @@ export const SETTINGS: SettingDefinition[] = [
     group: 'Контакты',
     kind: 'text',
     label: 'Публичный email',
+    help:
+      'Показывается на сайте, а также используется для резервного письма о новой ' +
+      'заявке, если WhatsApp не смог её доставить.',
     schema: z.email(),
   },
   {
