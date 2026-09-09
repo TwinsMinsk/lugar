@@ -271,7 +271,7 @@ async function checkStorage() {
   const body = Buffer.from('preflight');
   let written = false;
   try {
-    await driver.put(key, body, { contentType: 'text/plain', visibility: 'public' });
+    await driver.put(key, body, { contentType: 'text/plain' });
     written = true;
     const read = await driver.get(key);
     if (!read.equals(body)) throw new Error('прочитано не то, что записано');

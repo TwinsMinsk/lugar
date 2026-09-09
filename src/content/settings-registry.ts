@@ -155,16 +155,6 @@ export const SETTINGS: SettingDefinition[] = [
     schema: z.uuid(),
   },
   {
-    key: 'brand.materialLogos',
-    group: 'Бренд',
-    kind: 'text',
-    label: 'Логотипы EGGER / BLUM / HETTICH',
-    help:
-      'Заполняйте, только если правообладатель разрешил использование. Иначе бренды ' +
-      'остаются текстом — это безопаснее и выглядит намеренно.',
-    schema: z.string().trim().max(500),
-  },
-  {
     key: 'analytics.enabled',
     group: 'Аналитика',
     kind: 'boolean',

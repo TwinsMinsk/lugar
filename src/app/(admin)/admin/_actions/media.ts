@@ -135,10 +135,9 @@ const metaSchema = z.object({
   }),
   focalX: z.number().min(0).max(1),
   focalY: z.number().min(0).max(1),
-  credit: z.string().trim().max(200).optional(),
 });
 
-/** Update alt text, focal point and credit. */
+/** Update alt text and focal point. */
 export async function updateMediaMeta(
   input: z.input<typeof metaSchema>,
 ): Promise<MediaActionResult> {
@@ -146,7 +145,7 @@ export async function updateMediaMeta(
 
   const parsed = metaSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
-  const { assetId, alt, focalX, focalY, credit } = parsed.data;
+  const { assetId, alt, focalX, focalY } = parsed.data;
 
   const cleanedAlt: Record<string, string> = { ru: alt.ru };
   // An empty translation is absent, not blank — so the fallback shows Russian.
@@ -158,7 +157,7 @@ export async function updateMediaMeta(
   await db.transaction(async (tx) => {
     await tx
       .update(mediaAssets)
-      .set({ alt: cleanedAlt, focalX, focalY, credit: credit ?? null })
+      .set({ alt: cleanedAlt, focalX, focalY })
       .where(eq(mediaAssets.id, assetId));
 
     await recordAudit(

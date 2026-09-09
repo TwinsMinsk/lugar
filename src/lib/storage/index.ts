@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
@@ -30,8 +30,6 @@ import { env, publicEnv } from '@/env';
 export type PutOptions = {
   contentType: string;
   cacheControl?: string;
-  /** Public assets are CDN-cacheable; private ones require a signed URL. */
-  visibility?: 'public' | 'private';
 };
 
 export interface StorageDriver {
@@ -237,13 +235,6 @@ export function buildDerivativeKey(
   return `derivatives/v${recipeVersion}/${checksum.slice(0, 2)}/${checksum}/${width}.${format}`;
 }
 
-/** Uploads awaiting a form submission. Reaped after 24h if never attached. */
-export function buildUploadKey(extension: string): string {
-  return `uploads/${randomUUID()}.${extension}`;
-}
-
 export function sha256(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
 }
-
-export { join as joinStorageKey };

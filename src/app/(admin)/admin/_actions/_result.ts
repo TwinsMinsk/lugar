@@ -16,7 +16,6 @@ export type ActionFailure = {
   /** Rows that stand in the way, named so a refusal can be acted on. */
   blockedBy?: Array<Record<string, string>>;
   /** Per-field codes, for forms that mark the field rather than the form. */
-  fieldErrors?: Record<string, string>;
 };
 
 export type ActionOutcome = { ok: true } | ActionFailure;

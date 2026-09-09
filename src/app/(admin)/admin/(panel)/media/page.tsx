@@ -42,7 +42,6 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: P
     alt: asset.alt,
     focalX: asset.focalX,
     focalY: asset.focalY,
-    credit: null,
     isPlaceholder: asset.isPlaceholder,
     usageCount: asset.usageCount,
     usedOnPublishedPage: asset.usedOnPublishedPage,

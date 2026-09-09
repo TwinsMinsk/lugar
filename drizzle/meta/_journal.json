@@ -36,6 +36,13 @@
       "when": 1787150242101,
       "tag": "0004_yellow_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787150242102,
+      "tag": "0005_drop_material_logos_setting",
+      "breakpoints": true
     }
   ]
 }

@@ -242,21 +242,3 @@ export async function listRevisions(documentId: string, limit = 30): Promise<Rev
       .map((entry) => entry.locale as Locale),
   }));
 }
-
-/** Blocks of a historic revision, for previewing before a rollback. */
-export async function getRevisionBlocks(revisionId: string): Promise<AnyBlock[] | null> {
-  await requireCapability('content.read');
-
-  const [row] = await db
-    .select({ blocks: documentRevisions.blocks })
-    .from(documentRevisions)
-    .where(eq(documentRevisions.id, revisionId))
-    .limit(1);
-  if (!row) return null;
-
-  const raw = Array.isArray(row.blocks) ? row.blocks : [];
-  return raw
-    .map((candidate) => anyBlockSchema.safeParse(candidate))
-    .filter((parsed) => parsed.success)
-    .map((parsed) => parsed.data);
-}

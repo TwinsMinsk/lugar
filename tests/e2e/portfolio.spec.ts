@@ -143,8 +143,17 @@ test.describe('portfolio', () => {
     const slug = `chernovik-${Date.now()}`;
 
     await page.goto('/admin/portfolio');
-    await page.getByLabel('Название').fill('Черновик для вычитки');
-    await page.getByLabel('Адрес страницы').fill(slug);
+    // The address derives from the title in the browser, so waiting for that
+    // derivation is how this waits for hydration: a value typed before React
+    // attaches is discarded when it does, and the submit then runs as a native
+    // form GET that reloads the page and creates nothing.
+    const titleField = page.getByLabel('Название');
+    const slugField = page.getByLabel('Адрес страницы');
+    await expect(async () => {
+      await titleField.fill('Черновик для вычитки');
+      await expect(slugField).not.toHaveValue('', { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await slugField.fill(slug);
     await page.getByRole('button', { name: 'Создать проект' }).click();
     await expect(page).toHaveURL(/\/admin\/portfolio\/[0-9a-f-]{36}$/);
 

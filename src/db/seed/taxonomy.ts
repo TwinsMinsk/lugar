@@ -411,15 +411,6 @@ export const SITE_SETTINGS: Array<{
     description: 'Логотип. Пока используется текстовое начертание Alegreya, как в прототипе.',
   },
   {
-    key: 'brand.materialLogos',
-    group: 'brand',
-    value: null,
-    needsReview: true,
-    description:
-      'Логотипы EGGER/BLUM/HETTICH. Использовать только с разрешения правообладателя; ' +
-      'иначе остаётся текстовое начертание.',
-  },
-  {
     key: 'analytics.enabled',
     group: 'analytics',
     value: false,

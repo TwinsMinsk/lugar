@@ -19,7 +19,6 @@ export type MediaAsset = {
   focalY: number;
   alt: LocalizedTextOptional;
   caption: LocalizedTextOptional | null;
-  credit: string | null;
   version: number;
   isPlaceholder: boolean;
 };
@@ -53,7 +52,6 @@ async function getMediaAssetsCached(ids: string[]): Promise<Map<string, MediaAss
       focalY: mediaAssets.focalY,
       alt: mediaAssets.alt,
       caption: mediaAssets.caption,
-      credit: mediaAssets.credit,
       version: mediaAssets.version,
       isPlaceholder: mediaAssets.isPlaceholder,
     })

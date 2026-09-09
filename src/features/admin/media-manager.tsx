@@ -31,7 +31,6 @@ export type MediaItem = {
   alt: Partial<Record<Locale, string>>;
   focalX: number;
   focalY: number;
-  credit: string | null;
   isPlaceholder: boolean;
   usageCount: number;
   usedOnPublishedPage: boolean;

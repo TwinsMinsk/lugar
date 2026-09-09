@@ -3,7 +3,7 @@ import 'server-only';
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { documentLocales, mediaAssets, mediaUsage } from '@/db/schema';
+import { mediaAssets } from '@/db/schema';
 import { requireCapability } from '@/lib/auth/guards';
 
 /** Count of placeholder assets still standing in for real photography. */
@@ -130,38 +130,4 @@ export async function listMedia(options?: {
     page,
     perPage,
   };
-}
-
-export type MediaUsageEntry = {
-  documentId: string;
-  locale: string;
-  slug: string;
-  kind: string;
-  status: string;
-  fieldPath: string;
-};
-
-/**
- * Where an asset is used.
- *
- * Powers the delete guard: an asset referenced by a *published* revision cannot
- * be removed, and the admin shows the exact pages rather than a bare refusal.
- */
-export async function getMediaUsage(assetId: string): Promise<MediaUsageEntry[]> {
-  await requireCapability('media.read');
-
-  const rows = await db
-    .select({
-      documentId: mediaUsage.documentId,
-      locale: documentLocales.locale,
-      slug: documentLocales.slug,
-      kind: documentLocales.kind,
-      status: documentLocales.status,
-      fieldPath: mediaUsage.fieldPath,
-    })
-    .from(mediaUsage)
-    .innerJoin(documentLocales, eq(documentLocales.publishedRevisionId, mediaUsage.revisionId))
-    .where(eq(mediaUsage.assetId, assetId));
-
-  return rows;
 }
