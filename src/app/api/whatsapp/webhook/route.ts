@@ -6,6 +6,7 @@ import { db } from '@/db/client';
 import { whatsappWebhookEvents } from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
+import { REQUEST_ID_HEADER } from '@/lib/request-id';
 import { whatsapp } from '@/lib/whatsapp';
 import { applyEvent, parseEnvelope } from '@/lib/whatsapp/webhook';
 
@@ -65,8 +66,13 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const signature = request.headers.get('x-hub-signature-256');
 
+  // Meta redelivers, retries and fans out; a bare log line cannot say which
+  // delivery it came from. The id is on the response too, so a 500 seen in
+  // Meta's dashboard names the lines that explain it.
+  const log = logger.child({ requestId: request.headers.get(REQUEST_ID_HEADER) ?? undefined });
+
   if (!whatsapp().verifyWebhookSignature(rawBody, signature)) {
-    logger.warn({ hasSignature: Boolean(signature) }, 'whatsapp webhook signature rejected');
+    log.warn({ hasSignature: Boolean(signature) }, 'whatsapp webhook signature rejected');
     return new NextResponse('Forbidden', { status: 403 });
   }
 
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
   try {
     payload = JSON.parse(rawBody);
   } catch {
-    logger.warn('whatsapp webhook payload was not JSON');
+    log.warn('whatsapp webhook payload was not JSON');
     return new NextResponse('OK', { status: 200 });
   }
 
@@ -103,7 +109,7 @@ export async function POST(request: NextRequest) {
       if (row) stored.push({ id: row.id, event });
     }
   } catch (error) {
-    logger.error({ err: error }, 'whatsapp webhook could not be persisted');
+    log.error({ err: error }, 'whatsapp webhook could not be persisted');
     return new NextResponse('Storage failure', { status: 500 });
   }
 
@@ -115,7 +121,7 @@ export async function POST(request: NextRequest) {
         try {
           await applyEvent(item.event, item.id);
         } catch (error) {
-          logger.error(
+          log.error(
             { err: error, eventKey: item.event.eventKey },
             'whatsapp webhook event could not be applied',
           );

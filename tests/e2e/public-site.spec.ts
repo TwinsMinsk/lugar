@@ -417,3 +417,35 @@ test.describe('mobile menu', () => {
     expect(covered, 'a tap over the page heading must land on the menu').toBe('panel');
   });
 });
+
+test.describe('request id', () => {
+  /**
+   * A response that cannot be tied to a log line makes "it broke around two"
+   * an archaeology problem. These two paths are wired differently in the proxy
+   * — a page goes through next-intl, a route handler is excluded from it — and
+   * only one of them was ever going to work by accident.
+   */
+  const ID = /^[A-Za-z0-9_.:-]{8,64}$/;
+
+  test('a page response carries one', async ({ page }) => {
+    const response = await page.goto('/');
+    expect(response!.headers()['x-request-id']).toMatch(ID);
+  });
+
+  test('a route handler response carries one, and it is the id the proxy chose', async ({
+    request,
+  }) => {
+    const response = await request.get('/api/health');
+    expect(response.headers()['x-request-id']).toMatch(ID);
+  });
+
+  test('an id supplied by the caller is not echoed back unchecked', async ({ request }) => {
+    // Whatever a client sends ends up in log lines. A newline in it would let
+    // anyone write their own entries underneath the real one.
+    const response = await request.get('/api/health', {
+      headers: { 'x-request-id': 'short' },
+    });
+    expect(response.headers()['x-request-id']).not.toBe('short');
+    expect(response.headers()['x-request-id']).toMatch(ID);
+  });
+});

@@ -2,6 +2,7 @@ import createIntlMiddleware from 'next-intl/middleware';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { routing } from '@/i18n/routing';
+import { REQUEST_ID_HEADER, resolveRequestId } from '@/lib/request-id';
 
 /**
  * Next 16 renamed `middleware.ts` to `proxy.ts` (Node runtime only).
@@ -12,6 +13,14 @@ import { routing } from '@/i18n/routing';
  *      and role on the server. UI hiding is not access control, and neither is
  *      this.
  *   2. Delegate everything else to next-intl for locale resolution.
+ *
+ * It also stamps every response with a request id, and passes that id to the
+ * server on the paths where the documented API allows it. The one path where it
+ * cannot is locale pages: next-intl builds its own response, and the supported
+ * way to give the server a header is to build the response yourself. Those
+ * pages still return the id to the browser, which is what a person reporting a
+ * problem can quote; route handlers and the panel — where the logging actually
+ * is — get it on the request as well.
  */
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -45,7 +54,21 @@ function isExcluded(pathname: string): boolean {
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isExcluded(pathname)) return NextResponse.next();
+  const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER));
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
+
+  const forward = () => {
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set(REQUEST_ID_HEADER, requestId);
+    return response;
+  };
+
+  // Route handlers included, and deliberately: the WhatsApp webhook is the
+  // single place where knowing which delivery a log line came from matters
+  // most. Only headers are touched, so the raw body the signature is computed
+  // over is untouched.
+  if (isExcluded(pathname)) return forward();
 
   if (pathname.startsWith('/admin')) {
     // Cookie presence only — never trust its contents here.
@@ -66,12 +89,16 @@ export default function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/admin/login';
       url.search = `?next=${encodeURIComponent(pathname)}`;
-      return NextResponse.redirect(url);
+      const redirect = NextResponse.redirect(url);
+      redirect.headers.set(REQUEST_ID_HEADER, requestId);
+      return redirect;
     }
-    return NextResponse.next();
+    return forward();
   }
 
-  return intlMiddleware(request);
+  const response = intlMiddleware(request);
+  response.headers.set(REQUEST_ID_HEADER, requestId);
+  return response;
 }
 
 export const config = {
