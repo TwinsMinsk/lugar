@@ -134,6 +134,36 @@ test.describe('consent', () => {
     expect(decodeURIComponent(cookie!.value)).toContain('"analytics":false');
   });
 
+  /**
+   * The attribution cookie waits for the same answer the pixel waits for.
+   *
+   * It used to be written on every page load, on the argument that first-party
+   * data never leaving the site does not need consent. What governs a cookie is
+   * whether writing it to the device is necessary for what the visitor asked
+   * for, and a 365-day cookie crediting a marketing campaign is not — so the
+   * cookie policy promises it waits, and this is that promise.
+   */
+  test('no attribution cookie is written before consent, and one appears after', async ({
+    page,
+  }) => {
+    await page.goto('/?utm_source=proverka&utm_medium=e2e');
+    await expect(page.getByText('Мы используем файлы cookie')).toBeVisible();
+    await page.getByRole('button', { name: 'Только необходимые' }).click();
+    await page.waitForTimeout(500);
+
+    const declined = (await page.context().cookies()).find((cookie) => cookie.name === 'lg_attr');
+    expect(declined).toBeUndefined();
+
+    // Accepting is what turns it on, without a reload.
+    await page.getByRole('button', { name: 'Настройки cookie' }).click();
+    await page.getByRole('button', { name: 'Принять все' }).click();
+    await expect
+      .poll(async () => (await page.context().cookies()).some((c) => c.name === 'lg_attr'), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+  });
+
   test('a returning visitor with a stored choice is not asked again', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Принять все' }).click();

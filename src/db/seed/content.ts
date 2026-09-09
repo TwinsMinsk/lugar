@@ -1,4 +1,5 @@
 import { v5 as uuidv5 } from 'uuid';
+import { LEGAL_TEXTS } from '@/content/legal';
 
 import type { AnyBlock, TemplateId } from '@/content/blocks/union';
 
@@ -896,32 +897,12 @@ export const LEGAL_SEEDS: PageSeed[] = [
     },
     blocks: [
       block('privacy.body', 'legal_rich_text', {
-        heading: {
-          ru: 'Политика конфиденциальности',
-          es: 'Política de privacidad',
-          en: 'Privacy policy',
-        },
-        content: {
-          ru: paragraphs([
-            'Этот текст является шаблоном и требует проверки юристом до публикации.',
-            'LUGAR обрабатывает персональные данные, которые вы указываете в форме на сайте: имя, номер телефона, город и комментарий к заявке. Данные используются только для того, чтобы связаться с вами и подготовить расчёт.',
-            'Мы храним данные заявки в собственной системе учёта. Мы не продаём и не передаём их третьим лицам, за исключением случаев, предусмотренных законом.',
-            'Вы можете запросить доступ к своим данным, их исправление или удаление, написав нам по контактам, указанным на сайте.',
-          ]),
-          es: paragraphs([
-            'Este texto es una plantilla y debe ser revisado por un abogado antes de su publicación.',
-            'LUGAR trata los datos personales que facilitas en el formulario de la web: nombre, teléfono, ciudad y comentario. Los datos se utilizan únicamente para contactar contigo y preparar un presupuesto.',
-            'Conservamos los datos de la solicitud en nuestro propio sistema. No los vendemos ni los cedemos a terceros, salvo obligación legal.',
-            'Puedes solicitar el acceso, la rectificación o la supresión de tus datos escribiéndonos a los contactos indicados en la web.',
-          ]),
-          en: paragraphs([
-            'This text is a template and must be reviewed by a lawyer before publication.',
-            'LUGAR processes the personal data you provide in the website form: name, phone number, city and comment. The data is used solely to contact you and prepare a quote.',
-            'We store enquiry data in our own system. We do not sell or share it with third parties except where required by law.',
-            'You may request access to, correction of, or deletion of your data by writing to the contacts listed on the website.',
-          ]),
-        },
-        lastUpdated: '2026-08-13',
+        heading: LEGAL_TEXTS.privacy.heading,
+        content: LEGAL_TEXTS.privacy.content,
+        lastUpdated: '2026-09-09',
+        // Stays on until a lawyer has read the draft and the studio's own
+        // details have replaced the bracketed placeholders. Turning it off is
+        // a deliberate act, not something a content edit does by accident.
         showTemplateNotice: true,
       }),
     ],
@@ -938,40 +919,14 @@ export const LEGAL_SEEDS: PageSeed[] = [
     },
     blocks: [
       block('cookies.body', 'legal_rich_text', {
-        heading: { ru: 'Файлы cookie', es: 'Cookies', en: 'Cookies' },
-        content: {
-          ru: paragraphs([
-            'Этот текст является шаблоном и требует проверки юристом до публикации.',
-            'Необходимые cookie обеспечивают базовую работу сайта: выбор языка и корректную обработку формы. Они не требуют согласия.',
-            'Аналитические и маркетинговые cookie не устанавливаются до тех пор, пока вы не дадите согласие в баннере. Вы можете изменить выбор в любой момент через ссылку «Настройки cookie» в футере.',
-          ]),
-          es: paragraphs([
-            'Este texto es una plantilla y debe ser revisado por un abogado antes de su publicación.',
-            'Las cookies necesarias permiten el funcionamiento básico de la web: la selección de idioma y el envío correcto del formulario. No requieren consentimiento.',
-            'Las cookies analíticas y de marketing no se instalan hasta que das tu consentimiento en el banner. Puedes cambiar tu elección en cualquier momento desde «Preferencias de cookies» en el pie de página.',
-          ]),
-          en: paragraphs([
-            'This text is a template and must be reviewed by a lawyer before publication.',
-            'Necessary cookies keep the site working: language selection and correct form submission. They do not require consent.',
-            'Analytics and marketing cookies are not set until you grant consent in the banner. You can change your choice at any time via "Cookie preferences" in the footer.',
-          ]),
-        },
-        lastUpdated: '2026-08-13',
+        heading: LEGAL_TEXTS.cookies.heading,
+        content: LEGAL_TEXTS.cookies.content,
+        lastUpdated: '2026-09-09',
         showTemplateNotice: true,
       }),
     ],
   },
 ];
-
-function paragraphs(lines: string[]) {
-  return {
-    type: 'doc' as const,
-    content: lines.map((line) => ({
-      type: 'paragraph',
-      content: [{ type: 'text', text: line }],
-    })),
-  };
-}
 
 export const NAVIGATION_SEED = {
   header: [

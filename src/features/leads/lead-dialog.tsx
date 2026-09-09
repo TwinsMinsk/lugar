@@ -9,6 +9,8 @@ import {
   LAST_TOUCH_KEY,
   decodeTouch,
   FIRST_TOUCH_COOKIE,
+  hasAttributionSignal,
+  readUtmFromLocation,
 } from '@/features/attribution/attribution';
 import { Link } from '@/i18n/navigation';
 import type { Locale } from '@/i18n/routing';
@@ -179,7 +181,20 @@ function LeadDialogPanel({
     formData.set('locale', locale);
     formData.set('pageContext', window.location.pathname);
 
-    // Attribution: last touch from this session, first touch from the cookie.
+    /**
+     * Attribution: what is stored, plus what the address bar says right now.
+     *
+     * The two halves answer to different rules, which is why they are read
+     * separately. First and last touch live in a cookie and in sessionStorage,
+     * so they exist only once the visitor has accepted marketing cookies — for
+     * anyone who declined, both come back empty and that is correct. The
+     * campaign parameters in the current URL are not storage: they are part of
+     * the request the visitor is deliberately sending, alongside a consent box
+     * about processing their data, so they travel with the enquiry either way.
+     * Losing them would mean the studio cannot tell which advert produced a
+     * lead from a visitor who declined a cookie, which is not what declining a
+     * cookie is about.
+     */
     try {
       const last = decodeTouch(sessionStorage.getItem(LAST_TOUCH_KEY));
       const firstRaw = document.cookie
@@ -187,7 +202,21 @@ function LeadDialogPanel({
         .find((entry) => entry.startsWith(`${FIRST_TOUCH_COOKIE}=`))
         ?.split('=')[1];
       const first = decodeTouch(firstRaw);
-      formData.set('attribution', JSON.stringify({ ...(first ?? {}), ...(last ?? {}) }));
+      const stored = { ...(first ?? {}), ...(last ?? {}) };
+
+      const current = readUtmFromLocation(
+        window.location.search,
+        document.referrer,
+        window.location.href,
+      );
+      // The address bar wins when it carries a campaign: that is the click that
+      // led to this submission. Otherwise only the landing page is refreshed,
+      // so an empty current URL cannot erase a stored campaign.
+      const attribution = hasAttributionSignal(current)
+        ? { ...stored, ...current }
+        : { ...stored, landingLast: current.landingLast };
+
+      formData.set('attribution', JSON.stringify(attribution));
     } catch {
       // Attribution is best-effort and must never block a submission.
     }

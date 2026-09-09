@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
+import {
+  getConsentServerSnapshot,
+  getConsentSnapshot,
+  subscribeToConsent,
+} from '../consent/consent';
 import {
   cookieAttrs,
   encodeTouch,
@@ -12,19 +17,44 @@ import {
 } from './attribution';
 
 /**
- * Records first- and last-touch attribution once per page load.
+ * Records first- and last-touch attribution, once the visitor has agreed to it.
  *
- * This is strictly first-party data, retained only to attribute an enquiry the
- * visitor is actively submitting, and never transmitted to a third party. It
- * is therefore not gated behind analytics consent — but it is also never
- * *persisted* anywhere until the visitor ticks the consent box and submits, at
- * which point it is written alongside an explicit consent record.
+ * This used to run unconditionally, and the comment here argued the case: the
+ * data is first-party, it is never sent to a third party, and it is only
+ * *persisted* server-side when the visitor submits a form with an explicit
+ * consent box ticked. All of that is true and none of it is the test. What
+ * governs a cookie is not where the data goes but whether writing it to the
+ * visitor's device is strictly necessary for what they asked for — LSSI art.
+ * 22.2 in Spain, ePrivacy art. 5(3) behind it — and a 365-day cookie that
+ * exists to credit a marketing campaign is not necessary for showing anybody a
+ * page about furniture.
  *
- * If the browser blocks cookies entirely, first touch degrades to last touch
+ * So it waits for the marketing category, the same one the Meta Pixel waits
+ * for, and the cookie policy says so. `sessionStorage` waits with it: the rule
+ * is about storing on the device, and sessionStorage is storage — gating only
+ * the cookie would have been half a fix that read like a whole one.
+ *
+ * The cost is real and worth stating: a visitor who declines is not attributed
+ * across pages, and a visitor who accepts on the second page is attributed from
+ * that page onwards. What survives regardless is the campaign in the address bar
+ * at the moment of submission — the lead form reads it directly (see
+ * `lead-dialog.tsx`), because that is part of the request the visitor is
+ * deliberately sending rather than something kept on their device.
+ *
+ * If the browser blocks storage entirely, first touch degrades to last touch
  * rather than failing.
  */
 export function AttributionBeacon() {
+  const consent = useSyncExternalStore(
+    subscribeToConsent,
+    getConsentSnapshot,
+    getConsentServerSnapshot,
+  );
+  const allowed = consent?.marketing === true;
+
   useEffect(() => {
+    if (!allowed) return;
+
     try {
       const touch = readUtmFromLocation(
         window.location.search,
@@ -49,7 +79,7 @@ export function AttributionBeacon() {
     } catch {
       // Private mode, disabled storage — attribution is best-effort by design.
     }
-  }, []);
+  }, [allowed]);
 
   return null;
 }
