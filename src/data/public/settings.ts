@@ -36,6 +36,10 @@ export type SiteSettings = {
     defaultTitle: LocalizedText | null;
     ogImageAssetId: string | null;
   };
+  brand: {
+    /** Replaces the text wordmark in the header, footer and mobile menu. */
+    logoAssetId: string | null;
+  };
   analytics: {
     enabled: boolean;
   };
@@ -100,6 +104,9 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     seo: {
       defaultTitle: read<LocalizedText>('seo.defaultTitle'),
       ogImageAssetId: readString('seo.ogImage'),
+    },
+    brand: {
+      logoAssetId: readString('brand.logo'),
     },
     analytics: {
       enabled: read<boolean>('analytics.enabled') === true,

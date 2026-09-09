@@ -1,6 +1,7 @@
 import { cacheLife } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
+import { brandLogo } from '@/components/layout/brand-logo';
 import { Logo } from '@/components/layout/logo';
 import { t } from '@/content/i18n';
 import { getPortfolioIndexSlug } from '@/data/public/documents';
@@ -32,11 +33,12 @@ async function currentYear(): Promise<number> {
  * "© 2026 LUGAR S.L." would be a legal claim we have no basis to make.
  */
 export async function Footer({ locale }: { locale: Locale }) {
-  const [legalItems, settings, indexSlug, tc] = await Promise.all([
+  const [legalItems, settings, indexSlug, tc, logo] = await Promise.all([
     getNavigation('footer_legal', locale),
     getSiteSettings(),
     getPortfolioIndexSlug(locale),
     getTranslations('consent'),
+    brandLogo(),
   ]);
 
   const year = await currentYear();
@@ -45,7 +47,7 @@ export async function Footer({ locale }: { locale: Locale }) {
   return (
     <footer className="bg-dark text-on-dark-faint px-[clamp(18px,5vw,64px)] pb-[clamp(32px,4vw,48px)]">
       <div className="border-dark-line mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 border-t pt-6.5">
-        <Logo size="sm" onDark />
+        <Logo size="sm" onDark logo={logo} />
 
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
           {legalItems.map((item) => (

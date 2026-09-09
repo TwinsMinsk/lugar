@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
 import { LanguageSwitcher } from '@/components/layout/language-switcher';
+import { brandLogo } from '@/components/layout/brand-logo';
 import { Logo } from '@/components/layout/logo';
 import { MobileMenu, type MobileNavItem } from '@/components/layout/mobile-menu';
 import { LeadTrigger } from '@/features/leads/lead-trigger';
@@ -20,10 +21,11 @@ import { documentPath } from '@/lib/routes';
  * wrap the nav below that — the prototype made the same call.
  */
 export async function Header({ locale }: { locale: Locale }) {
-  const [items, indexSlug, tr] = await Promise.all([
+  const [items, indexSlug, tr, logo] = await Promise.all([
     getNavigation('header', locale),
     getPortfolioIndexSlug(locale),
     getTranslations('cta'),
+    brandLogo(),
   ]);
 
   const navItems: MobileNavItem[] = items.map((item) => ({
@@ -39,7 +41,7 @@ export async function Header({ locale }: { locale: Locale }) {
     <header className="border-line bg-bg/90 sticky top-0 z-[60] border-b backdrop-blur-[14px]">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-5 px-[clamp(18px,4vw,56px)] py-4">
         <Link href="/" className="flex-none" aria-label="LUGAR">
-          <Logo />
+          <Logo logo={logo} />
         </Link>
 
         <nav
@@ -65,7 +67,7 @@ export async function Header({ locale }: { locale: Locale }) {
           >
             {tr('whatsappShort')}
           </LeadTrigger>
-          <MobileMenu items={navItems} ctaLabel={tr('whatsapp')} />
+          <MobileMenu items={navItems} ctaLabel={tr('whatsapp')} logo={logo} />
         </div>
       </div>
     </header>

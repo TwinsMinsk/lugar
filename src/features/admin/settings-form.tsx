@@ -149,9 +149,17 @@ function Field({
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center gap-2">
-        <label htmlFor={id} className="text-ink-muted text-[13px] font-medium">
-          {definition.label}
-        </label>
+        {/* A media setting has no single form control to point at — the picker
+            is a button and a dialog — so its caption is a span and the group
+            below carries the name instead. A `htmlFor` aimed at an id that
+            does not exist is a label attached to nothing. */}
+        {definition.kind === 'media' ? (
+          <span className="text-ink-muted text-[13px] font-medium">{definition.label}</span>
+        ) : (
+          <label htmlFor={id} className="text-ink-muted text-[13px] font-medium">
+            {definition.label}
+          </label>
+        )}
         {needsReview ? (
           <span className="rounded-[--radius-btn] bg-[oklch(0.94_0.07_85)] px-1.5 py-0.5 text-[11px] text-[oklch(0.42_0.10_85)]">
             не заполнено
@@ -189,12 +197,14 @@ function Field({
           })}
         </div>
       ) : definition.kind === 'media' ? (
-        <MediaPicker
-          assets={assets}
-          value={typeof value === 'string' ? value : null}
-          onChange={onChange}
-          label=""
-        />
+        <div role="group" aria-label={definition.label}>
+          <MediaPicker
+            assets={assets}
+            value={typeof value === 'string' ? value : null}
+            onChange={onChange}
+            label=""
+          />
+        </div>
       ) : (
         <input
           id={id}

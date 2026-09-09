@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 
-import { Logo } from '@/components/layout/logo';
+import { Logo, type BrandLogo } from '@/components/layout/logo';
 import { useLeadDialog } from '@/features/leads/lead-dialog-context';
 import { buttonClasses } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
@@ -38,7 +38,16 @@ export type MobileNavItem = { href: string; label: string };
  * The portal also lifts the panel out of the header's `z-[60]` stacking
  * context, so nothing on the page can paint over it.
  */
-export function MobileMenu({ items, ctaLabel }: { items: MobileNavItem[]; ctaLabel: string }) {
+export function MobileMenu({
+  items,
+  ctaLabel,
+  logo,
+}: {
+  items: MobileNavItem[];
+  ctaLabel: string;
+  /** Resolved by the header — this component renders in the browser. */
+  logo: BrandLogo | null;
+}) {
   const t = useTranslations('nav');
   const { open: openLeadDialog } = useLeadDialog();
   const [open, setOpen] = useState(false);
@@ -121,7 +130,7 @@ export function MobileMenu({ items, ctaLabel }: { items: MobileNavItem[]; ctaLab
               )}
             >
               <div className="mb-9 flex items-center justify-between">
-                <Logo />
+                <Logo logo={logo} />
                 <button
                   type="button"
                   onClick={() => setOpen(false)}

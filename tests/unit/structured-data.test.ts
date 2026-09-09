@@ -15,6 +15,7 @@ const EMPTY_SETTINGS: SiteSettings = {
   social: { instagram: null, facebook: null },
   legal: { companyName: null, consentVersion: '2026-08-13' },
   seo: { defaultTitle: null, ogImageAssetId: null },
+  brand: { logoAssetId: null },
   analytics: { enabled: false },
   pendingReview: [],
 };

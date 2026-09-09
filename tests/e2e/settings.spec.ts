@@ -110,4 +110,48 @@ test.describe('settings', () => {
     await expect.poll(live(page, '/kontakty', emailLink), LIVE).toBe(0);
     await expect.poll(live(page, '/kontakty', addressText), LIVE).toBe(0);
   });
+
+  /**
+   * The logo setting, which used to be a field that changed nothing.
+   *
+   * It could be filled in, it counted towards the "settings waiting for
+   * values" banner, and no code read it — the header, footer and mobile menu
+   * all rendered the text wordmark unconditionally. This asserts the whole
+   * round trip, including that clearing it brings the wordmark back rather
+   * than leaving a broken image.
+   */
+  test('an uploaded logo replaces the wordmark in the header, and clearing brings it back', async ({
+    page,
+  }) => {
+    const wordmark = () => page.getByRole('banner').getByText('Lugar', { exact: true }).count();
+    const image = () => page.getByRole('banner').locator('img[alt="LUGAR"]').count();
+
+    // The honest starting state: no logo uploaded, so the text shows.
+    await expect.poll(live(page, '/', wordmark), LIVE).toBe(1);
+    await expect.poll(live(page, '/', image), LIVE).toBe(0);
+
+    await page.goto('/admin/settings');
+    const logoField = page.getByRole('group', { name: 'Логотип' });
+    await logoField.getByRole('button', { name: 'Выбрать' }).first().click();
+    const chooser = page.getByRole('dialog', { name: 'Выбор изображения' });
+    await chooser.getByRole('listitem').first().getByRole('button').click();
+    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+    await expect(page.getByText('Настройки сохранены.')).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(live(page, '/', image), LIVE).toBe(1);
+    await expect.poll(live(page, '/', wordmark), LIVE).toBe(0);
+
+    // Cleared: the wordmark is the fallback, not an empty frame.
+    await page.goto('/admin/settings');
+    await page
+      .getByRole('group', { name: 'Логотип' })
+      .getByRole('button', { name: 'Убрать' })
+      .first()
+      .click();
+    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+    await expect(page.getByText('Настройки сохранены.')).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(live(page, '/', wordmark), LIVE).toBe(1);
+    await expect.poll(live(page, '/', image), LIVE).toBe(0);
+  });
 });
