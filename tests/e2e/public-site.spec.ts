@@ -100,6 +100,29 @@ test.describe('SEO surfaces', () => {
     expect(xml).not.toContain('/admin');
   });
 
+  /**
+   * The check Railway actually polls.
+   *
+   * It used to poll /robots.txt — a static file, which a release with an
+   * unreachable database answers just as cheerfully as a working one, so a
+   * broken deploy was rolled out and then served 500s. This asserts the shape
+   * of the healthy answer; the failing side was verified by pointing a build
+   * at a dead database, where this returns 503 while /robots.txt still
+   * returns 200.
+   */
+  test('the health check reports the database and the migration count', async ({ request }) => {
+    const response = await request.get('/api/health');
+    expect(response.status()).toBe(200);
+
+    const body = (await response.json()) as { status: string; checks: Record<string, string> };
+    expect(body.status).toBe('ok');
+    expect(body.checks.database).toBe('ok');
+    // applied/expected — equal, or the release should not be taking traffic.
+    const [applied, expected] = (body.checks.migrations ?? '').split('/');
+    expect(Number(applied)).toBeGreaterThan(0);
+    expect(applied).toBe(expected);
+  });
+
   test('robots disallows admin and points at the sitemap', async ({ request }) => {
     const response = await request.get('/robots.txt');
     const body = await response.text();

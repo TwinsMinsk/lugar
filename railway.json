@@ -9,7 +9,7 @@
     "preDeployCommand": "npm run db:migrate",
     "numReplicas": 1,
     "restartPolicyType": "ON_FAILURE",
-    "healthcheckPath": "/robots.txt",
+    "healthcheckPath": "/api/health",
     "healthcheckTimeout": 60
   }
 }
