@@ -126,3 +126,88 @@ jobs:
       - run: npm run db:seed
 
       - run: npm run build
+
+  # The end-to-end suite, which until now ran only on a developer's machine.
+  #
+  # A separate job rather than steps appended to `build`, because it needs a
+  # browser and its own server, and because a failure here should be legible as
+  # "the site does not work" rather than as "the build failed". It builds again
+  # through Playwright's own `webServer` — the config deliberately never reuses
+  # a server it did not start, and that rule is what stops a suite from quietly
+  # testing an hour-old build.
+  #
+  # The admin project needs an owner account, so the job creates one and signs
+  # in as it. The password below is not a secret in any meaningful sense: it
+  # belongs to an account in a database that exists for the length of this job
+  # and is discarded with the container.
+  #
+  # `mobile` is left out. It re-runs the public specs at a phone viewport,
+  # which doubles the slowest part of the job to catch a class of defect —
+  # layout at a narrow width — that these specs barely assert on. It stays a
+  # local command until there are specs that would actually fail there.
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: lugar
+          POSTGRES_PASSWORD: lugar
+          POSTGRES_DB: lugar
+        options: >-
+          --health-cmd "pg_isready -U lugar -d lugar"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://lugar:lugar@localhost:5432/lugar
+      BETTER_AUTH_SECRET: ci-placeholder-not-a-real-secret-000000
+      PREVIEW_SECRET: ci-placeholder-not-a-real-secret-000000
+      # The suite drives the site over plain http on localhost, so the app must
+      # be told that is its own origin — otherwise better-auth refuses the
+      # sign-in as a cross-origin credential submission and every admin spec
+      # fails looking like a wrong password.
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      BETTER_AUTH_TRUSTED_ORIGINS: http://127.0.0.1:3100,http://localhost:3100
+      # Photographs live on disk here; the suite uploads real files.
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_ROOT: /tmp/lugar-media
+      INITIAL_OWNER_EMAIL: owner@lugar.test
+      INITIAL_OWNER_PASSWORD: ci-owner-password-not-a-secret
+      E2E_ADMIN_EMAIL: owner@lugar.test
+      E2E_ADMIN_PASSWORD: ci-owner-password-not-a-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run db:migrate
+
+      - run: npm run db:seed
+
+      # Without this the setup project skips itself for want of credentials,
+      # and every admin spec then fails on a storage-state file that was never
+      # written.
+      - name: Create the owner account the admin specs sign in as
+        run: npm run auth:bootstrap
+
+      - run: npx playwright test --project=desktop --project=admin
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

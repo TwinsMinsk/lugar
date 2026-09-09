@@ -10,6 +10,13 @@
  *
  * Prints a generated password once. The owner signs in and changes it, then
  * invites everyone else from /admin — there is no public sign-up.
+ *
+ * INITIAL_OWNER_PASSWORD overrides the generated one, for the case where
+ * nobody is watching the output: CI provisions this account and then signs in
+ * as it, and scraping a password out of stdout is the kind of coupling that
+ * breaks the day someone rewords a log line. It is held to the minimum length
+ * the sign-in form enforces, so this cannot become the door through which a
+ * four-character owner password enters the system.
  */
 import './load-env';
 
@@ -20,6 +27,9 @@ import { eq } from 'drizzle-orm';
 import { db } from '../src/db/client';
 import { user } from '../src/db/schema/auth';
 import { auth } from '../src/lib/auth/server';
+
+// Mirrors `emailAndPassword.minPasswordLength` in src/lib/auth/server.ts.
+const MIN_PASSWORD_LENGTH = 12;
 
 function generatePassword(): string {
   // Ambiguous glyphs removed so the password survives being read off a screen.
@@ -45,7 +55,15 @@ async function main() {
   }
 
   const ctx = await auth.$context;
-  const password = generatePassword();
+  const supplied = process.env.INITIAL_OWNER_PASSWORD;
+  if (supplied !== undefined && supplied.length < MIN_PASSWORD_LENGTH) {
+    console.error(
+      `INITIAL_OWNER_PASSWORD is shorter than ${MIN_PASSWORD_LENGTH} characters, ` +
+        'which the sign-in form would reject anyway.',
+    );
+    process.exit(1);
+  }
+  const password = supplied ?? generatePassword();
 
   const created = await ctx.internalAdapter.createUser({
     email,
@@ -63,8 +81,12 @@ async function main() {
 
   console.log('\n  Owner account created.\n');
   console.log(`    email:    ${email}`);
-  console.log(`    password: ${password}\n`);
-  console.log('  This password is shown once. Sign in at /admin and change it immediately.\n');
+  if (supplied === undefined) {
+    console.log(`    password: ${password}\n`);
+    console.log('  This password is shown once. Sign in at /admin and change it immediately.\n');
+  } else {
+    console.log('    password: the one supplied in INITIAL_OWNER_PASSWORD\n');
+  }
 }
 
 try {
