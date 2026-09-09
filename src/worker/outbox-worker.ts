@@ -4,6 +4,7 @@ import { coerceSettingValue } from '@/content/settings-registry';
 import { db, pgClient } from '@/db/client';
 import {
   notificationAttempts,
+  serviceHeartbeats,
   siteSettings,
   whatsappMessages,
   whatsappOutbox,
@@ -404,6 +405,36 @@ async function runMaintenance() {
   }
 }
 
+/**
+ * Liveness, written every half minute.
+ *
+ * The worker is the only process that turns a lead into a message on the
+ * owner's phone, and when it stops there is no symptom: the site keeps working,
+ * the queue keeps filling, and the first sign is a quiet week that looks like a
+ * quiet week. A row it overwrites in place is the cheapest thing that can tell
+ * the difference.
+ *
+ * It beats from the top of the loop rather than from the idle branch, so a
+ * worker that is busy — the case where you most want to know it is alive —
+ * still reports.
+ */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const HEARTBEAT_SERVICE = 'outbox';
+
+let lastHeartbeatAt = 0;
+
+async function beat() {
+  if (Date.now() - lastHeartbeatAt < HEARTBEAT_INTERVAL_MS) return;
+  lastHeartbeatAt = Date.now();
+  await db
+    .insert(serviceHeartbeats)
+    .values({ service: HEARTBEAT_SERVICE, instance: WORKER_ID, beatAt: new Date() })
+    .onConflictDoUpdate({
+      target: serviceHeartbeats.service,
+      set: { instance: WORKER_ID, beatAt: new Date() },
+    });
+}
+
 let running = true;
 
 async function main() {
@@ -417,6 +448,14 @@ async function main() {
   }
 
   while (running) {
+    try {
+      await beat();
+    } catch (error) {
+      // A missed beat must not stop the queue. It makes the worker look dead
+      // while it is working, which is the safer of the two wrong answers.
+      logger.error({ err: error }, 'heartbeat failed');
+    }
+
     let handled = 0;
     try {
       handled = await drainOnce();
@@ -447,4 +486,4 @@ if (process.argv[1]?.includes('outbox-worker')) {
   await main();
 }
 
-export { backoffMs, claimBatch, processJob, runMaintenance, settle, windowIsOpen };
+export { backoffMs, beat, claimBatch, processJob, runMaintenance, settle, windowIsOpen };

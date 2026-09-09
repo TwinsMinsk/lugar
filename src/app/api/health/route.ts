@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import journal from '../../../../drizzle/meta/_journal.json';
 import { db } from '@/db/client';
+import { serviceHeartbeats } from '@/db/schema';
 import { env } from '@/env';
 
 /**
@@ -22,6 +23,13 @@ import { env } from '@/env';
  *     expected count comes from the journal compiled into the bundle rather
  *     than from the `drizzle/` folder, which the standalone output does not
  *     carry — a file read would fail in exactly the environment this runs in.
+ *
+ * The worker is reported but never fails the response, and that distinction is
+ * the whole design. This endpoint is what Railway restarts and rolls back the
+ * *website* on; a website that returns 503 because a different service is down
+ * takes the site off the air and still does not start the worker. So the answer
+ * is carried in the body, where a person looking for why no notification
+ * arrived can find it, rather than in a status code that would act on it.
  *
  * Deliberately not checked: object storage. A health check runs on a schedule
  * and a write round-trip against the bucket on every poll is a cost with no
@@ -65,6 +73,24 @@ export async function GET() {
   }
 
   checks.storage = env.STORAGE_DRIVER === 'local' ? 'local' : 's3';
+
+  try {
+    const [beat] = await db
+      .select()
+      .from(serviceHeartbeats)
+      .where(eq(serviceHeartbeats.service, 'outbox'));
+    if (!beat) {
+      // Never deployed, or deployed and never able to reach the database.
+      checks.worker = 'never';
+    } else {
+      const ageSeconds = Math.round((Date.now() - beat.beatAt.getTime()) / 1000);
+      // The worker beats every thirty seconds; four missed beats is a process
+      // that is gone or wedged, not one that was briefly busy.
+      checks.worker = `${ageSeconds > 120 ? 'stale' : 'ok'} (${ageSeconds}s ago)`;
+    }
+  } catch (error) {
+    checks.worker = error instanceof Error ? error.message : 'unknown';
+  }
 
   return NextResponse.json({ status: 'ok', checks }, { headers: { 'cache-control': 'no-store' } });
 }

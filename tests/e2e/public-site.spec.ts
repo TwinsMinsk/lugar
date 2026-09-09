@@ -449,3 +449,28 @@ test.describe('request id', () => {
     expect(response.headers()['x-request-id']).toMatch(ID);
   });
 });
+
+test.describe('health check', () => {
+  /**
+   * The endpoint Railway restarts the site on. It answered `ok` on a deploy
+   * with an unreachable database for as long as it pointed at a static file,
+   * so what matters here is that it really asks the database — and that the
+   * worker, which is a different service, is reported without being able to
+   * take the website down with it.
+   */
+  test('answers ok and names what it checked', async ({ request }) => {
+    const response = await request.get('/api/health');
+    expect(response.status()).toBe(200);
+
+    const body = await response.json();
+    expect(body.status).toBe('ok');
+    expect(body.checks.database).toBe('ok');
+    // Applied migrations over expected: equal, or the release is ahead of its
+    // own schema.
+    expect(body.checks.migrations).toMatch(new RegExp('^(\\d+)/\\1$'));
+    // No worker runs during the suite, so this is the "never" case — the point
+    // is that it is reported rather than absent, and that it did not turn the
+    // website's own health into a failure.
+    expect(body.checks.worker).toBeDefined();
+  });
+});

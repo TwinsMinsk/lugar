@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { db, pgClient } from '@/db/client';
-import { contacts, rateLimits, whatsappOutbox, whatsappWebhookEvents } from '@/db/schema';
-import { claimBatch, runMaintenance, settle, windowIsOpen } from '@/worker/outbox-worker';
+import {
+  contacts,
+  rateLimits,
+  serviceHeartbeats,
+  whatsappOutbox,
+  whatsappWebhookEvents,
+} from '@/db/schema';
+import { beat, claimBatch, runMaintenance, settle, windowIsOpen } from '@/worker/outbox-worker';
 import { migrateTestDatabase, resetTestDatabase } from '../helpers/db';
 
 /**
@@ -323,5 +329,46 @@ describe('housekeeping', () => {
 
     const windows = await db.select({ key: rateLimits.key }).from(rateLimits);
     expect(windows.map((row) => row.key)).toEqual(['live']);
+  });
+});
+
+describe('heartbeat', () => {
+  beforeEach(async () => {
+    await resetTestDatabase();
+  });
+
+  /**
+   * A stopped worker has no symptom: the site works, the queue fills, and the
+   * first sign is a week with no notifications. The row is what tells "beat
+   * forty seconds ago" from "has not beaten since Tuesday" — and it has to stay
+   * one row, because a row per restart is the growth this same worker spends an
+   * hour at a time pruning elsewhere.
+   */
+  it('writes one row and overwrites it in place', async () => {
+    await beat();
+    const [first] = await db.select().from(serviceHeartbeats);
+    expect(first?.service).toBe('outbox');
+    expect(first?.instance).toBeTruthy();
+
+    // Immediately after, the throttle should swallow the write rather than
+    // hitting the database thirty times a minute.
+    await beat();
+    const throttled = await db.select().from(serviceHeartbeats);
+    expect(throttled).toHaveLength(1);
+    expect(throttled[0]!.beatAt.getTime()).toBe(first!.beatAt.getTime());
+
+    // Once the interval has passed — simulated by ageing the stored row rather
+    // than by waiting thirty seconds — the same row moves forward.
+    await db
+      .update(serviceHeartbeats)
+      .set({ beatAt: new Date(Date.now() - 10 * 60_000) })
+      .where(eq(serviceHeartbeats.service, 'outbox'));
+    vi.setSystemTime(new Date(Date.now() + 60_000));
+    await beat();
+    vi.useRealTimers();
+
+    const after = await db.select().from(serviceHeartbeats);
+    expect(after).toHaveLength(1);
+    expect(after[0]!.beatAt.getTime()).toBeGreaterThan(first!.beatAt.getTime());
   });
 });

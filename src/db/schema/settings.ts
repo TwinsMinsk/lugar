@@ -92,3 +92,24 @@ export const rateLimits = pgTable(
     index('rate_limits_expiry_idx').on(t.expiresAt),
   ],
 );
+
+/**
+ * Liveness for the processes that are not the website.
+ *
+ * The worker is the only thing that sends a notification about a new lead, and
+ * a worker that has quietly stopped looks exactly like a quiet week — the
+ * queue fills, nobody is paged, and the first sign is the owner wondering why
+ * the phone stopped ringing. One row per service, overwritten in place, is
+ * enough to tell "it beat forty seconds ago" from "it has not beaten since
+ * Tuesday", and it costs one upsert per half minute.
+ *
+ * Keyed by service name rather than by instance, deliberately: an id that
+ * changes on every restart would leave a row per deploy, and a table that grows
+ * forever is what this same worker now spends an hour a time pruning elsewhere.
+ */
+export const serviceHeartbeats = pgTable('service_heartbeats', {
+  service: text('service').primaryKey(),
+  /** Which process wrote it last — replica and pid, for reading logs against. */
+  instance: text('instance').notNull(),
+  beatAt: ts('beat_at').notNull().defaultNow(),
+});
