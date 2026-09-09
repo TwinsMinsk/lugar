@@ -1,14 +1,13 @@
 'use server';
 
 import { and, asc, eq, max } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { MENUS } from '@/data/admin/navigation';
 import { db } from '@/db/client';
 import { navigationItems } from '@/db/schema';
 import { LOCALES } from '@/i18n/routing';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { invalidatePublicPages } from '@/lib/cache-invalidation';
 import { requireCapability } from '@/lib/auth/guards';
 import { failFromZod } from './_result';
@@ -22,14 +21,6 @@ import { failFromZod } from './_result';
  * columns the caller might fill in together.
  */
 export type NavigationResult = { ok: true } | { ok: false; error: string };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 const labelSchema = z
   .object(
@@ -94,7 +85,7 @@ export async function createNavigationItem(
     .from(navigationItems)
     .where(eq(navigationItems.menu, menu));
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.insert(navigationItems).values({
@@ -146,7 +137,7 @@ export async function updateNavigationItem(
     .limit(1);
   if (!existing) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx
@@ -219,7 +210,7 @@ export async function moveNavigationItem(
   const [moved] = reordered.splice(from, 1);
   reordered.splice(to, 0, moved!);
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     for (const [index, row] of reordered.entries()) {
@@ -255,7 +246,7 @@ export async function deleteNavigationItem(id: string): Promise<NavigationResult
   const [item] = await db.select().from(navigationItems).where(eq(navigationItems.id, id)).limit(1);
   if (!item) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     // Children would otherwise be orphaned into an invisible sub-tree.

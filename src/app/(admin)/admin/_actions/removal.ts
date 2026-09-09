@@ -1,13 +1,12 @@
 'use server';
 
 import { and, eq, isNotNull, or } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { invalidateDocumentRefs, readDocumentLocaleRefs } from '@/data/cache-invalidation';
 import { db } from '@/db/client';
 import { documentLocales, documents } from '@/db/schema';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -33,14 +32,6 @@ import { requireCapability } from '@/lib/auth/guards';
 
 export type RemovalResult =
   { ok: true } | { ok: false; error: string; blockedBy?: Array<Record<string, string>> };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 async function loadDocument(documentId: string) {
   const [row] = await db
@@ -75,7 +66,7 @@ export async function archiveDocument(documentId: string): Promise<RemovalResult
   if (document.archivedAt) return { ok: true };
 
   const refs = await readDocumentLocaleRefs(documentId);
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(documents).set({ archivedAt: new Date() }).where(eq(documents.id, documentId));
@@ -117,7 +108,7 @@ export async function restoreDocument(documentId: string): Promise<RemovalResult
   if (!document) return { ok: false, error: 'not_found' };
   if (!document.archivedAt) return { ok: true };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(documents).set({ archivedAt: null }).where(eq(documents.id, documentId));
@@ -178,7 +169,7 @@ export async function purgeDocument(documentId: string): Promise<RemovalResult> 
   // Before the transaction: the rows these tags are derived from are about to
   // stop existing.
   const refs = await readDocumentLocaleRefs(documentId);
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     // Deleting the document fires two independent cascades — one to

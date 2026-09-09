@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/db/client';
 import { contacts, leadStatuses, leads, user } from '@/db/schema';
 import { recordAudit } from '@/lib/audit';
+import { clientIp } from '@/lib/client-ip';
 import { getSession, roleCan } from '@/lib/auth/guards';
 import type { Role } from '@/lib/auth/server';
 
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
     action: 'crm.exported',
     entityType: 'lead',
     after: { rows: rows.length, statusId, assignedToId, truncated: rows.length === MAX_ROWS },
-    ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    ipAddress: clientIp(request.headers),
     userAgent: request.headers.get('user-agent')?.slice(0, 500) ?? null,
   });
 

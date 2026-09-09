@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import type { AnyBlock } from '@/content/blocks/union';
@@ -18,7 +17,7 @@ import {
   portfolioProjects,
 } from '@/db/schema';
 import { LOCALES, type Locale } from '@/i18n/routing';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -38,14 +37,6 @@ import { requireCapability } from '@/lib/auth/guards';
  */
 
 export type PortfolioResult = { ok: true; documentId?: string } | { ok: false; error: string };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -96,7 +87,7 @@ export async function createProject(input: z.input<typeof createSchema>): Promis
 
   const documentId = randomUUID();
   const draftRevisionId = randomUUID();
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   const starterBlocks: AnyBlock[] = [
     {
@@ -217,7 +208,7 @@ export async function updateProjectMeta(
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const { documentId, categoryIds, ...fields } = parsed.data;
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx
@@ -279,7 +270,7 @@ export async function archiveProject(documentId: string): Promise<PortfolioResul
   const { user } = await requireCapability('content.publish');
   if (!z.uuid().safeParse(documentId).success) return { ok: false, error: 'invalid_input' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     for (const locale of LOCALES) {

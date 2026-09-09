@@ -2,14 +2,13 @@
 
 import { and, eq, isNull } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { documentLocales, mediaAssets, mediaDerivatives, mediaUsage } from '@/db/schema';
 import { LOCALES } from '@/i18n/routing';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { MAX_UPLOAD_BYTES, processUpload, RECIPE } from '@/lib/media/process';
 import { storage } from '@/lib/storage';
@@ -23,14 +22,6 @@ function uploadFailureCode(error: unknown): string {
 export type MediaActionResult =
   | { ok: true; assetId?: string }
   | { ok: false; error: string; blockedBy?: Array<{ locale: string; slug: string }> };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 /**
  * Upload an image.
@@ -74,7 +65,7 @@ export async function uploadMedia(formData: FormData): Promise<MediaActionResult
     .limit(1);
   if (existing) return { ok: true, assetId: existing.id };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   const assetId = await db.transaction(async (tx) => {
     const [asset] = await tx
@@ -152,7 +143,7 @@ export async function updateMediaMeta(
   if (alt.es) cleanedAlt.es = alt.es;
   if (alt.en) cleanedAlt.en = alt.en;
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx
@@ -204,7 +195,7 @@ export async function deleteMedia(assetId: string): Promise<MediaActionResult> {
     };
   }
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   try {
     await db.transaction(async (tx) => {
@@ -271,7 +262,7 @@ export async function replaceMedia(formData: FormData): Promise<MediaActionResul
     .limit(1);
   if (!current) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx
@@ -341,7 +332,7 @@ export async function restoreMedia(assetId: string): Promise<MediaActionResult> 
   const { user } = await requireCapability('media.delete');
   if (!z.uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_input' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(mediaAssets).set({ deletedAt: null }).where(eq(mediaAssets.id, assetId));
@@ -405,7 +396,7 @@ export async function purgeMedia(assetId: string): Promise<MediaActionResult> {
     .from(mediaDerivatives)
     .where(eq(mediaDerivatives.assetId, assetId));
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.delete(mediaAssets).where(eq(mediaAssets.id, assetId));

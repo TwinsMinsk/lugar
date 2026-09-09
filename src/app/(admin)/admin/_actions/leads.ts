@@ -1,12 +1,11 @@
 'use server';
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { db } from '@/db/client';
 import { leadActivities, leadAssignments, leadStatuses, leadTasks, leads } from '@/db/schema';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -23,14 +22,6 @@ import { requireCapability } from '@/lib/auth/guards';
  * holds, in the place nobody looks for it.
  */
 export type LeadResult = { ok: true } | { ok: false; error: string };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 const statusSchema = z.object({ leadId: z.uuid(), statusId: z.uuid() });
 
@@ -264,7 +255,7 @@ export async function deleteLead(leadId: string): Promise<LeadResult> {
   // one misplaced click in the inbox.
   if (!lead.archivedAt) return { ok: false, error: 'not_archived' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx

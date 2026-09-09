@@ -2,6 +2,8 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 
+import { clientIp } from '@/lib/client-ip';
+
 import { db, type Database } from '@/db/client';
 import { auditLog } from '@/db/schema';
 
@@ -58,7 +60,7 @@ export async function auditRequestContext(): Promise<{
 }> {
   const headerList = await headers();
   return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    ipAddress: clientIp(headerList),
     userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
   };
 }

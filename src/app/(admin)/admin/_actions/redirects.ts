@@ -2,13 +2,12 @@
 
 import { eq } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { redirects } from '@/db/schema';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { failFromZod } from './_result';
 import { redirectPathSchema, wouldLoop, type RedirectMap } from '@/lib/redirects';
@@ -21,14 +20,6 @@ import { redirectPathSchema, wouldLoop, type RedirectMap } from '@/lib/redirects
  * campaign — paths that never existed in this CMS and so can never be inferred.
  */
 export type RedirectResult = { ok: true } | { ok: false; error: string };
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 async function activeMap(): Promise<RedirectMap> {
   const rows = await db
@@ -68,7 +59,7 @@ export async function createRedirect(input: z.input<typeof createSchema>): Promi
 
   if (wouldLoop(await activeMap(), fromPath, toPath)) return { ok: false, error: 'loop' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
   const statusCode = permanent ? 301 : 302;
 
   try {
@@ -118,7 +109,7 @@ export async function setRedirectActive(id: string, isActive: boolean): Promise<
     return { ok: false, error: 'loop' };
   }
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.update(redirects).set({ isActive }).where(eq(redirects.id, id));
@@ -153,7 +144,7 @@ export async function deleteRedirect(id: string): Promise<RedirectResult> {
   const [row] = await db.select().from(redirects).where(eq(redirects.id, id)).limit(1);
   if (!row) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     await tx.delete(redirects).where(eq(redirects.id, id));

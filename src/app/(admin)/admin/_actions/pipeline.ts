@@ -1,7 +1,6 @@
 'use server';
 
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { db } from '@/db/client';
@@ -75,14 +74,6 @@ function slugFor(label: string): string {
   return base || `etap-${Date.now().toString(36)}`;
 }
 
-async function context() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
-
 const labelSchema = z.object({
   ru: z.string().trim().min(1).max(60),
   es: z.string().trim().max(60).optional(),
@@ -136,7 +127,7 @@ export async function createStage(input: z.input<typeof createSchema>): Promise<
     entityType: 'lead_status',
     entityId: created!.id,
     after: { label, slug },
-    ...(await context()),
+    ...(await auditRequestContext()),
   });
 
   return { ok: true };
@@ -183,7 +174,7 @@ export async function updateStage(input: z.input<typeof updateSchema>): Promise<
     entityId: id,
     before: { label: existing.label },
     after: { label, isWon, isLost },
-    ...(await context()),
+    ...(await auditRequestContext()),
   });
 
   return { ok: true };
@@ -221,7 +212,7 @@ export async function setDefaultEntry(id: string): Promise<PipelineResult> {
     action: 'pipeline.entry_changed',
     entityType: 'lead_status',
     entityId: id,
-    ...(await context()),
+    ...(await auditRequestContext()),
   });
 
   return { ok: true };
@@ -321,7 +312,7 @@ export async function archiveStage(input: z.input<typeof archiveSchema>): Promis
     if (!target) return { ok: false, error: 'unknown_target' };
   }
 
-  const requestContext = await context();
+  const requestContext = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     if (leadCount > 0 && moveTo) {
@@ -377,7 +368,7 @@ export async function restoreStage(id: string): Promise<PipelineResult> {
     action: 'pipeline.stage_restored',
     entityType: 'lead_status',
     entityId: id,
-    ...(await context()),
+    ...(await auditRequestContext()),
   });
 
   return { ok: true };

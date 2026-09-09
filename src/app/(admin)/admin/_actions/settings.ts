@@ -1,13 +1,12 @@
 'use server';
 
 import { eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { coerceSettingValue, SETTINGS_BY_KEY } from '@/content/settings-registry';
 import { db } from '@/db/client';
 import { siteSettings } from '@/db/schema';
-import { recordAudit } from '@/lib/audit';
+import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { invalidatePublicPages } from '@/lib/cache-invalidation';
 import { requireCapability } from '@/lib/auth/guards';
 import { codeFromZod } from './_result';
@@ -87,11 +86,7 @@ export async function updateSettings(input: z.input<typeof inputSchema>): Promis
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
-  const headerList = await headers();
-  const context = {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     for (const entry of accepted) {

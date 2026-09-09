@@ -20,6 +20,7 @@ import {
 import { getSiteSettings } from '@/data/public/settings';
 import { env } from '@/env';
 import { decodeTouch, FIRST_TOUCH_COOKIE } from '@/features/attribution/attribution';
+import { clientIp } from '@/lib/client-ip';
 import { logger } from '@/lib/logger';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { whatsapp } from '@/lib/whatsapp';
@@ -139,7 +140,9 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
 
   // --- 4. Rate limiting ----------------------------------------------------
   const headerList = await headers();
-  const ip = headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0';
+  // A key, not a note: keyed on a value the sender chooses, the per-address
+  // limit stops nobody who varies the header. See `clientIp`.
+  const ip = clientIp(headerList) ?? '0.0.0.0';
   const userAgent = headerList.get('user-agent')?.slice(0, 500) ?? null;
 
   const limit = await consumeRateLimit(

@@ -2,7 +2,6 @@
 
 import { and, eq, max } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { collectMediaUsage } from '@/content/blocks/media-usage';
@@ -13,7 +12,7 @@ import { tags } from '@/data/cache-tags';
 import { db } from '@/db/client';
 import { documentLocales, documentRevisions, documents, mediaUsage, redirects } from '@/db/schema';
 import { LOCALES } from '@/i18n/routing';
-import { recordAudit, summarizeBlocks } from '@/lib/audit';
+import { auditRequestContext, recordAudit, summarizeBlocks } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 import { failFromZod } from './_result';
 import { documentPath, localePath } from '@/lib/routes';
@@ -30,14 +29,6 @@ import { documentPath, localePath } from '@/lib/routes';
  */
 
 const localeSchema = z.enum(LOCALES);
-
-async function requestContext() {
-  const headerList = await headers();
-  return {
-    ipAddress: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
-    userAgent: headerList.get('user-agent')?.slice(0, 500) ?? null,
-  };
-}
 
 /** Recompute media usage for one revision from its block tree. */
 async function syncMediaUsage(
@@ -104,7 +95,7 @@ export async function saveDraft(input: z.input<typeof saveDraftSchema>): Promise
     .limit(1);
   if (!document?.draftRevisionId) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     const [existing] = await tx
@@ -158,7 +149,7 @@ export async function publishDocument(input: z.input<typeof publishSchema>): Pro
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const { documentId, locales, note } = parsed.data;
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   try {
     await db.transaction(async (tx) => {
@@ -264,7 +255,7 @@ export async function rollbackDocument(
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const { documentId, revisionId, locales } = parsed.data;
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   try {
     await db.transaction(async (tx) => {
@@ -344,7 +335,7 @@ export async function unpublishDocument(
   if (!document) return { ok: false, error: 'not_found' };
   if (document.isSystem) return { ok: false, error: 'system_document' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     for (const locale of locales) {
@@ -420,7 +411,7 @@ export async function updateSlug(input: z.input<typeof slugSchema>): Promise<Act
   if (slug === '') return { ok: false, error: 'slug_empty' };
   if (current.slug === '') return { ok: false, error: 'slug_is_home' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   /**
    * Projects live under the portfolio index, pages at the root.
@@ -520,7 +511,7 @@ export async function updateSeo(input: z.input<typeof seoSchema>): Promise<Actio
     .limit(1);
   if (!document?.draftRevisionId) return { ok: false, error: 'not_found' };
 
-  const context = await requestContext();
+  const context = await auditRequestContext();
 
   await db.transaction(async (tx) => {
     const [revision] = await tx
