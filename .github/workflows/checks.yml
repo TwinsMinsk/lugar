@@ -176,6 +176,12 @@ jobs:
       # Photographs live on disk here; the suite uploads real files.
       STORAGE_DRIVER: local
       STORAGE_LOCAL_ROOT: /tmp/lugar-media
+      # Without these the entire webhook suite skips itself, and with it the
+      # only coverage of the route Meta talks to. The values are arbitrary:
+      # the test signs its payloads with the same secret the server verifies
+      # them against, so any string exercises the real HMAC path.
+      WHATSAPP_APP_SECRET: ci-webhook-secret-not-a-real-one
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ci-verify-token-not-a-real-one
       INITIAL_OWNER_EMAIL: owner@lugar.test
       INITIAL_OWNER_PASSWORD: ci-owner-password-not-a-secret
       E2E_ADMIN_EMAIL: owner@lugar.test
