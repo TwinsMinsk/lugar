@@ -1,10 +1,17 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
 
 import { coerceSettingValue } from '@/content/settings-registry';
 import { db, pgClient } from '@/db/client';
-import { notificationAttempts, siteSettings, whatsappMessages, whatsappOutbox } from '@/db/schema';
+import {
+  notificationAttempts,
+  siteSettings,
+  whatsappMessages,
+  whatsappOutbox,
+  whatsappWebhookEvents,
+} from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
+import { pruneRateLimits } from '@/lib/rate-limit';
 import { whatsapp } from '@/lib/whatsapp';
 import type { SendResult } from '@/lib/whatsapp/provider';
 
@@ -347,6 +354,56 @@ export async function drainOnce(): Promise<number> {
   return jobs.length;
 }
 
+/**
+ * Housekeeping, folded into the worker.
+ *
+ * Three tables grow and nothing ever shrank them: `rate_limits` gains a row per
+ * window per key, and `whatsapp_webhook_events` keeps every delivery Meta ever
+ * made — including the ones it redelivered. `CRON_SECRET` existed in the
+ * environment contract for a scheduled job that was never built and that
+ * nothing read.
+ *
+ * A loop in the worker rather than a scheduler because the worker is already a
+ * long-lived process with a database connection and a shutdown signal, and
+ * adding an external scheduler would be a second thing to deploy, monitor and
+ * forget. It runs at most hourly and only from the idle branch, so it never
+ * delays a message a customer is waiting for.
+ *
+ * Ninety days for webhook events is a retention choice, not a technical one:
+ * the raw payloads are what a support question about "did they get my message"
+ * is answered from, and they hold customer phone numbers, so keeping them
+ * forever is both a cost and a liability. Expired rate-limit windows are pure
+ * bookkeeping and go as soon as they lapse.
+ */
+const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
+const WEBHOOK_EVENT_RETENTION_DAYS = 90;
+
+let lastMaintenanceAt = 0;
+
+async function runMaintenance() {
+  const prunedWindows = await pruneRateLimits();
+
+  const cutoff = new Date(Date.now() - WEBHOOK_EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const prunedEvents = await db
+    .delete(whatsappWebhookEvents)
+    .where(
+      and(
+        lt(whatsappWebhookEvents.receivedAt, cutoff),
+        // Never an event still waiting to be processed: an unprocessed row is
+        // work, not history, and deleting it would lose an inbound message.
+        isNotNull(whatsappWebhookEvents.processedAt),
+      ),
+    )
+    .returning({ id: whatsappWebhookEvents.id });
+
+  if (prunedWindows > 0 || prunedEvents.length > 0) {
+    logger.info(
+      { rateLimitWindows: prunedWindows, webhookEvents: prunedEvents.length },
+      'maintenance pruned old rows',
+    );
+  }
+}
+
 let running = true;
 
 async function main() {
@@ -368,6 +425,15 @@ async function main() {
     }
     // Only idle when the queue was empty; a full batch means keep going.
     if (handled === 0) {
+      if (Date.now() - lastMaintenanceAt > MAINTENANCE_INTERVAL_MS) {
+        lastMaintenanceAt = Date.now();
+        try {
+          await runMaintenance();
+        } catch (error) {
+          // Housekeeping must never take the queue down with it.
+          logger.error({ err: error }, 'maintenance failed');
+        }
+      }
       await new Promise((resolve) => setTimeout(resolve, IDLE_POLL_MS));
     }
   }
@@ -381,4 +447,4 @@ if (process.argv[1]?.includes('outbox-worker')) {
   await main();
 }
 
-export { backoffMs, claimBatch, processJob, settle, windowIsOpen };
+export { backoffMs, claimBatch, processJob, runMaintenance, settle, windowIsOpen };

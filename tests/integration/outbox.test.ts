@@ -4,8 +4,8 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { db, pgClient } from '@/db/client';
-import { contacts, whatsappOutbox, whatsappWebhookEvents } from '@/db/schema';
-import { claimBatch, settle, windowIsOpen } from '@/worker/outbox-worker';
+import { contacts, rateLimits, whatsappOutbox, whatsappWebhookEvents } from '@/db/schema';
+import { claimBatch, runMaintenance, settle, windowIsOpen } from '@/worker/outbox-worker';
 import { migrateTestDatabase, resetTestDatabase } from '../helpers/db';
 
 /**
@@ -275,5 +275,53 @@ describe('webhook event dedupe', () => {
 
     const rows = await db.select().from(whatsappWebhookEvents);
     expect(rows).toHaveLength(3);
+  });
+});
+
+describe('housekeeping', () => {
+  beforeEach(async () => {
+    await resetTestDatabase();
+  });
+
+  /**
+   * Two tables grew and nothing shrank them. `rate_limits` gains a row per
+   * window per key; `whatsapp_webhook_events` keeps every delivery Meta made,
+   * redeliveries included, each carrying a customer's phone number in its raw
+   * payload. The scheduled job that was supposed to prune them was never built
+   * — `CRON_SECRET` sat in the environment contract for it, read by nothing —
+   * so the worker does it instead.
+   */
+  it('prunes expired rate-limit windows and webhook events past their retention', async () => {
+    const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    const recent = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    await db.insert(whatsappWebhookEvents).values([
+      { eventKey: 'msg:old', kind: 'message', raw: {} as never, receivedAt: old, processedAt: old },
+      {
+        eventKey: 'msg:recent',
+        kind: 'message',
+        raw: {} as never,
+        receivedAt: recent,
+        processedAt: recent,
+      },
+      // Old, but never processed: that is work waiting, not history, and
+      // deleting it would lose an inbound customer message.
+      { eventKey: 'msg:old-unprocessed', kind: 'message', raw: {} as never, receivedAt: old },
+    ]);
+
+    await db.insert(rateLimits).values([
+      { key: 'expired', windowStart: 0, count: 1, expiresAt: new Date(Date.now() - 60_000) },
+      { key: 'live', windowStart: 0, count: 1, expiresAt: new Date(Date.now() + 60_000) },
+    ]);
+
+    await runMaintenance();
+
+    const events = await db
+      .select({ key: whatsappWebhookEvents.eventKey })
+      .from(whatsappWebhookEvents);
+    expect(events.map((row) => row.key).sort()).toEqual(['msg:old-unprocessed', 'msg:recent']);
+
+    const windows = await db.select({ key: rateLimits.key }).from(rateLimits);
+    expect(windows.map((row) => row.key)).toEqual(['live']);
   });
 });

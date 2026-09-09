@@ -128,7 +128,6 @@ const serverSchema = z
     WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE: optionalString.transform((v) => v ?? 'ru'),
 
     PREVIEW_SECRET: requiredInProd('PREVIEW_SECRET'),
-    CRON_SECRET: optionalString,
   })
   // cloud_api is all-or-nothing: a half-configured provider would silently
   // degrade to dropping internal alerts, which is worse than staying on
