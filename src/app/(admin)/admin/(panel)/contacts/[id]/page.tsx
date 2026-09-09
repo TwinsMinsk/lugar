@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { getContact } from '@/data/admin/contacts';
 import { ContactEditor } from '@/features/admin/contact-editor';
+import { ContactMerge } from '@/features/admin/contact-merge';
 import { ContactRemoval } from '@/features/admin/contact-removal';
 import { can, requireCapability } from '@/lib/auth/guards';
 import { telLink } from '@/lib/routes';
@@ -61,6 +62,9 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           archived={contact.archivedAt !== null}
           canDelete={canDelete}
         />
+        {/* Same capability as deleting, because that is what it does to the
+            other card. */}
+        {canDelete ? <ContactMerge contactId={contact.id} phone={contact.phoneE164} /> : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">

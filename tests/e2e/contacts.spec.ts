@@ -120,4 +120,51 @@ test.describe('contacts', () => {
     await page.getByRole('link', { name: 'Клиент ↗' }).click();
     await expect(page).toHaveURL(new RegExp(contactHref.replace(/\//g, '\\/')));
   });
+
+  /**
+   * The same person, from a second number.
+   *
+   * The phone is the natural key and is deliberately not editable, so this is
+   * the only way a duplicate exists — and until now the panel could show both
+   * cards and do nothing: the enquiries, the WhatsApp history and the consent
+   * records stayed split, and whoever answered the call had half a story.
+   */
+  test('a duplicate card can be merged into the original', async ({ page }) => {
+    const secondPhone = spanishMobile(stamp + 7);
+    const secondName = `${name} второй номер`;
+
+    await page.setExtraHTTPHeaders({
+      'x-forwarded-for': `10.${Math.floor(stamp / 1000) % 256}.${(stamp + 1) % 256}.14`,
+    });
+    await submitLead(page, { name: secondName, phone: secondPhone, comment: 'С другого номера' });
+
+    // Two separate cards to begin with — that is the state being fixed.
+    await page.goto(`/admin/contacts?q=${encodeURIComponent(name)}`);
+    await expect(page.getByRole('row').filter({ hasText: secondName })).toHaveCount(1);
+
+    await page.goto(contactHref);
+    const leadsBefore = await page.getByRole('link', { name: /^LG-/ }).count();
+
+    await page.getByRole('button', { name: 'Объединить дубль' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Объединить дубль' });
+    await dialog.getByLabel('Номер второй карточки').fill(secondPhone);
+    await dialog.getByRole('button', { name: 'Объединить' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'объединены' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // The enquiry moved rather than being copied: this card gained one, and the
+    // other card is out of the list entirely.
+    await page.goto(contactHref);
+    await expect(page.getByRole('link', { name: /^LG-/ })).toHaveCount(leadsBefore + 1);
+
+    await page.goto(`/admin/contacts?q=${encodeURIComponent(name)}`);
+    await expect(page.getByRole('row').filter({ hasText: secondName })).toHaveCount(0);
+
+    // And both sides of it are in the journal, because two records changed.
+    await page.goto('/admin/audit?entity=contact');
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'Дубль присоединён к карточке' }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+  });
 });

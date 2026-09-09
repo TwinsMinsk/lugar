@@ -1,10 +1,21 @@
 'use server';
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { parsePhoneNumberWithError } from 'libphonenumber-js/max';
 import { z } from 'zod';
 
 import { db } from '@/db/client';
-import { contacts, leads } from '@/db/schema';
+import {
+  consentRecords,
+  contacts,
+  formSubmissions,
+  leadActivities,
+  leads,
+  leadTasks,
+  projects,
+  whatsappMessages,
+  whatsappOutbox,
+} from '@/db/schema';
 import { auditRequestContext, recordAudit } from '@/lib/audit';
 import { requireCapability } from '@/lib/auth/guards';
 
@@ -102,6 +113,127 @@ export async function updateContact(input: z.input<typeof updateSchema>): Promis
     // as an array because the journal renders an array as its length, and
     // "fields: 2" answers none of the question a reader came with.
     await auditContact(actor.id, 'contact.updated', id, { fields: changed.join(', ') }, tx);
+  });
+
+  return { ok: true };
+}
+
+const mergeSchema = z.object({
+  keepId: z.uuid(),
+  /**
+   * The other card, named by its number rather than picked from a list.
+   *
+   * The phone is the key this CRM joins on and the thing the owner is looking
+   * at on the other card; a select of every contact would be the wrong shape
+   * for something done once in a while against a list that only grows.
+   */
+  mergePhone: z.string().trim().min(3).max(40),
+});
+
+/**
+ * Two records, one person.
+ *
+ * The phone number is the natural key the whole CRM joins on, and it is not
+ * editable, so a duplicate only exists when the same person wrote from a second
+ * number. Until now the panel could show both and do nothing about it: their
+ * enquiries, their WhatsApp history and their consent stayed split across two
+ * cards, and the person who called about "my kitchen" existed twice with half a
+ * story each.
+ *
+ * Everything the second record carries is moved rather than copied, in one
+ * transaction, so there is no window where a lead belongs to a contact that has
+ * already been deleted. What moves is every table with a `contact_id`: the
+ * enquiries and their form submissions, the timeline, tasks, projects, the
+ * WhatsApp queue and message history — and the consent records, which are the
+ * one thing that must never be recreated, only carried.
+ *
+ * The kept record's own details win. Merging is not the place to reconcile two
+ * spellings of a name: the owner picks which card survives, and the other one's
+ * notes are appended rather than dropped, because a note nobody chose to delete
+ * should not disappear because two rows became one.
+ *
+ * The merged record is soft-deleted, like any other contact deletion — its
+ * audit history references it, and `consent_records` cascades from `contacts`,
+ * so a real DELETE would destroy the evidence that someone agreed to be
+ * contacted. That evidence has just been moved anyway; the row stays for the
+ * trail.
+ */
+export async function mergeContacts(input: z.input<typeof mergeSchema>): Promise<ContactResult> {
+  const { user: actor } = await requireCapability('crm.delete');
+
+  const parsed = mergeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  const { keepId, mergePhone } = parsed.data;
+
+  // Normalised the same way the public form normalises what a customer types,
+  // so "+34 624 52 73 03", "624527303" and "0034624527303" all find the same
+  // card — the owner is copying a number off a screen, not typing a key.
+  let phoneE164: string;
+  try {
+    const parsedPhone = parsePhoneNumberWithError(mergePhone, {
+      defaultCountry: 'ES',
+      extract: false,
+    });
+    if (!parsedPhone.isValid()) throw new Error('invalid');
+    phoneE164 = parsedPhone.format('E.164');
+  } catch {
+    return { ok: false, error: 'phone_invalid' };
+  }
+
+  const [keep] = await db
+    .select({ id: contacts.id, notes: contacts.notes, phoneE164: contacts.phoneE164 })
+    .from(contacts)
+    .where(and(eq(contacts.id, keepId), isNull(contacts.deletedAt)))
+    .limit(1);
+  if (!keep) return { ok: false, error: 'not_found' };
+
+  const [merge] = await db
+    .select({ id: contacts.id, notes: contacts.notes, phoneE164: contacts.phoneE164 })
+    .from(contacts)
+    .where(and(eq(contacts.phoneE164, phoneE164), isNull(contacts.deletedAt)))
+    .limit(1);
+  if (!merge) return { ok: false, error: 'merge_not_found' };
+  if (merge.id === keepId) return { ok: false, error: 'same_contact' };
+
+  const mergeId = merge.id;
+
+  const combinedNotes = [
+    keep.notes,
+    merge.notes ? `Из объединённой карточки ${merge.phoneE164}: ${merge.notes}` : null,
+  ]
+    .filter((part): part is string => Boolean(part && part.trim() !== ''))
+    .join('\n\n');
+
+  await db.transaction(async (tx) => {
+    for (const table of [
+      leads,
+      formSubmissions,
+      leadActivities,
+      leadTasks,
+      projects,
+      consentRecords,
+      whatsappMessages,
+      whatsappOutbox,
+    ]) {
+      await tx.update(table).set({ contactId: keepId }).where(eq(table.contactId, mergeId));
+    }
+
+    await tx
+      .update(contacts)
+      .set({ notes: combinedNotes === '' ? null : combinedNotes, updatedAt: sql`now()` })
+      .where(eq(contacts.id, keepId));
+
+    await tx
+      .update(contacts)
+      .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(eq(contacts.id, mergeId));
+
+    // Two entries, because two records changed and a reader looking at either
+    // one has to find out what happened to it. Phone numbers rather than names:
+    // the number is the key this CRM joins on, and it is the thing the owner
+    // will recognise.
+    await auditContact(actor.id, 'contact.merged', keepId, { absorbed: merge.phoneE164 }, tx);
+    await auditContact(actor.id, 'contact.merged_away', mergeId, { into: keep.phoneE164 }, tx);
   });
 
   return { ok: true };

@@ -52,6 +52,8 @@ const ACTION_LABEL: Record<string, string> = {
   'contact.archived': 'Клиент убран из списка',
   'contact.restored': 'Клиент возвращён в список',
   'contact.deleted': 'Клиент удалён',
+  'contact.merged': 'Дубль присоединён к карточке',
+  'contact.merged_away': 'Карточка объединена с другой',
   'whatsapp.requeued': 'Сообщение возвращено в очередь',
   'whatsapp.cancelled': 'Сообщение отменено',
   'crm.exported': 'Выгрузка заявок',
