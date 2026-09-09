@@ -12,6 +12,7 @@ import {
 } from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
+import { flushErrorReporting, initErrorReporting, reportError } from '@/lib/report-error';
 import { pruneRateLimits } from '@/lib/rate-limit';
 import { whatsapp } from '@/lib/whatsapp';
 import type { SendResult } from '@/lib/whatsapp/provider';
@@ -204,7 +205,10 @@ async function emailFallback(job: ClaimedJob, reason: string): Promise<void> {
       latencyMs: Date.now() - started,
     });
   } catch (error) {
-    logger.error({ err: error, outboxId: job.id }, 'email fallback failed');
+    // Both channels have now failed for this lead: WhatsApp put the job here
+    // and the email meant to catch it did not go either. Nobody is going to
+    // find out about that enquiry from the system.
+    reportError(error, 'email fallback failed', { outboxId: job.id });
   }
 }
 
@@ -347,7 +351,7 @@ export async function drainOnce(): Promise<number> {
     try {
       await processJob(job);
     } catch (error) {
-      logger.error({ err: error, outboxId: job.id }, 'outbox job threw');
+      reportError(error, 'outbox job threw', { outboxId: job.id });
       // Leave the lease to expire rather than guessing: another worker will
       // pick it up, and the attempt has already been counted.
     }
@@ -438,6 +442,7 @@ async function beat() {
 let running = true;
 
 async function main() {
+  await initErrorReporting(env.SENTRY_DSN, env.NODE_ENV);
   logger.info({ worker: WORKER_ID, mode: env.WHATSAPP_MODE }, 'outbox worker started');
 
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
@@ -460,7 +465,7 @@ async function main() {
     try {
       handled = await drainOnce();
     } catch (error) {
-      logger.error({ err: error }, 'outbox drain failed');
+      reportError(error, 'outbox drain failed');
     }
     // Only idle when the queue was empty; a full batch means keep going.
     if (handled === 0) {
@@ -478,6 +483,9 @@ async function main() {
   }
 
   await pgClient.end({ timeout: 5 });
+  // A report still in flight when the process exits is a report nobody gets,
+  // and the interesting crashes are the ones just before a shutdown.
+  await flushErrorReporting();
   logger.info('outbox worker stopped');
 }
 

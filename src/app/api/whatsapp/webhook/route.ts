@@ -6,6 +6,7 @@ import { db } from '@/db/client';
 import { whatsappWebhookEvents } from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/lib/logger';
+import { reportError } from '@/lib/report-error';
 import { REQUEST_ID_HEADER } from '@/lib/request-id';
 import { whatsapp } from '@/lib/whatsapp';
 import { applyEvent, parseEnvelope } from '@/lib/whatsapp/webhook';
@@ -109,7 +110,12 @@ export async function POST(request: NextRequest) {
       if (row) stored.push({ id: row.id, event });
     }
   } catch (error) {
-    log.error({ err: error }, 'whatsapp webhook could not be persisted');
+    // A 500 here is a delivery Meta will retry for up to seven days, so this
+    // is the difference between noticing on Monday and noticing never.
+    reportError(error, 'whatsapp webhook could not be persisted', {
+      requestId: request.headers.get(REQUEST_ID_HEADER),
+      events: events.length,
+    });
     return new NextResponse('Storage failure', { status: 500 });
   }
 
@@ -121,10 +127,11 @@ export async function POST(request: NextRequest) {
         try {
           await applyEvent(item.event, item.id);
         } catch (error) {
-          log.error(
-            { err: error, eventKey: item.event.eventKey },
-            'whatsapp webhook event could not be applied',
-          );
+          // Already answered 200, so Meta will not retry: an event that fails
+          // here is a customer message that silently never reached the card.
+          reportError(error, 'whatsapp webhook event could not be applied', {
+            eventKey: item.event.eventKey,
+          });
         }
       }
     });

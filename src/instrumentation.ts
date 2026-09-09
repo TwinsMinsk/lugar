@@ -23,4 +23,10 @@ export async function register() {
   // Any read parses everything; this one is chosen because a deploy without it
   // cannot do anything at all.
   void env.DATABASE_URL;
+
+  // After the contract is known to be valid, so a misconfigured deploy still
+  // dies here rather than reporting its own death to a service that may not be
+  // configured either.
+  const { initErrorReporting } = await import('@/lib/report-error');
+  await initErrorReporting(env.SENTRY_DSN, env.NODE_ENV);
 }

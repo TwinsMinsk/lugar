@@ -22,6 +22,7 @@ import { env } from '@/env';
 import { decodeTouch, FIRST_TOUCH_COOKIE } from '@/features/attribution/attribution';
 import { clientIp } from '@/lib/client-ip';
 import { logger } from '@/lib/logger';
+import { reportError } from '@/lib/report-error';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { whatsapp } from '@/lib/whatsapp';
 import { LOCALE_PHONE_REGION, type Locale } from '@/i18n/routing';
@@ -167,213 +168,215 @@ export async function submitLead(formData: FormData): Promise<LeadFormState> {
   // --- 6. The transaction --------------------------------------------------
   const provider = whatsapp();
 
-  const result = await db.transaction(async (tx) => {
-    // The idempotency gate. Whether this INSERT succeeds decides whether a lead
-    // is created at all — a replayed POST conflicts here and returns the
-    // original lead instead of creating a second one.
-    const [submission] = await tx
-      .insert(formSubmissions)
-      .values({
-        idempotencyKey: input.idempotencyKey,
-        formKey: input.formKey,
-        locale: input.locale,
-        payload: {
-          name: input.name,
-          service: input.service ?? null,
+  const result = await withReporting(() =>
+    db.transaction(async (tx) => {
+      // The idempotency gate. Whether this INSERT succeeds decides whether a lead
+      // is created at all — a replayed POST conflicts here and returns the
+      // original lead instead of creating a second one.
+      const [submission] = await tx
+        .insert(formSubmissions)
+        .values({
+          idempotencyKey: input.idempotencyKey,
+          formKey: input.formKey,
+          locale: input.locale,
+          payload: {
+            name: input.name,
+            service: input.service ?? null,
+            city: input.city ?? null,
+            budget: input.budget ?? null,
+            hasComment: Boolean(input.comment),
+          },
+          attribution,
+          ipAddress: ip,
+          userAgent,
+        })
+        .onConflictDoNothing({ target: formSubmissions.idempotencyKey })
+        .returning();
+
+      if (!submission) {
+        const [prior] = await tx
+          .select({ leadId: formSubmissions.leadId })
+          .from(formSubmissions)
+          .where(eq(formSubmissions.idempotencyKey, input.idempotencyKey))
+          .limit(1);
+        if (!prior?.leadId) return { replayed: true as const, publicId: null };
+        const [lead] = await tx
+          .select({ publicId: leads.publicId })
+          .from(leads)
+          .where(eq(leads.id, prior.leadId))
+          .limit(1);
+        return { replayed: true as const, publicId: lead?.publicId ?? null };
+      }
+
+      // Contact upsert on the natural key. Existing names and cities are only
+      // filled in, never overwritten with a blank.
+      const [contact] = await tx
+        .insert(contacts)
+        .values({
+          phoneE164,
+          phoneCountry,
+          fullName: input.name,
           city: input.city ?? null,
-          budget: input.budget ?? null,
-          hasComment: Boolean(input.comment),
-        },
-        attribution,
-        ipAddress: ip,
-        userAgent,
-      })
-      .onConflictDoNothing({ target: formSubmissions.idempotencyKey })
-      .returning();
+          preferredLocale: input.locale,
+          source: 'web_form',
+          waOptIn: input.consentWhatsapp,
+        })
+        .onConflictDoUpdate({
+          target: contacts.phoneE164,
+          set: {
+            fullName: sql`coalesce(excluded.full_name, ${contacts.fullName})`,
+            city: sql`coalesce(excluded.city, ${contacts.city})`,
+            waOptIn: sql`${contacts.waOptIn} or excluded.wa_opt_in`,
+            lastSeenAt: sql`now()`,
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning();
 
-    if (!submission) {
-      const [prior] = await tx
-        .select({ leadId: formSubmissions.leadId })
-        .from(formSubmissions)
-        .where(eq(formSubmissions.idempotencyKey, input.idempotencyKey))
+      const consentVersion = '2026-08-13';
+      await tx.insert(consentRecords).values([
+        {
+          contactId: contact!.id,
+          submissionId: submission.id,
+          purpose: 'personal_data' as const,
+          granted: true,
+          policyVersion: consentVersion,
+          policyTextHash: hashText(`personal_data:${consentVersion}:${input.locale}`),
+          locale: input.locale,
+          ipAddress: ip,
+          userAgent,
+        },
+        ...(input.consentWhatsapp
+          ? [
+              {
+                contactId: contact!.id,
+                submissionId: submission.id,
+                purpose: 'whatsapp_contact' as const,
+                granted: true,
+                policyVersion: consentVersion,
+                policyTextHash: hashText(`whatsapp:${consentVersion}:${input.locale}`),
+                locale: input.locale,
+                ipAddress: ip,
+                userAgent,
+              },
+            ]
+          : []),
+      ]);
+
+      const [entryStatus] = await tx
+        .select({ id: leadStatuses.id })
+        .from(leadStatuses)
+        .where(eq(leadStatuses.isDefaultEntry, true))
         .limit(1);
-      if (!prior?.leadId) return { replayed: true as const, publicId: null };
-      const [lead] = await tx
-        .select({ publicId: leads.publicId })
+      if (!entryStatus) throw new Error('No default-entry lead status is configured.');
+
+      // Soft duplicate detection: flag, never merge. Auto-merging on a phone
+      // match is how one customer's history ends up attached to another.
+      const [recentOpen] = await tx
+        .select({ id: leads.id })
         .from(leads)
-        .where(eq(leads.id, prior.leadId))
-        .limit(1);
-      return { replayed: true as const, publicId: lead?.publicId ?? null };
-    }
-
-    // Contact upsert on the natural key. Existing names and cities are only
-    // filled in, never overwritten with a blank.
-    const [contact] = await tx
-      .insert(contacts)
-      .values({
-        phoneE164,
-        phoneCountry,
-        fullName: input.name,
-        city: input.city ?? null,
-        preferredLocale: input.locale,
-        source: 'web_form',
-        waOptIn: input.consentWhatsapp,
-      })
-      .onConflictDoUpdate({
-        target: contacts.phoneE164,
-        set: {
-          fullName: sql`coalesce(excluded.full_name, ${contacts.fullName})`,
-          city: sql`coalesce(excluded.city, ${contacts.city})`,
-          waOptIn: sql`${contacts.waOptIn} or excluded.wa_opt_in`,
-          lastSeenAt: sql`now()`,
-          updatedAt: sql`now()`,
-        },
-      })
-      .returning();
-
-    const consentVersion = '2026-08-13';
-    await tx.insert(consentRecords).values([
-      {
-        contactId: contact!.id,
-        submissionId: submission.id,
-        purpose: 'personal_data' as const,
-        granted: true,
-        policyVersion: consentVersion,
-        policyTextHash: hashText(`personal_data:${consentVersion}:${input.locale}`),
-        locale: input.locale,
-        ipAddress: ip,
-        userAgent,
-      },
-      ...(input.consentWhatsapp
-        ? [
-            {
-              contactId: contact!.id,
-              submissionId: submission.id,
-              purpose: 'whatsapp_contact' as const,
-              granted: true,
-              policyVersion: consentVersion,
-              policyTextHash: hashText(`whatsapp:${consentVersion}:${input.locale}`),
-              locale: input.locale,
-              ipAddress: ip,
-              userAgent,
-            },
-          ]
-        : []),
-    ]);
-
-    const [entryStatus] = await tx
-      .select({ id: leadStatuses.id })
-      .from(leadStatuses)
-      .where(eq(leadStatuses.isDefaultEntry, true))
-      .limit(1);
-    if (!entryStatus) throw new Error('No default-entry lead status is configured.');
-
-    // Soft duplicate detection: flag, never merge. Auto-merging on a phone
-    // match is how one customer's history ends up attached to another.
-    const [recentOpen] = await tx
-      .select({ id: leads.id })
-      .from(leads)
-      .where(
-        and(
-          eq(leads.contactId, contact!.id),
-          isNull(leads.deletedAt),
-          gt(leads.createdAt, new Date(Date.now() - 30 * 24 * 3600 * 1000)),
-        ),
-      )
-      .orderBy(desc(leads.createdAt))
-      .limit(1);
-
-    const [lead] = await tx
-      .insert(leads)
-      .values({
-        publicId: generatePublicId(),
-        contactId: contact!.id,
-        statusId: entryStatus.id,
-        submissionId: submission.id,
-        service: input.service ?? null,
-        city: input.city ?? null,
-        comment: input.comment ?? null,
-        budgetBand: input.budget ?? null,
-        locale: input.locale,
-        utmSource: attribution.utmSource ?? null,
-        utmMedium: attribution.utmMedium ?? null,
-        utmCampaign: attribution.utmCampaign ?? null,
-        utmContent: attribution.utmContent ?? null,
-        utmTerm: attribution.utmTerm ?? null,
-        referrer: attribution.referrer ?? null,
-        landingUrlFirst: attribution.landingFirst ?? null,
-        landingUrlLast: attribution.landingLast ?? null,
-        pageContext: input.pageContext ?? null,
-        blockContext: input.blockContext ?? null,
-        projectSlug: input.projectSlug ?? null,
-        possibleDuplicateOfId: recentOpen?.id ?? null,
-      })
-      .returning();
-
-    await tx
-      .update(formSubmissions)
-      .set({ leadId: lead!.id, contactId: contact!.id })
-      .where(eq(formSubmissions.id, submission.id));
-
-    if (input.fileIds && input.fileIds.length > 0) {
-      await tx
-        .update(projectFiles)
-        .set({ status: 'attached', leadId: lead!.id })
         .where(
           and(
-            eq(projectFiles.status, 'orphan'),
-            sql`${projectFiles.id} = any(${sql.raw(`ARRAY['${input.fileIds.join("','")}']::uuid[]`)})`,
+            eq(leads.contactId, contact!.id),
+            isNull(leads.deletedAt),
+            gt(leads.createdAt, new Date(Date.now() - 30 * 24 * 3600 * 1000)),
           ),
+        )
+        .orderBy(desc(leads.createdAt))
+        .limit(1);
+
+      const [lead] = await tx
+        .insert(leads)
+        .values({
+          publicId: generatePublicId(),
+          contactId: contact!.id,
+          statusId: entryStatus.id,
+          submissionId: submission.id,
+          service: input.service ?? null,
+          city: input.city ?? null,
+          comment: input.comment ?? null,
+          budgetBand: input.budget ?? null,
+          locale: input.locale,
+          utmSource: attribution.utmSource ?? null,
+          utmMedium: attribution.utmMedium ?? null,
+          utmCampaign: attribution.utmCampaign ?? null,
+          utmContent: attribution.utmContent ?? null,
+          utmTerm: attribution.utmTerm ?? null,
+          referrer: attribution.referrer ?? null,
+          landingUrlFirst: attribution.landingFirst ?? null,
+          landingUrlLast: attribution.landingLast ?? null,
+          pageContext: input.pageContext ?? null,
+          blockContext: input.blockContext ?? null,
+          projectSlug: input.projectSlug ?? null,
+          possibleDuplicateOfId: recentOpen?.id ?? null,
+        })
+        .returning();
+
+      await tx
+        .update(formSubmissions)
+        .set({ leadId: lead!.id, contactId: contact!.id })
+        .where(eq(formSubmissions.id, submission.id));
+
+      if (input.fileIds && input.fileIds.length > 0) {
+        await tx
+          .update(projectFiles)
+          .set({ status: 'attached', leadId: lead!.id })
+          .where(
+            and(
+              eq(projectFiles.status, 'orphan'),
+              sql`${projectFiles.id} = any(${sql.raw(`ARRAY['${input.fileIds.join("','")}']::uuid[]`)})`,
+            ),
+          );
+      }
+
+      await tx.insert(leadActivities).values({
+        leadId: lead!.id,
+        contactId: contact!.id,
+        kind: 'form_submitted',
+        actorType: 'system',
+        payload: { formKey: input.formKey, service: input.service ?? null },
+      });
+
+      // Queued, not sent. Committing this row is the durability boundary — the
+      // worker drains it afterwards, so a Meta outage delays the alert without
+      // ever costing us the lead. `WHATSAPP_LEAD_ALERT_TEMPLATE_NAME` always has
+      // a value now (see env.ts) — the only thing that decides whether this row
+      // gets created at all is whether anyone is listed to receive it.
+      const staffRecipients = (env.WHATSAPP_INTERNAL_RECIPIENTS ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+      if (staffRecipients.length > 0) {
+        await tx.insert(whatsappOutbox).values(
+          staffRecipients.map((recipient) => ({
+            leadId: lead!.id,
+            toPhoneE164: recipient,
+            purpose: 'internal_new_lead' as const,
+            kind: 'template' as const,
+            templateName: env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME,
+            templateLanguage: env.WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE,
+            templateVariables: {
+              '1': input.name,
+              '2': input.service ?? '—',
+              '3': phoneE164,
+              '4': lead!.publicId,
+            },
+            // Staff numbers get no opt-in exemption from Meta, so an alert
+            // outside the 24h window needs an approved UTILITY template.
+            requiresWindow: false,
+            dedupeKey: `internal_new_lead:${lead!.id}:${recipient}`,
+          })),
         );
-    }
+      }
 
-    await tx.insert(leadActivities).values({
-      leadId: lead!.id,
-      contactId: contact!.id,
-      kind: 'form_submitted',
-      actorType: 'system',
-      payload: { formKey: input.formKey, service: input.service ?? null },
-    });
-
-    // Queued, not sent. Committing this row is the durability boundary — the
-    // worker drains it afterwards, so a Meta outage delays the alert without
-    // ever costing us the lead. `WHATSAPP_LEAD_ALERT_TEMPLATE_NAME` always has
-    // a value now (see env.ts) — the only thing that decides whether this row
-    // gets created at all is whether anyone is listed to receive it.
-    const staffRecipients = (env.WHATSAPP_INTERNAL_RECIPIENTS ?? '')
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-
-    if (staffRecipients.length > 0) {
-      await tx.insert(whatsappOutbox).values(
-        staffRecipients.map((recipient) => ({
-          leadId: lead!.id,
-          toPhoneE164: recipient,
-          purpose: 'internal_new_lead' as const,
-          kind: 'template' as const,
-          templateName: env.WHATSAPP_LEAD_ALERT_TEMPLATE_NAME,
-          templateLanguage: env.WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE,
-          templateVariables: {
-            '1': input.name,
-            '2': input.service ?? '—',
-            '3': phoneE164,
-            '4': lead!.publicId,
-          },
-          // Staff numbers get no opt-in exemption from Meta, so an alert
-          // outside the 24h window needs an approved UTILITY template.
-          requiresWindow: false,
-          dedupeKey: `internal_new_lead:${lead!.id}:${recipient}`,
-        })),
-      );
-    }
-
-    return {
-      replayed: false as const,
-      publicId: lead!.publicId,
-      staffAlertsQueued: staffRecipients.length,
-    };
-  });
+      return {
+        replayed: false as const,
+        publicId: lead!.publicId,
+        staffAlertsQueued: staffRecipients.length,
+      };
+    }),
+  );
 
   // Never "заявка отправлена" and silence together: this is the one line that
   // tells anyone reading the logs whether a new lead is about to notify
@@ -414,6 +417,28 @@ function buildHandoffText(locale: Locale, service?: string, publicId?: string | 
   if (publicId && publicId !== 'LG-000000') parts.push(`(${publicId})`);
   if (service) parts.push(`— ${service}`);
   return `${parts.join(' ')}.`;
+}
+
+/**
+ * The one failure that costs the business money.
+ *
+ * If this transaction throws, the visitor is told something went wrong and the
+ * enquiry does not exist anywhere — no row, no queue entry, nothing to find
+ * later. It rethrows, so nothing about the form changes; it exists so that the
+ * failure is reported rather than left in a log stream nobody is reading at
+ * eleven on a Sunday.
+ *
+ * No form contents are attached. The point of the report is that a submission
+ * failed, and a crash report carrying a name and a phone number would be a
+ * personal-data export the site tells its visitors it does not make.
+ */
+async function withReporting<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    reportError(error, 'lead submission failed before the lead was stored');
+    throw error;
+  }
 }
 
 function safeJson(value: FormDataEntryValue | null): unknown {

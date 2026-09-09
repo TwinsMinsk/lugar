@@ -128,6 +128,18 @@ const serverSchema = z
     WHATSAPP_LEAD_ALERT_TEMPLATE_LANGUAGE: optionalString.transform((v) => v ?? 'ru'),
 
     PREVIEW_SECRET: requiredInProd('PREVIEW_SECRET'),
+
+    /**
+     * Where crashes go. Unset means they only reach the log stream, which is
+     * the current state of affairs and the reason this exists: a 500 on the
+     * lead form is invisible unless somebody happens to be reading Railway's
+     * console at that minute.
+     *
+     * Optional on purpose. A missing DSN must never be the thing that stops a
+     * deploy — error reporting is how you find out about failures, not a
+     * failure of its own.
+     */
+    SENTRY_DSN: optionalString,
   })
   // cloud_api is all-or-nothing: a half-configured provider would silently
   // degrade to dropping internal alerts, which is worse than staying on
