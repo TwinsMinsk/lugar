@@ -13,16 +13,30 @@ import { audit, axeDescribe } from './axe';
  * The panel is a workplace: whoever runs this studio may end up using it every
  * day for years. "Internal tool" is not a reason to skip this.
  */
+/**
+ * Every list screen the panel has.
+ *
+ * Four were missing — contacts, portfolio, the funnel stages and the new
+ * account screen — while the launch checklist claimed "все экраны админки"
+ * were audited. Detail routes (`/admin/pages/[id]` and the like) are still not
+ * here: each needs a record to exist first, and a fixture that creates one is a
+ * different kind of test from this one. That gap is now stated in the checklist
+ * rather than papered over.
+ */
 const ADMIN_PAGES = [
   '/admin',
   '/admin/pages',
+  '/admin/portfolio',
   '/admin/leads',
   '/admin/leads/board',
+  '/admin/contacts',
   '/admin/media',
   '/admin/navigation',
   '/admin/redirects',
   '/admin/settings',
+  '/admin/pipeline',
   '/admin/users',
+  '/admin/profile',
   '/admin/audit',
 ];
 
