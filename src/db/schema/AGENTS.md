@@ -37,8 +37,8 @@ there does not appear in generated migrations. Because there is no RLS, the part
   `whatsapp_webhook_events`, `notification_attempts`. Bigint ids reach the UI via `String(row.id)`.
 - better-auth tables use `text` ids; `rate_limits` pk is `(key, window_start)`; `service_heartbeats` pk
   is `service`.
-- `docs/architecture.md` §3 lists `audit_log` among the bigserial tables. The schema (and migration
-  0000) make it `uuid`. Trust the schema.
+- `audit_log` uses `uuid7()` despite being an internal append-only log (documented in
+  `docs/architecture.md` §3).
 
 ## DB-enforced invariants
 
@@ -56,9 +56,9 @@ there does not appear in generated migrations. Because there is no RLS, the part
 | One alert per dedupe key | `wa_outbox_dedupe_uq` (partial where `dedupe_key is not null`) | `outbox.test.ts` ("outbox dedupe") — behaviour, not constraint name |
 | Unique phone / public id / redirect source / live checksum | `contacts_phone_uq`, `leads_public_id_uq`, `redirect_from_uq`, `media_checksum_uq` (where `deleted_at is null`), `documents_seed_key_uq` (where `seed_key is not null`) | not asserted directly |
 
-Architecture §4 says every invariant is covered by a test asserting the constraint name. In fact only
-`one_draft_per_document_uq` and `lead_statuses_default_entry_uq` are asserted by name; the media guard
-is asserted by SQLSTATE plus message; the webhook and outbox dedupe tests assert behaviour.
+Only `one_draft_per_document_uq` and `lead_statuses_default_entry_uq` are asserted by name; the media
+guard is asserted by SQLSTATE plus message; the webhook dedupe test asserts behaviour. Architecture §4
+has the same per-invariant coverage column — keep the two in step.
 
 ## For AI Agents
 

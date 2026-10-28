@@ -5,8 +5,8 @@ import { requireCapability } from '@/lib/auth/guards';
 export const metadata = { title: 'Этапы воронки' };
 
 export default async function PipelinePage() {
-  // Reading the pipeline needs only crm.read; every mutation inside the editor
-  // re-checks settings.write on the server.
+  // This page is the stage editor, so it is owner-only like the rest of
+  // settings; every mutation inside it re-checks settings.write on the server.
   await requireCapability('settings.write');
 
   const [stages, archived] = await Promise.all([listPipeline(), listArchivedStages()]);

@@ -1,9 +1,9 @@
 import 'server-only';
 
-import { asc, eq, isNull, sql } from 'drizzle-orm';
+import { asc, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { leadStatuses, leads } from '@/db/schema';
+import { leadStatuses } from '@/db/schema';
 import { requireCapability } from '@/lib/auth/guards';
 
 /**
@@ -83,14 +83,4 @@ export async function listArchivedStages(): Promise<
     .orderBy(asc(leadStatuses.sortOrder));
 
   return rows.map((row) => ({ ...row, label: (row.label ?? {}) as Record<string, string> }));
-}
-
-/** Whether any lead at all references this stage, archived rows included. */
-export async function stageHasLeads(statusId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: leads.id })
-    .from(leads)
-    .where(eq(leads.statusId, statusId))
-    .limit(1);
-  return Boolean(row);
 }

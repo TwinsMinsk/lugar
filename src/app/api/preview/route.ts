@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { resolvePreviewTarget } from '@/data/public/documents';
 import { LOCALES, type Locale } from '@/i18n/routing';
-import { getSession } from '@/lib/auth/guards';
+import { can } from '@/lib/auth/guards';
 import { documentPath, localePath } from '@/lib/routes';
 import { verifyPreviewToken } from '@/lib/preview';
 
@@ -13,7 +13,9 @@ import { verifyPreviewToken } from '@/lib/preview';
  * Two ways in, both authorised before draft mode is enabled:
  *   - a signed, time-limited token, so a link can be shared with a reviewer who
  *     has no account;
- *   - an authenticated admin session, for the "Preview" button in the editor.
+ *   - an authenticated, non-banned session that holds `content.read`, for the
+ *     "Preview" button in the editor. Any session is not enough: a manager
+ *     has no business reading drafts, and a banned account keeps its cookie.
  *
  * Nothing here trusts the redirect target from the query string: the
  * destination is derived from the document the token names, so this cannot be
@@ -46,9 +48,8 @@ export async function GET(request: NextRequest) {
   let locale = (claims?.locale ?? null) as Locale | null;
 
   if (!documentId) {
-    // No valid token — fall back to an admin session.
-    const session = await getSession();
-    if (!session?.user) {
+    // No valid token — fall back to an admin session that may read drafts.
+    if (!(await can('content.read'))) {
       return new NextResponse('Not found', { status: 404 });
     }
     documentId = request.nextUrl.searchParams.get('documentId');

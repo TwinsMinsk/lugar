@@ -65,8 +65,8 @@ npm run dev
 | `npm run build` / `npm start` | Production build and serve |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` / `npm run format` | ESLint 9 flat config / Prettier |
-| `npm test` | Vitest — 33 unit + database-integration tests |
-| `npm run test:e2e` | Playwright — 16 browser tests; builds and serves first |
+| `npm test` | Vitest — unit (`tests/unit`) and database-integration (`tests/integration`) suites |
+| `npm run test:e2e` | Playwright — browser suites in `tests/e2e`; builds and serves first |
 | `npm run db:generate` | Generate a migration from schema changes |
 | `npm run db:migrate` | Apply migrations (also Railway's pre-deploy step) |
 | `npm run db:seed` | Idempotent seed of taxonomy and settings |

@@ -32,9 +32,9 @@ Related scripts that live elsewhere: `db:migrate` → `src/db/migrate.ts`, `db:s
   it to an empty module. Every npm script here has it except `prepare-standalone.mjs`, which imports no
   app code. Keep the flag on any new script (architecture §6).
 - **First line of a script that reads env: `import './load-env';`** (see all `.ts` scripts here).
-- **Trap: `npm run db:reset` is broken.** `package.json` points at `scripts/reset-db.ts`, which does not
-  exist, and nothing else in the repo references it. Do not recreate it casually: a reset script must
-  refuse non-local databases the way `clean-test-projects.ts` does. Tell the user instead.
+- **There is no `db:reset`.** The npm script pointed at a `scripts/reset-db.ts` that never existed and
+  was removed on 2026-10-28. If one is added, it must refuse non-local databases the way
+  `clean-test-projects.ts` does.
 - **`clean-test-projects.ts` is destructive (hard deletes, no transaction, no dry run).** It first
   refuses unless `DATABASE_URL` *contains* `localhost` or `127.0.0.1` (a substring test, not a host
   parse). Then, in order:

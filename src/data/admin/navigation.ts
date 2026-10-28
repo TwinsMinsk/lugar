@@ -21,6 +21,8 @@ import { requireCapability } from '@/lib/auth/guards';
  * Russian slug for a Spanish row is the bug this exists to remove.
  */
 export async function getPortfolioIndexSlugs(): Promise<Partial<Record<Locale, string>>> {
+  await requireCapability('content.read');
+
   const rows = await db
     .select({ locale: documentLocales.locale, slug: documentLocales.slug })
     .from(documentLocales)
