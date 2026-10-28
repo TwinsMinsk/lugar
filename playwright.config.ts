@@ -80,7 +80,7 @@ export default defineConfig({
      * Env goes through `webServer.env` rather than an inline `VAR=x` prefix,
      * which cmd.exe does not understand.
      *
-     * HOSTNAME is 0.0.0.0, the same value railway.json uses, and that is not
+     * HOSTNAME is 0.0.0.0, the same value .railway/railway.ts uses, and that is not
      * incidental. Bound to a specific loopback address instead, the standalone
      * server answers a middleware rewrite with an absolute URL pointing at
      * `localhost` — which Next then treats as an external redirect, and `/`

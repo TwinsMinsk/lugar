@@ -130,8 +130,8 @@ than through stale-while-revalidate.
 publishing on instance A would leave instance B serving stale HTML indefinitely under
 `cacheLife('max')`. This presents to the owner as "the CMS is broken" and is easy to misdiagnose.
 
-Mitigation until a shared cache handler is configured: **run a single replica** (`numReplicas: 1` in
-`railway.json`), and every public read uses the bounded `PUBLIC_CACHE_PROFILE` (`'minutes'`) rather
+Mitigation until a shared cache handler is configured: **run a single replica** (`replicas` in
+`.railway/railway.ts`), and every public read uses the bounded `PUBLIC_CACHE_PROFILE` (`'minutes'`) rather
 than `'max'`, so worst-case staleness is minutes rather than forever. Revisit both before scaling
 out.
 

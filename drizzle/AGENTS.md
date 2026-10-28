@@ -42,9 +42,9 @@ unused so the history is reproducible on Railway.
 
 ### How migrations run
 
-- **Railway pre-deploy:** `railway.json` sets `"preDeployCommand": "npm run db:migrate"` →
+- **Railway pre-deploy:** `.railway/railway.ts` sets `preDeploy: 'npm run db:migrate'` →
   `src/db/migrate.ts` (single connection to `DATABASE_URL`, `migrationsFolder: './drizzle'`). A failing
-  migration blocks the release. The web service runs 1 replica; the worker (`railway.worker.json`)
+  migration blocks the release. The web service runs 1 replica; the worker (`lugar-worker` in `.railway/railway.ts`)
   has no pre-deploy and never migrates.
 - **Before the build:** npm `prebuild` runs `scripts/migrate-for-build.ts`. `next build` prerenders and
   queries the real database *before* pre-deploy, so a commit that adds a column and a query using it
@@ -73,7 +73,7 @@ unused so the history is reproducible on Railway.
 ### Internal
 
 - `src/db/schema/*` (source of truth), `drizzle.config.ts`, `src/db/migrate.ts`,
-  `scripts/migrate-for-build.ts`, `railway.json`, `tests/helpers/db.ts`
+  `scripts/migrate-for-build.ts`, `.railway/railway.ts`, `tests/helpers/db.ts`
 
 ### External
 

@@ -36,8 +36,7 @@ deviations from the original brief (no Supabase, no RLS, no Vercel) and the inva
 | `.prettierrc.json` | Prettier + `prettier-plugin-tailwindcss`. `npm run format:check` runs in CI. |
 | `tsconfig.json` | Strict TypeScript 6.0 (not 7 — typescript-eslint caps at `<6.1`). |
 | `docker-compose.yml` | Local Postgres only. |
-| `railway.json` | Web service: Railpack build, `db:migrate` as pre-deploy, `/api/health` healthcheck, **1 replica**. |
-| `railway.worker.json` | Worker service: runs `npm run worker` from source with tsx, no build. |
+| `.railway/railway.ts` | Railway infrastructure as code: Postgres, two volumes, `lugar-web` (Railpack build, `db:migrate` pre-deploy, `/api/health` healthcheck, **1 replica**) and `lugar-worker` (`npm run worker` from source, no build). Railway does not read it on deploy — changes go through `railway config plan` / `apply`. Variables are not managed here. |
 | `.env.example` | Every environment variable with comments; validated at runtime by `src/env.ts`. |
 | `.nvmrc` | Pins Node 24 LTS. |
 | `README.md` | Setup, commands, milestones, owner inputs. |
