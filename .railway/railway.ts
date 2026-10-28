@@ -38,8 +38,9 @@ export default defineRailway(() => {
     healthcheck: '/api/health',
     healthcheckTimeout: 60,
     preDeploy: 'npm run db:migrate',
+    // Restart policy is left at Railway's default, ON_FAILURE: declaring it shows as a change on
+    // every plan, because Railway stores the default as null.
     replicas: { [REGION]: 1 },
-    deploy: { restartPolicyType: 'ON_FAILURE' },
     domains: ['lugaroficial.es', 'www.lugaroficial.es'],
     volumeMounts: { '/data/media': lugarWebVolume },
   });
