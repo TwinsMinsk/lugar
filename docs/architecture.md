@@ -69,8 +69,9 @@ slot — a visible gap is worse than an honest fallback.
 - **UUIDv7** for anything reachable from a URL, a CSV export or a webhook correlation: `contacts`,
   `leads`, `documents`, `media_assets`, `whatsapp_outbox`. Sequential integers there would leak
   business volume (`/admin/leads/47`) and invite enumeration. v7 preserves B-tree insert locality,
-  so it avoids the random-insert page splits that make v4 expensive at scale.
-- **`bigserial`** for append-only logs never exposed externally: `lead_activities`, `audit_log`,
+  so it avoids the random-insert page splits that make v4 expensive at scale. `audit_log` also uses
+  UUIDv7 (`uuid7()` in `src/db/schema/settings.ts`), although it is never exposed by id.
+- **`bigserial`** for append-only logs never exposed externally: `lead_activities`,
   `consent_records`, `whatsapp_webhook_events`, `notification_attempts`. The index stays hot,
   ordering by id is meaningful, and 8 bytes beats 16.
 
@@ -82,17 +83,18 @@ presentation layer only.
 ## 4. Invariants enforced by the database
 
 These are constraints, not conventions, so they survive a future code path that forgets to check.
-Each is covered by an integration test that asserts on the SQLSTATE and constraint name — not on the
-wrapper message, which would pass for any failed query.
+Where an integration test covers one, it asserts on the SQLSTATE (and the constraint name where
+Postgres reports it) — not on the wrapper message, which would pass for any failed query. Not every
+row has such a test yet; the last column says which do.
 
-| Invariant | Mechanism |
-| --- | --- |
-| At most one open draft per document | `one_draft_per_document_uq` — partial unique index on `is_draft` |
-| A media asset in use cannot be deleted | `media_usage.asset_id` FK with `onDelete: 'restrict'` |
-| Exactly one default-entry lead status | `lead_statuses_default_entry_uq` — partial unique index |
-| One lead per idempotency key | `form_submissions_idempotency_uq` |
-| One row per provider webhook event | `wa_webhook_event_key_uq` |
-| A published revision cannot be deleted | `document_locales.published_revision_id` FK with `restrict` |
+| Invariant | Mechanism | Integration test (`tests/integration/`) |
+| --- | --- | --- |
+| At most one open draft per document | `one_draft_per_document_uq` — partial unique index on `is_draft` | `schema-invariants` — SQLSTATE + constraint name |
+| A media asset in use cannot be deleted | `media_usage.asset_id` FK with `onDelete: 'restrict'` | `schema-invariants` — SQLSTATE (23001 or 23503) + message |
+| Exactly one default-entry lead status | `lead_statuses_default_entry_uq` — partial unique index | `schema-invariants` — SQLSTATE + constraint name |
+| One lead per idempotency key | `form_submissions_idempotency_uq` | none |
+| One row per provider webhook event | `wa_webhook_event_key_uq` | `outbox` — dedupe behaviour, not the constraint |
+| A published revision cannot be deleted | `document_locales.published_revision_id` FK with `restrict` | none |
 
 Media usage is deliberately **both** computed and constrained: a registry-driven visitor writes
 `media_usage` inside the same transaction as the save, *and* the foreign key stops the delete
@@ -117,20 +119,21 @@ a plain index on `last_inbound_at`. Same performance, no generated column, less 
 
 ## 5. Caching and the Railway replica hazard
 
-Published pages are read through `'use cache'` with explicit tags:
-`doc-slug:{kind}:{locale}:{slug}`, `doc:{id}:{locale}`, `revision:{id}`, `projects-index:{locale}`,
-`nav:{locale}`, `settings:{locale}`, `media:{assetId}`.
+Published pages are read through `'use cache'` with explicit tags, all built by `tags` in
+`src/data/cache-tags.ts`: `path:{kind}:{locale}:{slug}`, `doc:{id}:{locale}`, `revision:{id}`,
+`projects-index:{locale}`, `nav:{locale}`, `settings`, `media:{assetId}`, `taxonomy`, `redirects`.
 
 Publishing calls `updateTag` (not `revalidateTag`) so the owner sees the change immediately rather
 than through stale-while-revalidate.
 
 **The hazard:** Next.js's default cache handler is per-instance. With more than one Railway replica,
-publishing on instance A leaves instance B serving stale HTML indefinitely under `cacheLife('max')`.
-This presents to the owner as "the CMS is broken" and is easy to misdiagnose.
+publishing on instance A would leave instance B serving stale HTML indefinitely under
+`cacheLife('max')`. This presents to the owner as "the CMS is broken" and is easy to misdiagnose.
 
-Mitigation until a shared cache handler is configured: **run a single replica**, and cap
-`cacheLife` on `doc-slug:*` at a bounded profile so worst-case staleness is minutes rather than
-forever. Revisit before scaling out.
+Mitigation until a shared cache handler is configured: **run a single replica** (`numReplicas: 1` in
+`railway.json`), and every public read uses the bounded `PUBLIC_CACHE_PROFILE` (`'minutes'`) rather
+than `'max'`, so worst-case staleness is minutes rather than forever. Revisit both before scaling
+out.
 
 ---
 
@@ -161,9 +164,9 @@ Three implementations behind one interface, selected by `WHATSAPP_MODE`:
 Design points that are load-bearing:
 
 - **The outbox row is written in the same transaction as the lead.** Commit is the durability
-  boundary. A `pg_notify` in `after()` is only a latency optimisation; if the process dies before
-  notifying, the worker's poll picks the job up. There is no window in which a lead exists without
-  its outbox row.
+  boundary. There is no window in which a lead exists without its outbox row. The worker finds jobs
+  by polling only (`IDLE_POLL_MS`, 3 s when idle); a `pg_notify` wake-up was planned as a latency
+  optimisation but is not implemented.
 - **The worker is a separate always-on Railway service**, not cron. Railway cron has a 5-minute
   floor and skips overlapping runs — unacceptable for "a hot lead just arrived". Jobs are claimed
   with `FOR UPDATE SKIP LOCKED` plus a `claimed_until` lease so a crashed worker's jobs are
@@ -175,8 +178,10 @@ Design points that are load-bearing:
   into a week-long storm); database write failure → **500** (a retry genuinely will succeed).
 - **The raw envelope is committed synchronously before the 200.** Deferring the insert into
   `after()` would acknowledge an event that might never have been stored.
-- **`/api/whatsapp/*` is excluded from the `proxy.ts` matcher.** The HMAC is computed over the raw
-  request body; anything that buffers or re-serialises it breaks verification silently.
+- **`/api/*`, including `/api/whatsapp/*`, bypasses the proxy's logic.** The matcher is `/:path*`,
+  but `isExcluded()` in `src/proxy.ts` forwards every `/api` request untouched apart from an
+  `x-request-id` header. The HMAC is computed over the raw request body; anything that buffers or
+  re-serialises it breaks verification silently.
 - **Staff numbers get no opt-in exemption.** Meta's policy has no carve-out for a business's own
   employees, so an out-of-window internal alert needs an approved UTILITY template.
   `notification_attempts` is therefore channel-agnostic: when WhatsApp returns `blocked_window` or

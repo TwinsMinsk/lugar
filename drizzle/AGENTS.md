@@ -60,8 +60,7 @@ unused so the history is reproducible on Railway.
 - After adding a migration run `npm test` with Postgres up (`npm run docker:up`); the integration suites
   (`tests/integration/schema-invariants.test.ts`, `outbox.test.ts`, `publishing.test.ts`) migrate a
   clean database from `0000` and will fail if the chain does not replay.
-- Local application: `npm run db:migrate`. `package.json` defines `db:reset` →
-  `scripts/reset-db.ts`, but that file does not exist in `scripts/` (checked 2026-10-28); don't rely on it.
+- Local application: `npm run db:migrate`. There is no `db:reset` script.
 
 ### Common Patterns
 

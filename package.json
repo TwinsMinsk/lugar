@@ -13,7 +13,6 @@
     "db:clean-test-projects": "tsx --conditions=react-server scripts/clean-test-projects.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --conditions=react-server src/db/migrate.ts",
-    "db:reset": "tsx --conditions=react-server scripts/reset-db.ts",
     "legal:apply": "tsx --conditions=react-server scripts/apply-legal-texts.ts",
     "db:seed": "tsx --conditions=react-server src/db/seed/index.ts",
     "db:studio": "drizzle-kit studio",

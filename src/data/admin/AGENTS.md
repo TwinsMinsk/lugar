@@ -21,10 +21,10 @@ and `src/features/leads/actions.ts`.
 | `audit.ts` | `audit.read` | `listAuditEntries` (keyset pages, filters by action/actor/entity type, max 100), `listAuditActions`, `listAuditActors`. |
 | `contacts.ts` | `crm.read` | `listContacts` (search by name/email/digits of phone, archived toggle), `getContact` (leads, projects, full consent trail, WhatsApp message count). |
 | `documents.ts` | `content.read` | `listDocuments(kind, {archived})`, `getDocumentForEditing` (draft revision; invalid blocks counted not dropped silently), `listRevisions` (rollback picker). |
-| `lead-statuses.ts` | `crm.read` | `listPipeline`, `listArchivedStages` (with lead counts). `stageHasLeads` has **no** guard. |
+| `lead-statuses.ts` | `crm.read` | `listPipeline`, `listArchivedStages` (with lead counts). |
 | `leads.ts` | `crm.read` | `listLeads`, `countLeadsByStatus`, `countArchivedLeads`, `listLeadStatuses`, `listAssignees` (owner/manager, not banned), `getLead`, `getLeadBoard` (25 cards per column, 5-day stale flag), `getCrmSummary`. |
 | `media.ts` | `media.read` | `countPlaceholderMedia`, `listMedia` (offset paging, thumbnail = smallest webp derivative, `usageCount`, `usedOnPublishedPage`). |
-| `navigation.ts` | `navigation.write` | `listNavigation` (grouped by `MENUS`, reports `hiddenIn` locales), `listNavigationTargets`. `getPortfolioIndexSlugs` has **no** guard. |
+| `navigation.ts` | `navigation.write` / `content.read` | `listNavigation` (grouped by `MENUS`, reports `hiddenIn` locales), `listNavigationTargets` (`navigation.write`); `getPortfolioIndexSlugs` (`content.read`, used by the project editor). |
 | `portfolio.ts` | `content.read` / `media.read` | `getProjectMeta`, `listCategoriesForAdmin`, `listProjectCards` (content.read); `listPickableAssets` (media.read). |
 | `redirects.ts` | `seo.write` | `listRedirects` with `resolvesTo` after following chains via `followRedirect`. |
 | `settings.ts` | `settings.write` | `listRawSettings` — stored values plus `needsReview`; deliberately not `getSiteSettings()`. |
@@ -39,10 +39,6 @@ and `src/features/leads/actions.ts`.
   from the matrix in `src/lib/auth/guards.ts`; do not invent a string (it is a typed union). Content
   editors have `content.*`, `media.*`, `navigation.write`, `seo.write`; managers have `crm.*` and
   `whatsapp.read/send`; only owners have `settings.write`, `users.manage`, `audit.read`.
-- **Two unguarded exports are traps:** `lead-statuses.ts#stageHasLeads` (internal helper, currently
-  unused outside this file) and `navigation.ts#getPortfolioIndexSlugs` (used by
-  `portfolio/[id]/page.tsx`, which is itself behind the panel layout). Don't expose them through a new
-  route handler without adding a guard.
 - `listAssignees` filters on `user.role` in JS (`owner`/`manager`) instead of calling `roleCan`; if the
   CRM capability set changes, update it by hand.
 - In raw `sql` subqueries, **alias the inner table and name the outer column in full**

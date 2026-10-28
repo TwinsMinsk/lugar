@@ -54,8 +54,7 @@ Mutations are **not** here. They live in Server Actions (`src/app/(admin)/admin/
   and present as "publishing doesn't work".
 - Do not raise `PUBLIC_CACHE_PROFILE` to `'max'` while the web service is single-replica with the
   default per-instance cache handler (architecture §5).
-- `docs/architecture.md` §5 calls the page tag `doc-slug:…` and says `cacheLife('max')`; the code uses
-  `path:…` and `'minutes'`. Trust the code.
+- Tag names in `docs/architecture.md` §5 must match `tags` in `cache-tags.ts`; update both together.
 
 ### Testing Requirements
 

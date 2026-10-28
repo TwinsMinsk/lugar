@@ -71,7 +71,7 @@ its named exports (`backoffMs`, `beat`, `claimBatch`, `processJob`, `runMaintena
 - **`proxy.ts` is not a security boundary** and its `isExcluded()` is code, not a matcher regex, on
   purpose (`'\.'` in a JS string collapses to `'.'` and silently disables the proxy). Do not
   "simplify" it back into a regex matcher.
-- **Contradiction with `docs/architecture.md` §7:** the proxy matcher is `/:path*`; `/api/*` (including
+- **The proxy matcher is `/:path*`, not a narrow pattern:** `/api/*` (including
   the WhatsApp webhook) is skipped via `isExcluded` but still passes through `forward()`, which only
   adds the request-id header and leaves the raw body untouched.
 - **Worker constraints:** it runs outside the Next compiler, so no `'use cache'` functions

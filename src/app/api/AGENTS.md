@@ -19,7 +19,7 @@ adds `X-Robots-Tag: noindex, nofollow` to every `/api/*` response, and `robots.t
 | `health/route.ts` | `GET` | none | Railway health check. 503 if the DB is unreachable or applied migrations (`drizzle.__drizzle_migrations` count) are fewer than `journal.entries.length` compiled from `drizzle/meta/_journal.json`. Reports `storage` driver and the worker heartbeat (`never` / `ok` / `stale`, stale after 120 s) in the body but **never fails on the worker** or storage. |
 | `locale/[locale]/route.ts` | `GET` (`?from=/path`) | none | Language switcher: resolves the *equivalent document* in the target locale (so differing slugs work); falls back to the target home page for anything unresolvable. `from` must start with `/` and not `//`. Emits a relative-`Location` 307. |
 | `media/[...key]/route.ts` | `GET` | none (public) | Serves media from the local storage driver only (404 unless `STORAGE_DRIVER === 'local'`). Key must exist in `media_assets` or `media_derivatives`; content type comes from that row; `immutable` one-year cache, `nosniff`; in-memory resolved-key map capped at 2 000. Used in production while the deploy runs on a mounted volume. |
-| `preview/route.ts` | `GET` (`?token=` or `?documentId=&locale=`) | Valid signed token (`verifyPreviewToken`, time-limited, shareable) **or** any authenticated session | Enables `draftMode()` and 307s to the document's public path (derived from the document, never from the query). Unknown/archived/unauthorised → 404. |
+| `preview/route.ts` | `GET` (`?token=` or `?documentId=&locale=`) | Valid signed token (`verifyPreviewToken`, time-limited, shareable) **or** `can('content.read')` (signed in, not banned, owner/content_editor) | Enables `draftMode()` and 307s to the document's public path (derived from the document, never from the query). Unknown/archived/unauthorised → 404. |
 | `preview/exit/route.ts` | `GET` (`?from=`) | none | Disables draft mode, 307 to a same-origin relative `from` or `/`. |
 | `whatsapp/webhook/route.ts` | `GET`, `POST` | `GET`: `hub.verify_token` constant-time compared to `WHATSAPP_WEBHOOK_VERIFY_TOKEN`; `POST`: `X-Hub-Signature-256` HMAC over the raw body via `whatsapp().verifyWebhookSignature` | Meta subscription handshake (returns the challenge as bare `text/plain`) and event intake. See below. |
 
@@ -57,8 +57,8 @@ header (headers only, body not read). The webhook logs with that request id.
   and drop the draft-mode cookie. Copy `relativeRedirect` from `preview` or `locale`.
 - **Open-redirect rule:** user-supplied `from` values are accepted only if they start with `/` and not `//`.
 - **No `export const dynamic/runtime/revalidate`** in any route here — the build rejects it under Cache Components.
-- `preview` accepts *any* signed-in user (no capability), unlike the admin pages; a banned user's
-  session is not rejected there. Tighten it if previews should be role-limited.
+- `preview`'s session path uses `can('content.read')`, which also rejects banned users; a manager
+  cannot enter draft mode without a signed token.
 - `media/[...key]` becomes an unauthenticated bucket proxy if the local-driver check is removed; keep the
   DB-lookup and driver guards.
 - `health` must stay cheap: no storage round trip (that is `npm run preflight`'s job) and the worker

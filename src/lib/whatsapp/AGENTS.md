@@ -67,8 +67,8 @@ compare, challenge returned as `text/plain`). Events are inserted into `whatsapp
   `dead` on an `internal_new_lead` job trigger the Resend email fallback to the `contact.email` setting.
 - **Status loop**: Meta's `statuses` webhooks update `whatsapp_messages` and
   `whatsapp_outbox.delivery_status` by wamid via `applyEvent`.
-- **No `pg_notify`/LISTEN anywhere in `src`.** The worker is poll-only; `docs/architecture.md` §7
-  mentions a `pg_notify` latency optimisation that does not exist.
+- **No `pg_notify`/LISTEN anywhere in `src`.** The worker is poll-only (`IDLE_POLL_MS`, 3 s); the
+  `pg_notify` wake-up in `docs/architecture.md` §7 is recorded there as planned, not implemented.
 - Enum values `outbox_purpose = 'customer_ack'` and `outbox_status = 'needs_review'` exist in the schema
   but nothing in `src` writes them.
 

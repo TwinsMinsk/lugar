@@ -32,8 +32,8 @@ owner and staff** (non-developers) and is in **Russian on purpose**.
 - **Specific numbers are snapshots.** `backup-restore.md` quotes row counts from a restore drill (371
   documents, 258 leads, 14 settings, 6 migrations); `m4-report.md` quotes "136 сквозных и 105 модульных"
   checks; `launch-checklist.md` says "14 адресов" for audited admin screens and "~400 КБ / 208 КБ JS".
-  These drift. Re-measure before changing them, or leave them; never guess. (`README.md` has its own
-  stale counts: "33 unit", "16 browser tests".)
+  These drift. Re-measure before changing them, or leave them; never guess. (`README.md` deliberately
+  names the suites instead of counting them.)
 - Documents link each other by relative path (`m4-report.md` → `whatsapp-setup.md`,
   `content-operations.md`, `launch-checklist.md`); keep file names stable.
 
