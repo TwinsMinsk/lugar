@@ -14,7 +14,7 @@ import type { Locale } from '@/i18n/routing';
  * they describe *this* site: the exact fields the form collects
  * (`features/leads/schema.ts`), the exact cookies it writes and for how long
  * (`features/consent/consent.ts`, `features/attribution/attribution.ts`), where
- * it is hosted (`railway.json` — europe-west4, the Netherlands), and which
+ * it is hosted (`.railway/railway.ts` — europe-west4, the Netherlands), and which
  * processors actually receive anything. Every retention period is marked as a
  * proposal, because that is a business decision the studio makes and the
  * lawyer checks against Spanish commercial and tax law.

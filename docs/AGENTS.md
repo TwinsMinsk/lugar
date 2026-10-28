@@ -65,7 +65,7 @@ checks them automatically. Check that every relative link resolves and every env
 ### Internal
 
 - `src/lib/auth/guards.ts` (roles), `.env.example` / `src/env.ts` (variables), `tests/` (automated
-  coverage claims), `scripts/` (`preflight`, `auth:bootstrap`), `railway.json`, `railway.worker.json`
+  coverage claims), `scripts/` (`preflight`, `auth:bootstrap`), `.railway/railway.ts`
 
 ### External
 
