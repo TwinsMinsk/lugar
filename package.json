@@ -16,6 +16,7 @@
     "legal:apply": "tsx --conditions=react-server scripts/apply-legal-texts.ts",
     "db:seed": "tsx --conditions=react-server src/db/seed/index.ts",
     "db:studio": "drizzle-kit studio",
+    "db:restore-check": "tsx --conditions=react-server scripts/restore-check.ts",
     "dev": "next dev",
     "docker:down": "docker compose down",
     "docker:up": "docker compose up -d",

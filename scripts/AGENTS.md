@@ -19,6 +19,7 @@ database or imports app code runs under `tsx --conditions=react-server`.
 | `prepare-standalone.mjs` | `build:standalone`; also `postbuild` | Copies `.next/static` and `public/` into `.next/standalone`. Plain Node (no tsx). Honors `NEXT_DIST_DIR`. Exits 1 if the standalone output or `.next/static` is missing. |
 | `apply-legal-texts.ts` | `legal:apply` | Writes the current `LEGAL_TEXTS` (privacy, cookies) into the **draft** revision of those two documents. Dry run by default; `--write` applies. Never publishes. |
 | `clean-test-projects.ts` | `db:clean-test-projects` | Hard-deletes data the e2e suite creates (exact list below). |
+| `restore-check.ts` + `restore-check.sh` | `db:restore-check` | Restore drill that keeps the data inside Railway: creates a throwaway `postgres:18` service `restore-check` (EU region, restart `NEVER`, `SRC=${{Postgres.DATABASE_URL}}`, the `.sh` passed base64 in `CHECK_SCRIPT`), which dumps production over the private network, restores into a cluster in its container and diffs per-table row count + content hash, index and constraint counts. Prints only names, counts, hashes. Deletes the service in `finally`; refuses to start if it already exists. Needs the Railway CLI logged in and the directory linked. |
 | `load-env.ts` | — | Side-effect import: loads `.env.local`, then `.env` (dotenv does not override variables already set, so real env > `.env.local` > `.env`). |
 
 Related scripts that live elsewhere: `db:migrate` → `src/db/migrate.ts`, `db:seed` →
