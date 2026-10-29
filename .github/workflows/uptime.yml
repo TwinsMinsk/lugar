@@ -1,0 +1,84 @@
+# Checks the live site every 15 minutes and keeps one GitHub issue open while it is unhealthy.
+#
+# Nothing else watches production. Railway calls /api/health only while it rolls out a deploy, and
+# the endpoint deliberately answers 200 when the outbox worker is dead (see the route's comment), so
+# a stopped worker means leads silently stop reaching anybody. Here, a worker that is not `ok` counts
+# as a failure.
+#
+# A failure opens an issue instead of failing the job. Railway's "Wait for CI" waits on every check
+# suite of the commit it deploys, and scheduled runs attach to the head of `main` — a red run there
+# would hold back the deploy of the very fix it is reporting. The issue emails the repository's
+# watchers, stays the only one while the problem lasts, and closes itself on recovery.
+#
+# GitHub pauses scheduled workflows in a public repository after 60 days without commits. It emails
+# before doing so; re-enable under Actions → uptime.
+name: uptime
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check /api/health
+        run: |
+          # Three attempts a minute apart: a deploy restarts the site and the worker, and the
+          # worker's heartbeat only counts as stale after two minutes.
+          : > problem.txt
+          for attempt in 1 2 3; do
+            response=$(curl -sS --max-time 20 -w '\n%{http_code}' https://lugaroficial.es/api/health 2>&1) || true
+            code=$(printf '%s\n' "$response" | tail -n 1)
+            body=$(printf '%s\n' "$response" | sed '$d')
+            status=$(printf '%s' "$body" | jq -r '.status // empty' 2>/dev/null || true)
+            worker=$(printf '%s' "$body" | jq -r '.checks.worker // empty' 2>/dev/null || true)
+            if [ "$code" = 200 ] && [ "$status" = ok ] && [ "${worker#ok }" != "$worker" ]; then
+              : > problem.txt
+              echo "healthy: $body"
+              break
+            fi
+            printf 'HTTP %s\n%s\n' "$code" "$(printf '%s' "$body" | head -c 2000)" > problem.txt
+            echo "attempt $attempt failed: HTTP $code $body"
+            if [ "$attempt" -lt 3 ]; then sleep 60; fi
+          done
+
+      - name: Open or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create uptime --color B60205 --description 'Opened and closed by the uptime workflow' --force > /dev/null
+          issue=$(gh issue list --label uptime --state open --json number --jq '.[0].number // empty')
+          if [ -s problem.txt ]; then
+            if [ -n "$issue" ]; then
+              echo "still failing, issue #$issue already open"
+              exit 0
+            fi
+            {
+              echo 'Проверка `https://lugaroficial.es/api/health` не прошла три раза подряд с интервалом в минуту.'
+              echo
+              echo '```'
+              cat problem.txt
+              echo '```'
+              echo
+              echo '- `status` не `ok` или HTTP не 200 — сайт не отвечает или не видит базу: смотрите логи `lugar-web` в Railway.'
+              echo '- `worker` не `ok` — заявки перестали уходить: смотрите логи `lugar-worker` в Railway.'
+              echo
+              echo "Запуск: $RUN_URL. Issue закроется сам, когда проверка снова пройдёт."
+            } > body.md
+            gh issue create --label uptime --title 'lugaroficial.es: проверка здоровья не проходит' --body-file body.md
+          elif [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "Проверка снова проходит: $RUN_URL"
+            gh issue close "$issue"
+          fi
