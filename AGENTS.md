@@ -52,7 +52,7 @@ deviations from the original brief (no Supabase, no RLS, no Vercel) and the inva
 | `scripts/` | tsx/Node operational scripts behind npm scripts (see `scripts/AGENTS.md`) |
 | `docs/` | Architecture and owner-facing operational guides (see `docs/AGENTS.md`) |
 | `messages/` | next-intl UI string catalogues `ru.json`, `es.json`, `en.json` (see `messages/AGENTS.md`) |
-| `.github/workflows/` | `checks.yml` — lint, typecheck, format, unit; integration + build on Postgres 18; e2e. Does not deploy. `uptime.yml` — every 15 min checks live `/api/health` (status and worker) and keeps one `uptime`-labelled issue open while it fails; never fails the job, so it cannot block Railway's Wait for CI. |
+| `.github/workflows/` | `checks.yml` — lint, typecheck, format, unit; integration + build on Postgres 18; e2e. Does not deploy. `uptime.yml` — on a schedule (cron asks for 15 min, GitHub actually runs it every few hours) checks live `/api/health` (status and worker) and keeps one `uptime`-labelled issue open while it fails; never fails the job, so it cannot block Railway's Wait for CI. |
 
 Ignored, local-only: `.tools/` (project-local Node 24, `source .tools/env.sh`), `.storage/` (local
 media when `STORAGE_DRIVER=local`), `.next/`, `test-results/`, `.env.local`.
