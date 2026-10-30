@@ -1,4 +1,8 @@
-# Checks the live site every 15 minutes and keeps one GitHub issue open while it is unhealthy.
+# Checks the live site on a schedule and keeps one GitHub issue open while it is unhealthy.
+#
+# The cron asks for every 15 minutes, but GitHub delays and drops scheduled runs at will: from
+# 2026-10-29 to 2026-10-30 they came every 3.5 to 6.5 hours. Treat this as a backstop that reports an
+# outage hours late, not as the alert; fast alerting needs an external monitor.
 #
 # Nothing else watches production. Railway calls /api/health only while it rolls out a deploy, and
 # the endpoint deliberately answers 200 when the outbox worker is dead (see the route's comment), so
