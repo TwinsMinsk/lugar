@@ -25,7 +25,7 @@ export default defineRailway(() => {
   const lugarWebVolume = volume('lugar-web-volume', {
     alerts: { usage: { '100': {}, '80': {}, '95': {} } },
     allowOnlineResize: true,
-    region: 'ams',
+    region: REGION,
     sizeMB: 10000,
   });
 
@@ -41,6 +41,11 @@ export default defineRailway(() => {
     // Restart policy is left at Railway's default, ON_FAILURE: declaring it shows as a change on
     // every plan, because Railway stores the default as null.
     replicas: { [REGION]: 1 },
+    // A ceiling on the bill, not a sizing choice. The server process grows by roughly 70 MB a day
+    // for as long as it runs — 0.3 GB after a deploy, 2 GB three weeks later — and memory is
+    // nearly the whole invoice. At the limit Railway kills the container and the ON_FAILURE policy
+    // starts a fresh one. Raise or remove it once the leak itself is fixed.
+    deploy: { limitOverride: { containers: { memoryBytes: 1_000_000_000 } } },
     domains: ['lugaroficial.es', 'www.lugaroficial.es'],
     volumeMounts: { '/data/media': lugarWebVolume },
   });
