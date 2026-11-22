@@ -14,6 +14,7 @@ formatting. Files marked *pure* contain no I/O and are safe in Client Components
 
 | File | Description |
 |------|-------------|
+| `abort-signal-any.ts` | Not server-only. `unpinnedAny(signals)` and `installUnpinnedAbortSignalAny()`, which replaces the global `AbortSignal.any`; called first thing in `src/instrumentation.ts`. Works around a server memory leak: Next fills `'use cache'` entries during a prerender with a composite signal, React never detaches its `abort` listener, and Node pins such a signal for the life of the process — about 350 kB per URL the server had not seen before. The header comment says when it can be deleted; `tests/unit/abort-signal-any.test.ts` has a tripwire for it. |
 | `audit.ts` | `server-only`. `recordAudit(input, tx = db)` inserts an `audit_log` row; pass the surrounding transaction so the audit entry commits atomically with the change. `auditRequestContext()` returns `{ ipAddress, userAgent }` for the current request (call inside the action, never hoisted). `summarizeBlocks()` makes compact before/after diffs. Records summaries, never payloads or secrets. |
 | `cache-invalidation.ts` | `server-only`. `invalidatePublicPages()`: site-wide expiry for menu and settings changes (see "Two cache-invalidation modules" below). |
 | `client-ip.ts` | `server-only`. `clientIp(headers)`: `x-real-ip` first, then leftmost `x-forwarded-for`, else `null`. Used for rate-limit keys and audit rows. The value is what the request *claimed*; Railway's proxy behaviour for `x-forwarded-for` is flagged as unresolved in the file. |

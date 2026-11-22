@@ -19,6 +19,11 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  // First, before anything can render: every prerender from here on would
+  // otherwise pin its whole request in memory for the life of the process.
+  const { installUnpinnedAbortSignalAny } = await import('@/lib/abort-signal-any');
+  installUnpinnedAbortSignalAny();
+
   const { env } = await import('@/env');
   // Any read parses everything; this one is chosen because a deploy without it
   // cannot do anything at all.
